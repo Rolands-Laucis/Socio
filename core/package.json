@@ -1,0 +1,28 @@
+{
+  "name": "wsdb",
+  "version": "0.0.1",
+  "description": "a websocket based live and synced front and back end",
+  "main": "core.js",
+  "type": "module",
+  "scripts": {
+    "ws": "node core.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "DB",
+    "sync",
+    "SQL",
+    "query",
+    "frontend",
+    "backend",
+    "websocket",
+    "reactive",
+    "state"
+  ],
+  "author": "Rolands Laucis",
+  "license": "ISC",
+  "dependencies": {
+    "@rolands/log": "^1.0.1",
+    "ws": "^8.9.0"
+  }
+}
