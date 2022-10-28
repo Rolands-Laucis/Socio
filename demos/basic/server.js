@@ -1,6 +1,7 @@
 import express from 'express'
 import {SessionManager} from '../core/core.js'
 import { Sequelize } from 'sequelize';
+import { Secure } from '../core/secure.js';
 
 //constants
 const server_port = 5000, ws_port = 3000 //can be set up that the websockets run on the same port as the http server
@@ -18,6 +19,8 @@ const QueryWrap = async (sql='', params={}) => (await sequelize.query(sql, { log
 const manager = new SessionManager({ port: ws_port }, QueryWrap, {verbose:true} )
 console.log('Created SessionManager on port', ws_port)
 
+//init
+// const sec = Secure({})
 
 //express js serve static files like html page and the client.js which does the magic
 import { dirname } from 'path';

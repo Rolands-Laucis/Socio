@@ -3,6 +3,7 @@
 
 #mine
 ./db
+tests
 
 ### Database ###
 *.accdb
