@@ -7,6 +7,14 @@
 * ```npm i```
 * ```npm run demo```
 
+You might need to link the core lib to the demo manually, since it is not yet published (or setup) to npm:
+```bash
+cd core
+npm link
+cd ../demo
+npm link ../core
+```
+
 Should start the express webserver and print out its url, that you can visit on your fav browser to begin the interactive demo.
 
 * Visi the URL on one or multiple tabs or browser instances. 
