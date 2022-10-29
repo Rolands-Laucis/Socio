@@ -8,7 +8,7 @@ const ws = new WSClient(`ws://localhost:3000`, { verbose: true }) //each instanc
 await ws.ready()
 //and setup done :)
 
-document.getElementById('ready').innerHTML = `Ready. <h3>ClientID: ${ws.ses_id}</h3>`
+document.getElementById('ready').innerHTML = `Ready. <h3>client ID: ${ws.ses_id}</h3>`
 document.getElementById('ready').className += ' ready'
 
 // -------QUERY EXAMPLES-------

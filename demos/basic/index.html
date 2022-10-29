@@ -14,8 +14,11 @@
 
     <style>
         :root{
-            --grad: linear-gradient(90deg, rgb(238, 58, 70) 0%, rgb(100, 24, 163) 100%);
-            --shad:drop-shadow(0px 5px 5px rgba(0, 0, 0, 0.192))
+            --accent1: #ee3a46;
+            --accent2: #6418a3;
+            --grad: linear-gradient(90deg, var(--accent1) 0%, var(--accent1) 40%, var(--accent2) 90%, var(--accent2) 100%);
+            --shad:drop-shadow(0px 5px 5px rgba(0, 0, 0, 0.192));
+            --trans: 140ms ease-in-out;
         }
         body{
             margin: 0;
@@ -32,7 +35,15 @@
             align-items: center;
             justify-content: space-evenly;
         }
-        h1, h2, h3{
+        nav{
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        a, h1, h2, h3{
             margin: 0;
             padding: 0;
             filter: var(--shad);
@@ -60,6 +71,7 @@
         }
         h1{align-items: baseline;}
         h2{align-items: center;}
+        .status{align-items: baseline;}
 
         .code{
             font-family: 'Roboto Mono', monospace;
@@ -73,15 +85,13 @@
         .num{
             font-weight: 700;
             font-size: 37.5px;
-            background: var(--grad);
-            background-clip: text;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
         }
         button{
             font-weight: 700;
             font-size: 24px;
             background: var(--grad);
+            background-position: 50% 0px;
+            background-size: 150%;
             color: #fff;
             border: none;
             outline: none;
@@ -89,12 +99,24 @@
             padding: 12px;
             filter: var(--shad);
 
-            transition: 140ms ease-in-out;
+            transition: var(--trans);
         }
         button:hover{
             cursor: pointer;
             border-radius: 6px;
-            background-color: #eee;
+            background-position: 0px 0px;
+        }
+        .grad_clip{
+            background: var(--grad);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-position: 50% 0px;
+            background-size: 150%;
+            transition: var(--trans);
+        }
+        .grad_clip:hover{
+            background-position: 0px 0px;
         }
 
         .status.ready{color: #5fe757;}
@@ -102,12 +124,18 @@
 
     <body>
         <main>
-            <h1 id="ready" class="status">Not Ready!</h1>
+            <nav>
+                <h2 class="grad_clip">Socio</h2>
+                <a href="https://github.com/Rolands-Laucis/Socio.js" style="color: var(--accent2);">github</a>
+                <a href="https://www.npmjs.com/package/socio" style="color: var(--accent2);">npm</a>
+            </nav>
+            <h1>Socio Basic Demonstration</h1>
+            <h2 id="ready" class="status">Not Ready!</h2>
             
-            <h2><span class="code"><i>once:</i> "SELECT 42+69 AS RESULT;"</span> = <span id="1" class="num"></span></h2>
-            <h2><span class="code"><i>once:</i> "SELECT COUNT(*) FROM users;"</span> = <span id="2" class="num"></span></h2>
+            <h2><span class="code"><i>once:</i> "SELECT 42+69 AS RESULT;"</span> = <span id="1" class="num grad_clip"></span></h2>
+            <h2><span class="code"><i>once:</i> "SELECT COUNT(*) FROM users;"</span> = <span id="2" class="num grad_clip"></span></h2>
             <h2><span class="code"><i>subscribed:</i> "SELECT COUNT(*) FROM users WHERE name = :name;" && :name = 'Bob'</span> =
-                <span id="3" class="num"></span></h2>
+                <span id="3" class="num grad_clip"></span></h2>
             
             <button id="insert">"INSERT INTO users VALUES("Bob", 420);"</button>
             

@@ -1,13 +1,13 @@
 //Nullum magnum ingenium sine mixture dementia fuit. - There has been no great wisdom without an element of madness.
 
 import { log, error, info, setPrefix} from '@rolands/log'
-import { UUID, Secure } from './secure';
+import { UUID, Secure } from './secure.js';
 import { WebSocketServer } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
 //https://stackoverflow.com/questions/16280747/sending-message-to-a-specific-connected-users-using-websocket
 
 export class SessionManager{
     constructor(opts = {}, DB_query_callback = null, { verbose = false } = {}){
-        setPrefix('Totum') //for my logger
+        setPrefix('Socio') //for my logger
 
         const wss = new WebSocketServer(opts); //take a look at the WebSocketServer docs - the opts can have a server param, that can be your http server
         this.sessions = {} //ses_id:websocket

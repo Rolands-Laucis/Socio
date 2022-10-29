@@ -4,6 +4,9 @@
 #mine
 ./db
 tests
+*.ps1
+*.bat
+*.sh
 
 ### Database ###
 *.accdb

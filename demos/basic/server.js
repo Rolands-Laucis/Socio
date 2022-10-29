@@ -1,7 +1,6 @@
 import express from 'express'
-import {SessionManager} from '../core/core.js'
+import {SessionManager} from '../../core/core.js'
 import { Sequelize } from 'sequelize';
-import { Secure } from '../core/secure.js';
 
 //constants
 const server_port = 5000, ws_port = 3000 //can be set up that the websockets run on the same port as the http server
@@ -28,7 +27,7 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express()
 app.use("", express.static(__dirname));
-app.use("/", express.static(__dirname + "\\..\\core"));
+app.use("/", express.static(__dirname + "\\..\\..\\core"));
 
 app.listen(server_port, () => {
     console.log(`Express webserver listening on port ${server_port}`, `http://localhost:${server_port}/`)
