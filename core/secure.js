@@ -12,8 +12,13 @@ export class Secure{
         this.iv = te.encode(cipher_iv).slice(0, 16)
     }
     
+    //sql strings must be in single quotes and have an sql single line comment at the end with the name socio - "--socio"
     Secure(source_code = '') {
-
+        const sql_string_regex = /'(?<sql>[^']+?)--socio'/i
+        return source_code.split('\n').map(line => {
+            const m = line.match(sql_string_regex)
+            return m?.groups?.sql ? line.replace(sql_string_regex, '\'' + this.EncryptString(m.groups.sql) + '\'') : line
+        }).join('\n')
     }
 
     EncryptString(query = '') {

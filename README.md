@@ -14,6 +14,13 @@ cd ../demo
 npm link ../core
 ```
 
+## TODOs
+* Backend Life-cycle hooks
+* Session ID sync with backend webserver sessions
+* Keyed SQL queries
+* Better SQL dependency distinguisher on queries
+* Bundler plugins for securing query strings
+* Typescript migration
 
 ## Name:
 "Socio.js" comes from the latin verb "socio", which means to link or associate. Since this lib syncs your frontend and backend. Its also a play on words for "WebSockets" and "IO".
