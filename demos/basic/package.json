@@ -11,8 +11,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@rolands/log": "^1.1.1",
     "express": "^4.18.2",
     "sequelize": "^6.25.3",
+    "socio": "^0.0.1",
     "sqlite3": "^5.1.2"
   }
 }

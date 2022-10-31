@@ -1,15 +1,24 @@
-import { randomUUID, createCipheriv, createDecipheriv, randomBytes } from 'crypto'
+import { randomUUID, createCipheriv, createDecipheriv } from 'crypto'
 
-export class Secure{
+//The aim of the wise is not to secure pleasure, but to avoid pain. /Aristotle/
+export class SocioSecurity{
+    //private:
+    #key=''
+    #algo=''
+    #iv=''
+
     constructor({ secure_private_key = '', cipther_algorithm = 'AES-256-ctr', cipher_iv =''} = {}){
         if (!cipher_iv) cipher_iv = UUID()
         if (!secure_private_key || !cipther_algorithm || !cipher_iv) throw `Missing constructor arguments!`
+        if (secure_private_key.length < 32) throw `secure_private_key has to be at least 32 characters! Got ${secure_private_key.length}`
+        if (cipher_iv.length < 16) throw `cipher_iv has to be at least 16 characters! Got ${cipher_iv.length}`
+        if (!crypto.getCiphers().includes(cipther_algorithm)) throw `Unsupported algorithm [${cipther_algorithm}] by the Node.js Crypto module!`
 
         const te = new TextEncoder()
 
-        this.key = te.encode(secure_private_key).slice(0,32)
-        this.algo = cipther_algorithm
-        this.iv = te.encode(cipher_iv).slice(0, 16)
+        this.#key = te.encode(secure_private_key).slice(0,32) //has to be this length
+        this.#algo = cipther_algorithm
+        this.#iv = te.encode(cipher_iv).slice(0, 16) //has to be this length
     }
     
     //sql strings must be in single quotes and have an sql single line comment at the end with the name socio - "--socio"
@@ -22,13 +31,12 @@ export class Secure{
     }
 
     EncryptString(query = '') {
-        const cipher = createCipheriv(this.algo, Buffer.from(this.key), this.iv)
-        return (cipher.update(query, 'utf-8', 'base64') + cipher.final('base64')).replace(/\\/g, '\\\\') //escape backslashes to avoid escaping in the js string when this is put back into the souce code
+        const cipher = createCipheriv(this.#algo, Buffer.from(this.#key), this.#iv)
+        return (cipher.update(query, 'utf-8', 'base64') + cipher.final('base64')) //Base64 only contains A–Z , a–z , 0–9 , + , / and =
     }
 
     DecryptString(query = '') {
-        const decipther = createDecipheriv(this.algo, Buffer.from(this.key), this.iv)
-        query = query.replace(/\\\\/g, '\\') //remove the escaped backslashes to just backslashes
+        const decipther = createDecipheriv(this.#algo, Buffer.from(this.#key), this.#iv)
         return decipther.update(query, 'base64', 'utf-8') + decipther.final('utf-8')
     }
 }
