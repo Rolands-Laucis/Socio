@@ -1,5 +1,6 @@
-// import {SessionManager} from 'socio/core.js'
-import { SessionManager } from '../../core/core.js'
+// import { SessionManager } from '../../core/core.js' //i use this locally
+import {SessionManager} from 'socio/core.js' //for using the lib as a download from npm
+
 import { Sequelize } from 'sequelize';
 import { log, info, setPrefix, setShowTime } from '@rolands/log'; setPrefix('SERVER'); setShowTime(false);
 
