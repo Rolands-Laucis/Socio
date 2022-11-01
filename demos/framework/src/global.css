@@ -1,0 +1,61 @@
+:root {
+	font-family: 'Josefin Sans', 'Open Sans', sans-serif;
+	font-size: 20px;
+	font-weight: 400;
+
+	color-scheme: dark;
+	color: white;
+	background-color: #16161b;
+
+	--accent1: #ee3a46;
+	--accent2: #6418a3;
+	--grad: linear-gradient(45deg, var(--accent1) 0%, var(--accent1) 40%, var(--accent2) 90%, var(--accent2) 100%);
+	--shad: drop-shadow(0px 5px 5px rgba(0, 0, 0, 0.192));
+	--trans: 150ms ease-in-out;
+}
+
+html, body, #app {
+	margin: 0;
+	height: 100%;
+}
+#app{padding: 32px;}
+h1,h2,h3,h4,a{
+	margin: 0;
+	padding: 0;
+	filter: var(--shad);
+}
+
+h1 {
+	font-size: 48.83px;
+	font-weight: 700;
+}
+
+h2 {
+	font-size: 31.25px;
+	font-weight: 700;
+	line-height: 1.3;
+}
+
+h3 {
+	font-size: 20px;
+	font-weight: 300;
+	font-style: italic;
+	color: #5a5a5f;
+}
+
+a {
+	font-size: 25px;
+}
+
+.grad_clip {
+	background: var(--grad);
+	background-clip: text;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	background-position: 30% 0px;
+	background-size: 130%;
+	transition: var(--trans);
+}
+.grad_clip:hover {
+	background-position: 0px 0px;
+}

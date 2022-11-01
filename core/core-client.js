@@ -32,7 +32,7 @@ export class WSClient {
         this.#ws = new WebSocket(url)
         if (keep_alive && reconnect_tries)
             this.#ws.addEventListener("close", () => { 
-                if (this.#verbose) info(this.name, `WebSocket closed. Retrying...`); 
+                if (this.#verbose) info(`WebSocket closed. Retrying...`, this.name); 
                 this.#connect(url, keep_alive, verbose, reconnect_tries - 1)
             }); // <- rise from your grave!
     }
@@ -42,7 +42,7 @@ export class WSClient {
         if (this.#verbose) info(kind, data)
 
         switch(kind){
-            case 'CON': this.ses_id = data; this.#is_ready = true; if (this.#verbose) info(this.name, `WebSocket connected.`); break;
+            case 'CON': this.ses_id = data; this.#is_ready = true; if (this.#verbose) info(`WebSocket connected.`, this.name); break;
             case 'UPD':
                 if (data.sql in this.#queries)
                     this.#queries[data.sql].forEach(f => f(data.result));

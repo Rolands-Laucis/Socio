@@ -1,19 +1,13 @@
-# This is a super simple locally runnable demonstration of this lib and how to use it. Only depends on having Node installed.
+# This is a super simple locally runnable demonstration of the Socio lib and how to use it. Only depends on having Node installed.
 
 #### I saw the angel in the marble and carved until I set him free. /Michelangelo/
 
 * Download or clone this repo
-* ```cd demo```
+* ```cd demos/basic```
 * ```npm i```
 * ```npm run demo```
 
-You might need to link the core lib to the demo manually, since it is not yet published (or setup) to npm:
-```bash
-cd core
-npm link
-cd ../demos/basic
-npm link ../../core
-```
+_if it prints an import error, that might be bcs locally i test by npm linking the local package and have commented out the import of the released npm package. You can find the import and switch the commented lines._
 
 Should start the express webserver and print out its url, that you can visit on your fav browser to begin the interactive demo.
 

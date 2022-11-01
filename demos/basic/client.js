@@ -26,6 +26,6 @@ document.getElementById('insert').addEventListener('click', async (e) => {
 //queries with dynamic data - via params (optional):
 //subscribe to the changes of this query - whenever the table is altered on the backend. And run the callback with the new received data
 //this will also run the sql query to get the initial value, then indefinitely receive updates and rerun this callback.
-ws.subscribe({ sql: 'SELECT COUNT(*) FROM users WHERE name = :name;', params: { name: 'Bob' } }, (res) => {
-    document.getElementById('3').innerText = res[0]['COUNT(*)'] //res is whatever object your particular DB interface lib returns from a raw query
+ws.subscribe({ sql: 'SELECT COUNT(*) AS RESULT FROM users WHERE name = :name;', params: { name: 'Bob' } }, (res) => {
+    document.getElementById('3').innerText = res[0].RESULT //res is whatever object your particular DB interface lib returns from a raw query
 })
