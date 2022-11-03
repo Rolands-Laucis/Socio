@@ -14,18 +14,18 @@ document.getElementById('ready').className += ' ready'
 // -------QUERY EXAMPLES-------
 
 //some initial queries to be run once, that will not be reactive
-document.getElementById('1').innerText = (await ws.query('SELECT 42+69 AS RESULT;'))[0].RESULT
-document.getElementById('2').innerText = (await ws.query('SELECT COUNT(*) FROM users;'))[0]['COUNT(*)']
+document.getElementById('1').innerText = (await ws.query("SELECT 42+69 AS RESULT;"))[0].RESULT
+document.getElementById('2').innerText = (await ws.query("SELECT COUNT(*) FROM users;"))[0]['COUNT(*)']
 
 //set up a button to send an insert sql query on click
 document.getElementById('insert').addEventListener('click', async (e) => {
-    await ws.query('INSERT INTO users VALUES("Bob", 420);')
+    await ws.query("INSERT INTO users VALUES('Bob', 420);")
 })
 
 
 //queries with dynamic data - via params (optional):
 //subscribe to the changes of this query - whenever the table is altered on the backend. And run the callback with the new received data
 //this will also run the sql query to get the initial value, then indefinitely receive updates and rerun this callback.
-ws.subscribe({ sql: 'SELECT COUNT(*) AS RESULT FROM users WHERE name = :name;', params: { name: 'Bob' } }, (res) => {
+ws.subscribe({ sql: "SELECT COUNT(*) AS RESULT FROM users WHERE name = :name;", params: { name: 'Bob' } }, (res) => {
     document.getElementById('3').innerText = res[0].RESULT //res is whatever object your particular DB interface lib returns from a raw query
 })
