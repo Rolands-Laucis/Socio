@@ -1,4 +1,36 @@
-import { randomUUID, createCipheriv, createDecipheriv } from 'crypto'
+import MagicString from 'magic-string'; //https://github.com/Rich-Harris/magic-string
+import { randomUUID, createCipheriv, createDecipheriv, getCiphers } from 'crypto'
+
+try { //for my logger
+    var { info, log, error, done, setPrefix, setShowTime } = await import('@rolands/log')
+    setPrefix('Socio Secure')
+    setShowTime(false)
+} catch (e) {
+    console.log('[Socio Secure ERROR]', e)
+    var info = (...objs) => console.log('[Socio Secure]', ...objs)
+    var done = (...objs) => console.log('[Socio Secure]', ...objs)
+    var log = (...objs) => console.log('[Socio Secure]', ...objs)
+}
+
+//https://vitejs.dev/guide/api-plugin.html
+export function SocioSecurityPlugin({ secure_private_key = '', cipther_algorithm = 'aes-256-ctr', cipher_iv = '', verbose = false } = {}){
+    const ss = new SocioSecurity({secure_private_key:secure_private_key, cipther_algorithm:cipther_algorithm, cipher_iv:cipher_iv, verbose:verbose})
+    return{
+        name:'vite-socio-security',
+        enforce: 'pre',
+        transform(code, id){
+            const ext = id.split('.').slice(-1)[0]
+            if (['js', 'svelte', 'vue', 'jsx', 'ts'].includes(ext) && !id.match(/\/(node_modules|socio\/(core|core-client|secure))\//)) { // , 'svelte'
+                const s = ss.SecureSouceCode(code) //uses MagicString lib
+                // log(id, s.toString())
+                return {
+                    code: s.toString(),
+                    map: s.generateMap({source:id, includeContent:true})
+                }
+            }                
+        }
+    }
+}
 
 //The aim of the wise is not to secure pleasure, but to avoid pain. /Aristotle/
 export class SocioSecurity{
@@ -6,28 +38,35 @@ export class SocioSecurity{
     #key=''
     #algo=''
     #iv=''
+    #sql_string_regex = /(?<pre>\.subscribe\(\s*|\.query\(\s*|sql\s*:\s*)"(?<sql>[^"]+?)(?<post>--socio)"/ig
 
-    constructor({ secure_private_key = '', cipther_algorithm = 'AES-256-ctr', cipher_iv =''} = {}){
+    constructor({ secure_private_key = '', cipther_algorithm = 'aes-256-ctr', cipher_iv ='', verbose=false} = {}){
         if (!cipher_iv) cipher_iv = UUID()
         if (!secure_private_key || !cipther_algorithm || !cipher_iv) throw `Missing constructor arguments!`
         if (secure_private_key.length < 32) throw `secure_private_key has to be at least 32 characters! Got ${secure_private_key.length}`
         if (cipher_iv.length < 16) throw `cipher_iv has to be at least 16 characters! Got ${cipher_iv.length}`
-        if (!crypto.getCiphers().includes(cipther_algorithm)) throw `Unsupported algorithm [${cipther_algorithm}] by the Node.js Crypto module!`
+        if (!(getCiphers().includes(cipther_algorithm))) throw `Unsupported algorithm [${cipther_algorithm}] by the Node.js Crypto module!`
 
         const te = new TextEncoder()
 
         this.#key = te.encode(secure_private_key).slice(0,32) //has to be this length
         this.#algo = cipther_algorithm
         this.#iv = te.encode(cipher_iv).slice(0, 16) //has to be this length
+
+        if (verbose) done('Initialized SocioSecurity object succesfully')
     }
     
-    //sql strings must be in single quotes and have an sql single line comment at the end with the name socio - "--socio"
-    Secure(source_code = '') {
-        const sql_string_regex = /'(?<sql>[^']+?)--socio'/i
-        return source_code.split('\n').map(line => {
-            const m = line.match(sql_string_regex)
-            return m?.groups?.sql ? line.replace(sql_string_regex, '\'' + this.EncryptString(m.groups.sql) + '\'') : line
-        }).join('\n')
+    //sql strings must be in double quotes and have an sql single line comment at the end with the name socio - "--socio" ^ see the sql_string_regex pattern
+    SecureSouceCode(source_code = '') {
+        const s = new MagicString(source_code);
+
+        for (const m of source_code.matchAll(this.#sql_string_regex)){
+            if (m?.groups?.sql){
+                s.update(m.index, m.index + m[0].length, `${m.groups.pre}\"` + this.EncryptString(m.groups.sql) + `\"`)
+            }
+        }
+
+        return s
     }
 
     EncryptString(query = '') {

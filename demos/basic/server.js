@@ -3,7 +3,7 @@ import { SessionManager } from 'socio/core.js' //for using the lib as a download
 
 import express from 'express'
 import { Sequelize } from 'sequelize';
-import { log, info, setPrefix, setShowTime } from '@rolands/log'; setPrefix('EXPRESS'); setShowTime(false);
+import { log, done, setPrefix, setShowTime } from '@rolands/log'; setPrefix('EXPRESS'); setShowTime(false);
 
 //constants
 const server_port = 5000, ws_port = 3000 //can be set up that the websockets run on the same port as the http server
@@ -19,7 +19,7 @@ await sequelize.query('INSERT INTO Users VALUES("John", 69);')
 //Either you in a wrapper function or your DB interface lib should do the sql validation and sanitization, as this lib does not!
 const QueryWrap = async (sql='', params={}) => (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))[0]
 const manager = new SessionManager({ port: ws_port }, QueryWrap, {verbose:true} )
-info(`Created SessionManager on port`, ws_port)
+done(`Created SessionManager on port`, ws_port)
 
 //init
 // const sec = Secure({})
@@ -33,5 +33,5 @@ app.use("", express.static(__dirname));
 app.use("/", express.static(__dirname + "\\..\\..\\core"));
 
 app.listen(server_port, () => {
-    info(`Express webserver listening on port`, server_port, `http://localhost:${server_port}/`)
+    done(`Express webserver listening on port`, server_port, `http://localhost:${server_port}/`)
 })
