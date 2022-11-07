@@ -59,7 +59,7 @@ export class SessionManager{
         switch (kind) {
             case 'REG':
                 if(client_id in this.#sessions)
-                    this.#sessions[client_id].Send(['UPD', { id:data.id, result: await this.Query(data.sql, data.params) }])
+                    this.#sessions[client_id].Send(['UPD', { id: data.id, result: await this.Query({ id: data.id, ses_id: this.#sessions[client_id].ses_id, query: data.sql, params: data.params }) }])
 
                 //set up hook
                 if (QueryUtils.QueryIsSelect(data.sql))
@@ -69,7 +69,7 @@ export class SessionManager{
             case 'SQL':
                 const is_select = QueryUtils.QueryIsSelect(data.sql)
                 if (client_id in this.#sessions){
-                    const res = this.Query(data.sql, data.params)
+                    const res = this.Query({ id: data.id, ses_id: this.#sessions[client_id].ses_id, query: data.sql, params: data.params })
                     if (is_select) //wait for result
                         this.#sessions[client_id].Send(['SQL', { id: data.id, result: await res }])
                 }
@@ -92,7 +92,7 @@ export class SessionManager{
             tables.forEach(async (t) => {
                 if (s.hook_tables.includes(t)){
                     for await (const hook of s.GetHookObjs(t)) {
-                        s.Send(['UPD', { id: hook.id, result: (await this.Query(hook.sql, hook.params)) }])
+                        s.Send(['UPD', { id: hook.id, result: (await this.Query({id:hook.id, ses_id:s.ses_id, query: hook.sql, params:hook.params})) }])
                     }
                 }
             })
