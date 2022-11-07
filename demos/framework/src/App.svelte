@@ -13,7 +13,8 @@
 	
 	let ws = null
 	let clienID = false
-	const static_queries = [{text:'once:', sql:"SELECT 42+69 AS RESULT;--socio"}, {text:'once:', sql:"SELECT COUNT(*) AS RESULT FROM users;--socio"}]
+	const simple_sql_arith = "SELECT 42+69 AS RESULT;--socio";
+	const static_queries = [{text:'once:', sql:simple_sql_arith}, {text:'once:', sql:"SELECT COUNT(*) AS RESULT FROM users;--socio"}]
 	let users = [], bob_count=0;
 	const insert_fields = {name:'Bob', num:420}
 
