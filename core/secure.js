@@ -20,9 +20,9 @@ export function SocioSecurityPlugin({ secure_private_key = '', cipther_algorithm
         enforce: 'pre',
         transform(code, id){
             const ext = id.split('.').slice(-1)[0]
-            if (['js', 'svelte', 'vue', 'jsx', 'ts'].includes(ext) && !id.match(/\/(node_modules|socio\/(core|core-client|secure))\//)) { // , 'svelte'
+            if (['js', 'svelte', 'vue', 'jsx', 'ts'].includes(ext) && !id.match(/\/(node_modules|socio\/(core|core-client|secure))\//)) { // , 'svelte' 
                 const s = ss.SecureSouceCode(code) //uses MagicString lib
-                // log(id, s.toString())
+                // log(id)
                 return {
                     code: s.toString(),
                     map: s.generateMap({source:id, includeContent:true})
@@ -32,13 +32,16 @@ export function SocioSecurityPlugin({ secure_private_key = '', cipther_algorithm
     }
 }
 
+///(?<pre>\.subscribe\(\s*|\.query\(\s*|sql\s*:\s*)"(?<sql>[^"]+?)(?<post>--socio)"/ig
+const string_regex = /(?<q>["'])(?<str>[^ ]+? .+?)\1/g // /(?<q>["'])(?<str>.+?)\1/ig // match all strings
+const sql_string_regex = /(?<sql>.+?)(?<post>--socio;?)$/im //get the sql out of the string
+
 //The aim of the wise is not to secure pleasure, but to avoid pain. /Aristotle/
 export class SocioSecurity{
     //private:
     #key=''
     #algo=''
     #iv=''
-    #sql_string_regex = /(?<pre>\.subscribe\(\s*|\.query\(\s*|sql\s*:\s*)"(?<sql>[^"]+?)(?<post>--socio)"/ig
 
     constructor({ secure_private_key = '', cipther_algorithm = 'aes-256-ctr', cipher_iv ='', verbose=false} = {}){
         if (!cipher_iv) cipher_iv = UUID()
@@ -60,9 +63,10 @@ export class SocioSecurity{
     SecureSouceCode(source_code = '') {
         const s = new MagicString(source_code);
 
-        for (const m of source_code.matchAll(this.#sql_string_regex)){
-            if (m?.groups?.sql){
-                s.update(m.index, m.index + m[0].length, `${m.groups.pre}\"` + this.EncryptString(m.groups.sql) + `\"`)
+        for (const m of source_code.matchAll(string_regex)){
+            const sql = m.groups.str.match(sql_string_regex)
+            if (sql?.groups?.sql){
+                s.update(m.index, m.index + m[0].length, m.groups.q + this.EncryptString(sql.groups.sql) + m.groups.q)
             }
         }
 
