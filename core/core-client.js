@@ -118,7 +118,7 @@ export class WSClient {
             return this.key_generator()
         else{
             WSClient.#key += 1
-            return WSClient.#key //neat js trick - symbols are unique even if their strings are identical
+            return WSClient.#key
         }
     }
 }
