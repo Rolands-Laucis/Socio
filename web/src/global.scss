@@ -1,0 +1,44 @@
+//GOLBAL VARIABLES
+
+//color theme
+$dark: #07070C;
+$dark_blue: #07071D;
+$gray1: #0D0D0E;
+$light: #FFFFFF;
+
+$acc1: #FCF300;
+$acc2: #F300FC;
+
+//color usages
+$radial_bg: radial-gradient(50% 50% at 50% 50%, $dark_blue 0%, $dark 100%);
+
+//text sizes
+$typing_text: 22px;
+
+//blooms
+$bloom_text: 4px;
+$bloom:64px;
+$text_shadow: 0px 0px 16px rgba(255, 255, 255, 0.16);
+
+//universal paddings, spaces, gaps, margins for consistent alignment
+$trans: 140ms ease-in-out;
+
+@mixin no_spacings {
+    margin: 0px;
+    padding: 0px;
+    display: block;
+    width: auto;
+    height: auto;
+}
+
+h1,h2,h3,h4,h5,a{
+    @include no_spacings;
+    font-weight: 300;
+}
+h1 {font-size: 58.59px;
+    font-weight: bold;
+    text-shadow: $text_shadow;}
+h2 {font-size: 46.88px;}
+h3 {font-size: 37.50px;}
+h4 {font-size: 30.00px;}
+h5 {font-size: 24.00px;}

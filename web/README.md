@@ -1,0 +1,1 @@
+# Official hero web page for Socio made with Svelte + Vite
