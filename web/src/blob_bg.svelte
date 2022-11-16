@@ -16,22 +16,14 @@
 </section>
 
 <style lang="scss">
-    @import './global.scss';
-
-    :root{
-        --acc_1: #{$acc1};
-        --acc_2: #{$acc2};
-    }
-
     .blobs_wrap{
+        pointer-events: none;
         position: absolute;
         top: 0;
         left: 0;
         width: 100vw;
-        max-width: 100vw;
         height: 100vh;
-        max-height: 100vh;
-        opacity: 0.5;
+        opacity: 0.4;
         overflow: hidden;
     }
     .blobs{

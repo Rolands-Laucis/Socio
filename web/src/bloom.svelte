@@ -1,8 +1,8 @@
 <script>
-    export let style='';
+    export let style='', tb=false;
 </script>
 
-<div {style} class="bloom_wrap">
+<div {style} class="bloom_wrap" class:tb>
     <slot></slot>
     <div class="bloom">
         <slot></slot>
@@ -10,15 +10,15 @@
 </div>
 
 <style lang="scss">
-    // @import './global.scss';
-
     :root{
         --b: #{$bloom};
     }
 
+    .tb{
+        --b:#{$bloom_thin};
+    }
     .bloom_wrap{
         position: relative;
-        // display: inline-flex;
     }
     .bloom{
         width: 100%;

@@ -7,6 +7,7 @@ import sveltePreprocess from 'svelte-preprocess';
 const production = false;
 
 // https://vitejs.dev/config/
+/** @type {import('vite').UserConfig} */
 export default defineConfig({
   plugins: [svelte({
     //FOR SCSS
@@ -16,14 +17,18 @@ export default defineConfig({
         style: 'scss'
       },
       scss: {
-        // We can use a path relative to the root because
-        // svelte-preprocess automatically adds it to `includePaths`
-        // if none is defined.
         prependData: `@import 'src/global.scss';`
       },
     }),
     //FOR SCSS END
 
+    onwarn: (warning, handler) => {
+      const { code, frame } = warning;
+      if (code === "css-unused-selector")
+        return;
+
+      handler(warning);
+    },
 
     compilerOptions: {
       // enable run-time checks when not in production

@@ -1,39 +1,71 @@
 <script>
     import Bloom from "./bloom.svelte";
     import Border from "./border.svelte";
+    import Code from "./code.svelte";
 
 </script>
 
 <section class="content">
-    <h1>Socio.js</h1>
-    <h3 class="sub_title">WebSocket <Bloom style="--b:var(--tb);"><span style="color: var(--acc_1);">live</span></Bloom> / <Bloom style="--b:var(--tb);"><span style="color: var(--acc_2);">reactive</span></Bloom> database connection framework.</h3>
-    <!-- <Border>
-        <h3>sdgfhskdfksdfksd fjgdkjfgkh</h3>
-    </Border> -->
+    <div class="text">
+        <h1>Socio.js</h1>
+        <h4 class="sub_title">WebSocket <Bloom tb><span style="color: var(--acc_1);">live</span></Bloom>/ <Bloom tb><span style="color: var(--acc_2);">reactive</span></Bloom>database connection framework.</h4>
+        <nav>
+            <Bloom tb><a href="http://" target="_blank">github</a></Bloom>
+            <Bloom tb><a href="http://" target="_blank">npm</a></Bloom>
+        </nav>
+    </div>
+    <Border>
+        <Code>
+            {`const ws = new SocioClient('ws://localhost:3000', {verbose:true, name:'Main'})
+await ws.ready()
+clienID = ws.ses_id
+
+ws.subscribe({ sql: "SELECT COUNT(*) AS RESULT FROM users WHERE name = :name;--socio", params: { name: 'Bob' } }, (res) => {
+    bob_count = res[0].RESULT
+})
+
+ws.subscribe({ sql: "SELECT * FROM users;--socio"}, (res) => {})`}
+        </Code>
+    </Border>
 </section>
 
 <style lang="scss">
-    @import './global.scss';
-
-    :root{
-        --acc_1: #{$acc1};
-        --acc_2: #{$acc2};
-        --tb: #{$bloom_text};
-    }
-
     .content{
-        padding: 162px;
+        padding: 100px;
 
-        display: flex;
-        flex-direction: column;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
         gap: 24px;
     }
-    h3{
-        font-weight: 200;
+
+    .text{
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
     }
     .sub_title{
-        display: flex; 
-        align-items:center;
+        font-weight: 200;
+
+        display: flex;
+        flex-wrap: wrap;
+        align-items:baseline;
         white-space: pre;
+    }
+
+    nav{
+        display: flex;
+        gap: 16px;
+        text-transform: uppercase;
+
+        a{
+            color: $acc1;
+            text-decoration-color: $acc1;
+            text-underline-offset: 6px;
+            // transition: $trans;
+
+            &:hover{
+                text-underline-offset: 10px;
+            }
+        }
     }
 </style>

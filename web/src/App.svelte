@@ -10,7 +10,10 @@
     <BlobBg></BlobBg>
 </main>
 <style lang="scss">
-    @import './global.scss';
+    :root{
+        --acc_1: #{$acc1};
+        --acc_2: #{$acc2};
+    }
 
     main{
         position: relative;
