@@ -12,7 +12,7 @@ try { //for my logger
 }
 
 //"Because he not only wants to perform well, he wants to be well received — and the latter lies outside his control." /Epictetus/
-export class WSClient {
+export class SocioClient {
     // private:
     #queries = {} //id:[callback]
     #is_ready = false
@@ -136,8 +136,10 @@ export class WSClient {
         if (this?.key_generator)
             return this.key_generator()
         else{
-            WSClient.#key += 1
-            return WSClient.#key
+            SocioClient.#key += 1
+            return SocioClient.#key
         }
     }
+
+    get client_id(){return this.#ses_id}
 }

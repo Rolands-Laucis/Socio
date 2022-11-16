@@ -1,7 +1,7 @@
 <script>
 	//imports:
-	// import { WSClient } from 'socio/core-client.js'
-	import { WSClient } from '../../../core/core-client.js'
+	import { SocioClient } from 'socio/core-client.js'
+	// import { SocioClient } from '../../../core/core-client.js'
 	import {onMount} from 'svelte'
 	import {slide} from 'svelte/transition'
 
@@ -11,7 +11,7 @@
 	import Spinner from './spinner.svelte'
 	import Button from './button.svelte'
 	
-	let ws = null
+	let sc = null
 	let clienID = false
 	const simple_sql_arith = "SELECT 42+69 AS RESULT;--socio";
 	const static_queries = [{text:'once:', sql:simple_sql_arith}, {text:'once:', sql:"SELECT COUNT(*) AS RESULT FROM users;--socio"}]
@@ -19,17 +19,19 @@
 	const insert_fields = {name:'Bob', num:420}
 
 	onMount(async ()=>{
-		ws = new WSClient('ws://localhost:3000', {verbose:true, name:'Main'})
-		await ws.ready()
-		clienID = ws.ses_id
+		sc = new SocioClient('ws://localhost:3000', {verbose:true, name:'Main'})
+		await sc.ready()
+		clienID = sc.client_id
 
-		ws.subscribe({ sql: "SELECT COUNT(*) AS RESULT FROM users WHERE name = :name;--socio", params: { name: 'Bob' } }, (res) => {
+		sc.subscribe({ sql: "SELECT COUNT(*) AS RESULT FROM users WHERE name = :name;--socio", params: { name: 'Bob' } }, (res) => {
 			bob_count = res[0].RESULT //res is whatever object your particular DB interface lib returns from a raw query
 		})
 
-		ws.subscribe({ sql: "SELECT * FROM users;--socio"}, (res) => {
+		sc.subscribe({ sql: "SELECT * FROM users;--socio"}, (res) => {
 			users = res //res is whatever object your particular DB interface lib returns from a raw query
 		})
+
+		// console.log(await sc.query())
 	})
 </script>
 
@@ -45,7 +47,7 @@
 		{#each static_queries as q}
 			<h2 class="row horiz">
 				<h3>{q.text}</h3><Code on:click={() => q.sql = q.sql}>{q.sql}</Code> =
-				{#await ws.query(q.sql)}
+				{#await sc.query(q.sql)}
 					<Spinner></Spinner>
 				{:then res} 
 					<span class="num grad_clip">{res[0].RESULT}</span>
@@ -54,7 +56,7 @@
 		{/each}
 
 		<div class="horiz">
-			<Button on:click={async () => await ws.query("INSERT INTO users VALUES(:name, :num);--socio", insert_fields)} bind:name={insert_fields.name} bind:num={insert_fields.num}></Button>
+			<Button on:click={async () => await sc.query("INSERT INTO users VALUES(:name, :num);--socio", insert_fields)} bind:name={insert_fields.name} bind:num={insert_fields.num}></Button>
 			<input type="text" bind:value={insert_fields.name}>
 			<input type="number" bind:value={insert_fields.num}>
 		</div>
