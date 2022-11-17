@@ -32,8 +32,8 @@ export function SocioSecurityPlugin({ secure_private_key = '', cipther_algorithm
     }
 }
 
-const string_regex = /(?<q>["'])(?<str>[^ ]+? .+?)\1/g // /(?<q>["'])(?<str>.+?)\1/ig // match all strings
-const sql_string_regex = /(?<sql>.+?--socio(-auth)?;?)$/im //check that the string ends with --socio or variants
+export const string_regex = /(?<q>["'])(?<str>[^ ]+? .+?)\1/g // /(?<q>["'])(?<str>.+?)\1/ig // match all strings
+export const sql_string_regex = /(?<sql>.+?--socio(-auth)?;?)$/im //check that the string ends with --socio or variants
 
 //The aim of the wise is not to secure pleasure, but to avoid pain. /Aristotle/
 export class SocioSecurity{

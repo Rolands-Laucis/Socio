@@ -51,7 +51,8 @@ export class SocioClient {
                 this.#ses_id = data; 
                 this.#is_ready(); 
                 if (this.verbose) done(`WebSocket connected.`, this.name); 
-                delete this.#is_ready; //clear memory
+                // delete this.#is_ready; //clear memory. Cannot delete private properties
+                this.#is_ready = null;
                 break;
             case 'UPD':
                 if (this.#FindID(kind, data?.id))
@@ -89,7 +90,7 @@ export class SocioClient {
     //private method
     #send(data={}){
         this.#ws.send(JSON.stringify({ client_id: this.#ses_id, ...data }))
-        if (this.verbose) info('sent:', ...data)
+        if (this.verbose) info('sent:', data)
     }
 
     //subscribe to an sql query. Can add multiple callbacks where ever in your code, if their sql queries are identical

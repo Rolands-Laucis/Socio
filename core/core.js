@@ -3,6 +3,7 @@
 import { log, soft_error, info, setPrefix, setShowTime } from '@rolands/log'; setPrefix('Socio'); setShowTime(false); //for my logger
 import { UUID } from './secure.js';
 import { WebSocketServer } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
+import { sql_string_regex } from './secure.js'
 //https://stackoverflow.com/questions/16280747/sending-message-to-a-specific-connected-users-using-websocket
 
 //NB! some fields in these variables are private for safety reasons, but also bcs u shouldnt be altering them, only if through my defined ways. They are mostly expected to be constants.
@@ -35,12 +36,12 @@ export class SessionManager{
 
     #HandleError(e){
         if (this.hard_crash) throw e
-        if (this.#log_handlers.error) this.#log_handlers.error(e)
+        if (this.log_handlers.error) this.log_handlers.error(e)
         else if (this.verbose) soft_error(e)
     }
 
     #HandleInfo(...args){
-        if (this.#log_handlers.info) this.#log_handlers.info(...args)
+        if (this.log_handlers.info) this.log_handlers.info(...args)
         else if (this.verbose) info(...args)
     }
 
@@ -55,7 +56,7 @@ export class SessionManager{
                 this.#lifecycle_hooks.con(this.#sessions[client_id], req)
 
             //notify the client of their ID
-            conn.send(JSON.stringify(['CON', client_id]));
+            this.#sessions[client_id].Send({ kind: 'CON', data:client_id });
             this.#HandleInfo('CON', client_id)
 
             //set this client websockets event handlers
@@ -66,7 +67,9 @@ export class SessionManager{
                     this.#lifecycle_hooks.discon(this.#sessions[client_id])
 
                 //delete the connection object
-                delete this.#sessions[client_id]
+                // this.#sessions[client_id] = null
+                delete this.#sessions[client_id] //cant delete private properties, even if this is a key in an obj. IDK js, wtf... Could assign to new dup object without this key, but ehhh
+                
                 this.#HandleInfo('DISCON', client_id)
             });
         }catch(e){this.#HandleError(e)}
@@ -77,9 +80,12 @@ export class SessionManager{
             const { client_id, kind, data } = JSON.parse(req.toString())
             if (this.#secure && data?.sql) {//if this is supposed to be secure and sql was received, then decrypt it before continuing
                 data.sql = this.#secure.DecryptString(data.sql)
-                if (!/--socio;?$/mi.test(data.sql)){ //secured sql queries must end with the marker, to validate that they havent been tampered with and are not giberish.
-                    this.#HandleError('Decrypted sql string does not end with the --socio marker, therefor is invalid.', client_id, kind, data)
-                    return
+                if (!sql_string_regex.test(data.sql)) //secured sql queries must end with the marker, to validate that they havent been tampered with and are not giberish.
+                    throw ('Decrypted sql string does not end with the --socio marker, therefor is invalid.', client_id, kind, data)
+                
+                else if(/--socio-auth;?$/mi.test(data.sql)){ //query requiers auth to execute
+                    if(!this.#sessions[client_id].authenticated)
+                        throw (`Client ${client_id} tried to execute an auth query without being authenticated`)
                 }
             }
             this.#HandleInfo(`received [${kind}] from [${client_id}]`, data);
@@ -179,7 +185,8 @@ export class SessionManager{
     UnRegisterLifecycleHookHandler(name = '') {
         try{
             if (name in this.#lifecycle_hooks)
-                delete this.#lifecycle_hooks[name]
+                // this.#lifecycle_hooks[name] = null
+                delete this.#lifecycle_hooks[name] //cant delete private properties, even if this is a key in an obj. IDK js, wtf...
             else throw `Lifecycle hook [${name}] does not exist!`
         } catch (e) { this.#HandleError(e) }
     }
@@ -204,8 +211,9 @@ class Session{
     #id = null //unique ID for this session for my own purposes
     #ws=null
     #hooks=[]
+    #authenticated=false
 
-    constructor(client_id = '', browser_ws_conn = null, verbose = false){
+    constructor(client_id = '', browser_ws_conn = null, verbose = true){
         //private:
         this.#id = client_id
         this.#ws = browser_ws_conn
@@ -226,12 +234,14 @@ class Session{
 
     Send(data={}){
         this.#ws.send(JSON.stringify(data))
-        if (this.verbose) info('sent:', ...data)
+        if (this.verbose) info('sent:', data)
     }
 
     get hook_tables(){return Object.keys(this.#hooks)}
 
     GetHookObjs(table = '') { return this.#hooks[table]}
+
+    get authenticated(){return this.#authenticated}
 }
 
 
