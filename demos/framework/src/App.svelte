@@ -1,7 +1,7 @@
 <script>
 	//imports:
-	import { SocioClient } from 'socio/core-client.js'
-	// import { SocioClient } from '../../../core/core-client.js'
+	import { SocioClient } from '../../../core/core-client.js' //for local lib dev testing
+	// import { SocioClient } from 'socio/core-client.js' //use the lib in a project as downloaded from npm
 	import {onMount} from 'svelte'
 	import {slide} from 'svelte/transition'
 

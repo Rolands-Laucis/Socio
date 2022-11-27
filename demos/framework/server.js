@@ -1,7 +1,7 @@
-// import { SessionManager } from '../../core/core.js' //i use this locally
-// import { SocioSecurity } from '../../core/secure.js' //i use this locally
-import {SessionManager} from 'socio/core.js' //for using the lib as a download from npm
-import { SocioSecurity } from 'socio/secure.js' //for using the lib as a download from npm
+import { SessionManager } from '../../core/core.js' //i use this locally
+import { SocioSecurity } from '../../core/secure.js' //i use this locally
+// import {SessionManager} from 'socio/core.js' //for using the lib as a download from npm
+// import { SocioSecurity } from 'socio/secure.js' //for using the lib as a download from npm
 
 import { Sequelize } from 'sequelize';
 import { log, done, setPrefix, setShowTime } from '@rolands/log'; setPrefix('SERVER'); setShowTime(false);

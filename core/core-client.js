@@ -1,15 +1,22 @@
 //https://stackoverflow.com/questions/38946112/es6-import-error-handling
 try { //for my logger
-    var { info, log, error, done, soft_error, setPrefix, setShowTime } = await import('@rolands/log')
-    setPrefix('Socio Client')
-    setShowTime(false)
+    var { info, log, error, done, soft_error, setPrefix, setShowTime } = await import('@rolands/log'); setPrefix('Socio Client'); setShowTime(false);
 } catch (e) {
-    console.log('[Socio Client ERROR]', e)
-    var info = (...objs) => console.log('[Socio Client]', ...objs)
-    var done = (...objs) => console.log('[Socio Client]', ...objs)
-    var log = (...objs) => console.log('[Socio Client]', ...objs)
-    var soft_error = (...objs) => console.log('[Socio Client]', ...objs)
+    console.log('[Socio Client ERROR] IMPORT:', e)
+    var info = (...objs) => console.log('[Socio Client]', ...objs), 
+    done = (...objs) => console.log('[Socio Client]', ...objs), 
+    log = (...objs) => console.log('[Socio Client]', ...objs),
+    soft_error = (...objs) => console.log('[Socio Client]', ...objs)
 }
+
+// import { QueryIsSelect, ParseSQLForTables } from 'socio/utils'
+import { QueryIsSelect, ParseSQLForTables } from './utils.js'
+
+// try{
+//     const { QueryIsSelect, ParseSQLForTables } = await import('./utils.js')
+// }catch(e){
+//     const { QueryIsSelect, ParseSQLForTables } = await import('socio/utils')
+// }
 
 //"Because he not only wants to perform well, he wants to be well received — and the latter lies outside his control." /Epictetus/
 export class SocioClient {

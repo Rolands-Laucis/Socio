@@ -17,7 +17,7 @@
   "dependencies": {
     "@rolands/log": "^1.1.1",
     "sequelize": "^6.25.3",
-    "socio": "^0.0.1",
+    "socio": "^0.1.0",
     "sqlite3": "^5.1.2"
   }
 }
