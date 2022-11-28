@@ -12,12 +12,6 @@ try { //for my logger
 // import { QueryIsSelect, ParseSQLForTables } from 'socio/utils'
 import { QueryIsSelect, ParseSQLForTables } from './utils.js'
 
-// try{
-//     const { QueryIsSelect, ParseSQLForTables } = await import('./utils.js')
-// }catch(e){
-//     const { QueryIsSelect, ParseSQLForTables } = await import('socio/utils')
-// }
-
 //"Because he not only wants to perform well, he wants to be well received — and the latter lies outside his control." /Epictetus/
 export class SocioClient {
     // private:
