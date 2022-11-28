@@ -80,9 +80,10 @@ export class SocioClient {
         }
     }
 
+    //checks if the ID of a query exists (i.e. has been registered), otherwise rejects and logs
     #FindID(kind, id){
         if (id in this.#queries) return true
-        else if (this.verbose) soft_error(`${kind} message for unregistered SQL query! [${id}] with data:`, data)
+        else if (this.verbose) soft_error(`${kind} message for unregistered SQL query! id - [${id}]`)
         return false
     }
 
