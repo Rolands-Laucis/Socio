@@ -58,7 +58,7 @@ export class SessionManager{
                 this.#lifecycle_hooks.con(this.#sessions[client_id], req)
 
             //notify the client of their ID
-            this.#sessions[client_id].Send('CON', { data:client_id });
+            this.#sessions[client_id].Send('CON', client_id);
             this.#HandleInfo('CON', client_id)
 
             //set this client websockets event handlers
@@ -100,15 +100,13 @@ export class SessionManager{
             switch (kind) {
                 case 'REG':
                     if (client_id in this.#sessions)
-                        this.#sessions[client_id].Send('UPD',{ 
-                                data:{ 
-                                    id: data.id, 
-                                    result: await this.Query({ 
-                                        ...data, 
-                                        ses_id: this.#sessions[client_id].ses_id
-                                    }) 
-                                } 
+                        this.#sessions[client_id].Send('UPD', {
+                            id: data.id,
+                            result: await this.Query({
+                                ...data,
+                                ses_id: this.#sessions[client_id].ses_id
                             })
+                        })
 
                     //set up hook
                     if (QueryIsSelect(data.sql))
@@ -121,7 +119,7 @@ export class SessionManager{
                         //have to do the query in every case
                         const res = this.Query({ ...data, ses_id: this.#sessions[client_id].ses_id })
                         if (is_select) //wait for result, if a result is expected, and send it back
-                            this.#sessions[client_id].Send('SQL',{data:{ id: data.id, result: await res } })
+                            this.#sessions[client_id].Send('SQL', { id: data.id, result: await res })
                     }
 
                     //if the sql wasnt a SELECT, but altered some resource, then need to propogate that to other connection hooks
@@ -129,12 +127,12 @@ export class SessionManager{
                         this.Update(ParseSQLForTables(data.sql))
 
                     break;
-                case 'PING': this.#sessions[client_id].Send('PONG',{data:{ id: data?.id }}); break;
+                case 'PING': this.#sessions[client_id].Send('PONG', { id: data?.id }); break;
                 case 'AUTH':
                     if (this.#lifecycle_hooks.auth)
-                        this.#sessions[client_id].Send('AUTH',{data:{ id: data.id, result: await this.#lifecycle_hooks.auth(client_id, data.params) } })
+                        this.#sessions[client_id].Send('AUTH', { id: data.id, result: await this.#lifecycle_hooks.auth(client_id, data.params) })
                     else
-                        this.#sessions[client_id].Send('AUTH', {data:{ id: data.id, result: false } })
+                        this.#sessions[client_id].Send('AUTH', { id: data.id, result: false })
                     break;
                 // case '': break;
                 default: throw (`Unrecognized message kind! [${kind}] with data:`, data);
@@ -154,18 +152,15 @@ export class SessionManager{
                 tables.forEach(async (t) => {
                     if (s.hook_tables.includes(t)) {
                         for await (const hook of s.GetHookObjs(t)) {
-                            s.Send('UPD', { 
-                                    data: 
-                                    { 
-                                        id: hook.id, 
-                                        result: (await this.Query(
-                                            { 
-                                                ses_id: s.ses_id, 
-                                                ...hook
-                                            })) 
-                                    }
-                                    }
-                                )
+                            s.Send('UPD', {
+                                id: hook.id,
+                                result: (await this.Query(
+                                    {
+                                        ses_id: s.ses_id,
+                                        ...hook
+                                    }))
+                                }
+                            )
                         }
                     }
                 })
@@ -177,7 +172,7 @@ export class SessionManager{
     SendTo(client_id='', data={}){
         try{
             if (client_id in this.#sessions)
-                this.#sessions[client_id].Send('PUSH', {data:data })
+                this.#sessions[client_id].Send('PUSH', data)
             else throw `The provided session ID [${client_id}] was not found in the tracked web socket connections!`
         } catch (e) { this.#HandleError(e) }
     }
@@ -244,8 +239,9 @@ class Session{
         // log('reg hook', table, this.#hooks[table])
     }
 
-    Send(kind='',data={}){
-        this.#ws.send(JSON.stringify({ kind: kind, ...data }))
+    Send(kind = '', ...data) {//data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
+        if (data.length < 1) soft_error('Not enough arguments to send data! kind;data:', kind, ...data) //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
+        this.#ws.send(JSON.stringify(Object.assign({}, { kind: kind, data: data[0] }, ...data.slice(1))))
         if (this.verbose) info('sent:',kind, data)
     }
 

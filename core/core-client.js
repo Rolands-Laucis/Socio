@@ -49,11 +49,11 @@ export class SocioClient {
 
         switch(kind){
             case 'CON': 
-                this.#ses_id = data; 
-                this.#is_ready(); 
+                this.#ses_id = data;
+                this.#is_ready(true); //resolve promise to true
                 if (this.verbose) done(`WebSocket connected.`, this.name); 
-                // delete this.#is_ready; //clear memory. Cannot delete private properties
-                this.#is_ready = null;
+
+                this.#is_ready = undefined; //clear memory. Cannot delete private properties
                 break;
             case 'UPD':
                 if (this.#FindID(kind, data?.id))
@@ -89,9 +89,10 @@ export class SocioClient {
     ready(){return new Promise(res => this.#is_ready = res)}
 
     //private method
-    #send(data={}){
-        this.#ws.send(JSON.stringify({ client_id: this.#ses_id, ...data }))
-        if (this.verbose) info('sent:', data)
+    #send(kind='', ...data){ //data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
+        if(data.length < 1) soft_error('Not enough arguments to send data! kind;data:', kind, ...data) //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
+        this.#ws.send(JSON.stringify(Object.assign({}, { client_id: this.#ses_id, kind: kind, data:data[0] }, ...data.slice(1))))
+        if (this.verbose) info('sent:', kind, data)
     }
 
     //subscribe to an sql query. Can add multiple callbacks where ever in your code, if their sql queries are identical
@@ -103,7 +104,7 @@ export class SocioClient {
         else{
             const id = this.#gen_key
             this.#queries[id] = { sql: sql, f: [t ? callback.bind(t) : callback] }
-            this.#send({ kind: 'REG', data:{ id: id, sql: sql, params: params }})
+            this.#send('REG', { id: id, sql: sql, params: params })
         }
     }
 
@@ -114,13 +115,13 @@ export class SocioClient {
             this.#queries[id] = res
         })
         //send off the request, which will be resolved in the message handler
-        this.#send({kind:'SQL', data:{ id:id, sql: sql, params: params }})
+        this.#send('SQL', { id: id, sql: sql, params: params })
         return await prom
     }
 
     //sends a ping with either the user provided number or an auto generated number, for keeping track of packets and debugging
     ping(num=0){
-        this.#send({kind:'PING', data:{ id: num || this.#gen_key }})
+        this.#send('PING', { id: num || this.#gen_key })
     }
 
     async authenticate(params={}){ //params here can be anything, like username and password stuff etc. The backend server auth function callback will receive this entire object
@@ -129,7 +130,7 @@ export class SocioClient {
         const prom = new Promise((res) => {
             this.#queries[id] = res
         })
-        this.#send({kind:'AUTH', data:{ id:id, params: params}})
+        this.#send('AUTH', { id: id, params: params })
         return await prom
     }
 
