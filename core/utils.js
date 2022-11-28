@@ -1,3 +1,5 @@
+//I ask not for a lighter burden, but for broader shoulders. -Atlas, when asking Zeus for sympathy.
+
 export function QueryIsSelect(sql = '') {
     return /^SELECT/im.test(sql)
 }
