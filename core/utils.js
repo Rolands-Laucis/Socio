@@ -11,3 +11,9 @@ export function ParseSQLForTables(sql = '') {
         .split(/,[\s\n\t\r]*/mig)
         .map((t) => t.split(/[\s\n\t\r]/mi)[0].trim()) || []
 }
+
+export class SocioRateLimit{
+    constructor(){
+        
+    }
+}
