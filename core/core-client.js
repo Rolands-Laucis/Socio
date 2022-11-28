@@ -88,7 +88,7 @@ export class SocioClient {
 
     ready(){return new Promise(res => this.#is_ready = res)}
 
-    //private method
+    //private method - accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
     #send(kind='', ...data){ //data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
         if(data.length < 1) soft_error('Not enough arguments to send data! kind;data:', kind, ...data) //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
         this.#ws.send(JSON.stringify(Object.assign({}, { client_id: this.#ses_id, kind: kind, data:data[0] }, ...data.slice(1))))
