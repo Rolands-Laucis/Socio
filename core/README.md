@@ -19,6 +19,7 @@ Comes with a class for auto securing the SQL, so no worries about injections. An
 * Typescript migration
 * Rate-limit query updates
 * Threading paralization pipelines for async querry queues
+* Data loading and success or fail states
 * plenty more
 
 # Dont be shy to try this out on your small project. Feedback from real world use cases is much appreciated 🥰
