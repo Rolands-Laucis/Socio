@@ -17,6 +17,8 @@ try { //for my logger
 }
 
 //https://vitejs.dev/guide/api-plugin.html
+//THE VITE PLUGIN - import into vite config and add into the plugins array with your params.
+//it will go over your source code and replace --socio strings with their encrypted versions, that will be sent to the server and there will be decrypted using the below class
 export function SocioSecurityPlugin({ secure_private_key = '', cipther_algorithm = 'aes-256-ctr', cipher_iv = '', verbose = false } = {}){
     const ss = new SocioSecurity({secure_private_key:secure_private_key, cipther_algorithm:cipther_algorithm, cipher_iv:cipher_iv, verbose:verbose})
     return{
@@ -45,6 +47,9 @@ export class SocioSecurity{
     #algo=''
     #iv=''
 
+    //public:
+    verbose=false
+
     constructor({ secure_private_key = '', cipther_algorithm = 'aes-256-ctr', cipher_iv ='', verbose=false} = {}){
         if (!cipher_iv) cipher_iv = UUID()
         if (!secure_private_key || !cipther_algorithm || !cipher_iv) throw `Missing constructor arguments!`
@@ -65,6 +70,7 @@ export class SocioSecurity{
     SecureSouceCode(source_code = '') {
         const s = new MagicString(source_code);
 
+        //loop over match iterator f
         for (const m of source_code.matchAll(string_regex)){
             const sql = m.groups.str.match(sql_string_regex)
             if (sql?.groups?.sql){
