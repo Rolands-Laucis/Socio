@@ -1,5 +1,7 @@
 //Nullum magnum ingenium sine mixture dementia fuit. - There has been no great wisdom without an element of madness.
 
+"use strict";
+
 //libs
 import { WebSocketServer } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
 
@@ -16,12 +18,16 @@ export class SessionManager{
     #wss=null
     #sessions = {}//client_id:Session
     #secure=null //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages
-    #lifecycle_hooks = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null } //call the register function to hook on these. They will be called if they exist
-    
+    #lifecycle_hooks = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, access:null } //call the register function to hook on these. They will be called if they exist
+    //auth func can return any truthy or falsy value, the client will only receive a boolean, so its safe to set it to some credential or id or smth, as this would be accessible and useful to you when checking the session access to tables.
+    //the access funtion is for validating that the user has access to whatever tables or resources the sql is working with.
+
     //public:
     log_handlers = { error: null, info:null} //register your logger functions here. By default like this it will log to console, if verbose.
+    hard_crash = false //will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
+    verbose = true
 
-    constructor(opts = {}, DB_query_function = null, { secure =null, verbose = false, hard_crash=false } = {}){
+    constructor(opts = {}, DB_query_function = null, { secure =null, verbose = true, hard_crash=false } = {}){
         //private:
         this.#wss = new WebSocketServer(opts); //take a look at the WebSocketServer docs - the opts can have a server param, that can be your http server
         this.#secure = secure
@@ -34,17 +40,6 @@ export class SessionManager{
         this.#wss.on('connection', this.#Connect.bind(this)); //https://thenewstack.io/mastering-javascript-callbacks-bind-apply-call/ have to bind 'this' to the function, otherwise it will use the .on()'s 'this', so that this.[prop] are not undefined
         this.#wss.on('close', (...stuff) => { info('WebSocketServer close event', ...stuff) });
         this.#wss.on('error', (...stuff) => { this.#HandleError('WebSocketServer error event', ...stuff)});
-    }
-
-    #HandleError(e){
-        if (this.hard_crash) throw e
-        if (this.log_handlers.error) this.log_handlers.error(e)
-        else if (this.verbose) soft_error(e)
-    }
-
-    #HandleInfo(...args){
-        if (this.log_handlers.info) this.log_handlers.info(...args)
-        else if (this.verbose) info(...args)
     }
 
     #Connect(conn, req){
@@ -87,7 +82,7 @@ export class SessionManager{
                 
                 else if(/--socio-auth;?$/mi.test(data.sql)){ //query requiers auth to execute
                     if(!this.#sessions[client_id].authenticated)
-                        throw (`Client ${client_id} tried to execute an auth query without being authenticated`)
+                        throw (`Client ${client_id} tried to execute an auth query without being authenticated.`)
                 }
             }
             this.#HandleInfo(`received [${kind}] from [${client_id}]`, data);
@@ -128,11 +123,14 @@ export class SessionManager{
 
                     break;
                 case 'PING': this.#sessions[client_id].Send('PONG', { id: data?.id }); break;
-                case 'AUTH':
-                    if (this.#lifecycle_hooks.auth)
-                        this.#sessions[client_id].Send('AUTH', { id: data.id, result: await this.#lifecycle_hooks.auth(client_id, data.params) })
-                    else
+                case 'AUTH'://client requests to authenticate itself with the server
+                    if (!this.#lifecycle_hooks.auth){
+                        this.#HandleError('Auth function hook not registered, so client not authenticated.')
                         this.#sessions[client_id].Send('AUTH', { id: data.id, result: false })
+                    }else{
+                        await this.#sessions[client_id].Authenticate(this.#lifecycle_hooks.auth, this.#sessions[client_id], data.params) //bcs its a private class field, give this function the hook to call and params to it. It will set its field and we can just read that off and send it back as the result
+                        this.#sessions[client_id].Send('AUTH', { id: data.id, result: this.#sessions[client_id].authenticated == true }) //authenticated can be any truthy or falsy value, but the client will only receive a boolean, so its safe to set this to like an ID or token or smth for your own use
+                    }
                     break;
                 // case '': break;
                 default: throw (`Unrecognized message kind! [${kind}] with data:`, data);
@@ -209,27 +207,43 @@ export class SessionManager{
     ClientIDsOfSession(ses_id = ''){
         return this.#sessions?.filter(s => s.ses_id === ses_id)?.map(s => s.id) || []
     }
+
+    #HandleError(e) {
+        if (this.hard_crash) throw e
+        if (this.log_handlers.error) this.log_handlers.error(e)
+        else if (this.verbose) soft_error(e)
+    }
+
+    #HandleInfo(...args) {
+        if (this.log_handlers.info) this.log_handlers.info(...args)
+        else if (this.verbose) info(...args)
+    }
 }
 
 
 //Homo vitae commodatus non donatus est. - Man's life is lent, not given. /Syrus/
 class Session{
     //private:
-    #id = null //unique ID for this session for my own purposes
+    #client_id = null //unique ID for this session for my own purposes
     #ws=null
     #hooks=[]
-    #authenticated=false
+    #authenticated=false //usually boolean, but can be any truthy or falsy value to show the state of the session. Can be a token or smth for your own use, bcs the client will only receive a boolean
+
+    //public:
+    ses_id = null //you are free to set this to whatever, so that you can later identify it by any means. Usually set it to whatever your session cookie is for this client on your web server
+    verbose = true
 
     constructor(client_id = '', browser_ws_conn = null, verbose = true){
         //private:
-        this.#id = client_id
+        this.#client_id = client_id //unique ID for this session for my own purposes
         this.#ws = browser_ws_conn
         this.#hooks = {} //table_name:[sql]
 
         //public:
-        this.ses_id = null //you are free to set this to whatever, so that you can later identify it by any means. Usually set it to whatever your session cookie is for this client on your web server
         this.verbose = verbose
     }
+
+    get client_id(){return this.#client_id}
 
     RegisterHook(table='', id='', sql='', params=null){ //TODO this is actually very bad
         if (table in this.#hooks && !this.#hooks[table].find((t) => t.sql == sql && t.params == params))
@@ -251,4 +265,7 @@ class Session{
     GetHookObjs(table = '') { return this.#hooks[table]}
 
     get authenticated(){return this.#authenticated}
+    async Authenticate(auth_func, ...params) { //auth func can return any truthy or falsy value, the client will only receive a boolean, so its safe to set it to some credential or id or smth, as this would be accessible and useful to you when checking the session access to tables
+        return this.#authenticated = await auth_func(...params)
+    }
 }

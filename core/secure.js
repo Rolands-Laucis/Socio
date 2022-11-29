@@ -1,3 +1,7 @@
+//The aim of the wise is not to secure pleasure, but to avoid pain. /Aristotle/
+
+"use strict";
+
 import MagicString from 'magic-string'; //https://github.com/Rich-Harris/magic-string
 import { randomUUID, createCipheriv, createDecipheriv, getCiphers } from 'crypto'
 
@@ -22,7 +26,6 @@ export function SocioSecurityPlugin({ secure_private_key = '', cipther_algorithm
             const ext = id.split('.').slice(-1)[0]
             if (['js', 'svelte', 'vue', 'jsx', 'ts'].includes(ext) && !id.match(/\/(node_modules|socio\/(core|core-client|secure))\//)) { // , 'svelte' 
                 const s = ss.SecureSouceCode(code) //uses MagicString lib
-                // log(id)
                 return {
                     code: s.toString(),
                     map: s.generateMap({source:id, includeContent:true})

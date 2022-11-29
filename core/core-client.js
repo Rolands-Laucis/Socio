@@ -1,3 +1,5 @@
+"use strict";
+
 //https://stackoverflow.com/questions/38946112/es6-import-error-handling
 try { //for my logger
     var { info, log, error, done, soft_error, setPrefix, setShowTime } = await import('@rolands/log'); setPrefix('Socio Client'); setShowTime(false);
@@ -68,9 +70,10 @@ export class SocioClient {
             case 'PONG': if (this.verbose) info('pong', data?.id); break;
             case 'AUTH':
                 if (this.#FindID(kind, data?.id)) {
-                    if (data?.result === false) { if (this.verbose) soft_error(`AUTH returned FALSE, which means websocket has not authenticated.`); }
-                    else this.socio_auth_token = data.result
-                    this.#queries[data.id](data?.result);
+                    if (data?.result !== true)
+                        if (this.verbose) soft_error(`AUTH returned FALSE, which means websocket has not authenticated.`);
+
+                    this.#queries[data.id](data?.result); //result should be either True or False to indicate success status
                     delete this.#queries[data.id] //clear memory
                 }
                 break;
