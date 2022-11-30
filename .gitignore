@@ -4,6 +4,7 @@
 #mine
 ./db
 tests
+dev
 *.ps1
 *.bat
 *.sh
