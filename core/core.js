@@ -176,7 +176,12 @@ export class SessionManager{
     }
 
     Emit(data={}){
-        this.#wss.emit(JSON.stringify({ kind:'EMIT', data:data }));
+        switch(true){
+            case data instanceof Blob: this.#wss.emit(data); break;
+            // case data instanceof Object || data instanceof Array: this.#wss.emit(JSON.stringify({ kind: 'EMIT', data: data })); break;
+            // case data instanceof Blob: this.#wss.emit(data); break;
+            default: this.#wss.emit(JSON.stringify({ kind: 'EMIT', data: data })); break;
+        }
     }
 
     RegisterLifecycleHookHandler(name='', handler=null){
