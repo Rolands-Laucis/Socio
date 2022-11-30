@@ -10,6 +10,8 @@ Check [secure framework demo](./demos/framework/README.md) to try an interactive
 
 NB! These might not work sometimes, bcs i use them to develop the lib and forget to reset them. Just look for the import errors and in the source uncomment the right import.
 
+Check [docs](./docs.md) to see direct examples and explinations of how to use various parts of the lib. Might be out of date, but the lib core files arent that big, and they are full of comments, so u can read up on those.
+
 Comes with a class for auto securing the SQL, so no worries about injections. And even a simple Vite plugin that wraps it 🥳
 
 ## TODOs 📝
