@@ -4,6 +4,7 @@
 
 import MagicString from 'magic-string'; //https://github.com/Rich-Harris/magic-string
 import { randomUUID, createCipheriv, createDecipheriv, getCiphers } from 'crypto'
+import { SocioArgsParse, sql_string_regex } from './utils.js'
 
 try { //for my logger
     var { info, log, error, done, setPrefix, setShowTime } = await import('@rolands/log')
@@ -38,7 +39,7 @@ export function SocioSecurityPlugin({ secure_private_key = '', cipther_algorithm
 }
 
 export const string_regex = /(?<q>["'])(?<str>[^ ]+? .+?)\1/g // /(?<q>["'])(?<str>.+?)\1/ig // match all strings
-export const sql_string_regex = /(?<sql>.+?--socio(-auth)?;?)$/im //check that the string ends with --socio or variants
+
 
 //The aim of the wise is not to secure pleasure, but to avoid pain. /Aristotle/
 export class SocioSecurity{
@@ -72,9 +73,9 @@ export class SocioSecurity{
 
         //loop over match iterator f
         for (const m of source_code.matchAll(string_regex)){
-            const sql = m.groups.str.match(sql_string_regex)
-            if (sql?.groups?.sql){
-                s.update(m.index, m.index + m[0].length, m.groups.q + this.EncryptString(sql.groups.sql) + m.groups.q)
+            const sql = m.groups.str.match(sql_string_regex)?.groups?.sql
+            if (sql){
+                s.update(m.index, m.index + m[0].length, m.groups.q + this.EncryptString(sql) + m.groups.q)
             }
         }
 

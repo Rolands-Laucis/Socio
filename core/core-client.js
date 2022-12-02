@@ -12,24 +12,24 @@ try { //for my logger
 }
 
 // import { QueryIsSelect, ParseSQLForTables } from 'socio/utils'
-import { QueryIsSelect, ParseSQLForTables } from './utils.js'
+import { ParseSQLForTables, SocioArgHas, ParseQueryVerb } from './utils.js'
 
 //"Because he not only wants to perform well, he wants to be well received — and the latter lies outside his control." /Epictetus/
 export class SocioClient {
     // private:
     #queries = {} //id:[callback]
+    #perms = {} //verb:[tables strings] keeps a dict of access permissions of verb type and to which tables this session has been granted. This is not safe, the backend does its own checks anyway.
     #is_ready = false
     #ws=null
     #ses_id = null
     static #key = 0 //all instances will share this number, such that they are always kept unique. Tho each of these clients would make a different session on the backend, but still
 
-    constructor(url, {name = '', verbose=false, keep_alive=true, reconnect_tries=1, push_callback=null} = {}) {
+    constructor(url, {name = '', verbose=false, keep_alive=true, reconnect_tries=1} = {}) {
         if (window || undefined && url.startsWith('ws://'))
             info('UNSECURE WEBSOCKET URL CONNECTION! Please use wss:// and https:// protocols in production to protect against man-in-the-middle attacks.')
 
         //public:
         this.name = name
-        // this.push = push_callback
         this.verbose = verbose
         
         this.#connect(url, keep_alive, verbose, reconnect_tries)
@@ -77,20 +77,26 @@ export class SocioClient {
                     delete this.#queries[data.id] //clear memory
                 }
                 break;
-            // case 'PUSH': this.push(data); break;
+            case 'PERM':
+                if (this.#FindID(kind, data?.id)) {
+                    if (data?.result?.granted !== true){
+                        if (this.verbose) soft_error(`PERM returned FALSE, which means websocket has not been granted perm for ${data?.verb} ${data?.table}.`);
+                    }else{//add to perms
+                        if (verb in this.#perms) {
+                            if (!this.#perms[verb].includes(key))
+                                this.#perms[verb].push(key);
+                        }
+                        else this.#perms[verb] = [key];
+                    }
+
+                    this.#queries[data.id](data?.result?.granted); //result should be either True or False to indicate success status
+                    delete this.#queries[data.id] //clear memory
+                }
+                break;
             // case '': break;
             default: info(`Unrecognized message kind! [${kind}] with data:`, data);
         }
     }
-
-    //checks if the ID of a query exists (i.e. has been registered), otherwise rejects and logs
-    #FindID(kind, id){
-        if (id in this.#queries) return true
-        else if (this.verbose) soft_error(`${kind} message for unregistered SQL query! id - [${id}]`)
-        return false
-    }
-
-    ready(){return new Promise(res => this.#is_ready = res)}
 
     //private method - accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
     #send(kind='', ...data){ //data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
@@ -111,8 +117,7 @@ export class SocioClient {
             this.#send('REG', { id: id, sql: sql, params: params })
         }
     }
-
-    async query(sql='', params=null){
+    query(sql='', params=null){
         //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
         const id = this.#gen_key;
         const prom = new Promise((res) => { 
@@ -120,22 +125,34 @@ export class SocioClient {
         })
         //send off the request, which will be resolved in the message handler
         this.#send('SQL', { id: id, sql: sql, params: params })
-        return await prom
+        return prom
     }
-
     //sends a ping with either the user provided number or an auto generated number, for keeping track of packets and debugging
     ping(num=0){
         this.#send('PING', { id: num || this.#gen_key })
     }
 
-    async authenticate(params={}){ //params here can be anything, like username and password stuff etc. The backend server auth function callback will receive this entire object
+    authenticate(params={}){ //params here can be anything, like username and password stuff etc. The backend server auth function callback will receive this entire object
         //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
         const id = this.#gen_key;
         const prom = new Promise((res) => {
             this.#queries[id] = res
         })
         this.#send('AUTH', { id: id, params: params })
-        return await prom
+        return prom
+    }
+    get_permission(verb='', table='') { //params here can be anything, like username and password stuff etc. The backend server auth function callback will receive this entire object
+        //if the perm already exists, lets not bother the poor server :)
+        if (verb in this.#perms && this.#perms[verb].includes(key)) 
+            return true
+
+        //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
+        const id = this.#gen_key;
+        const prom = new Promise((res) => {
+            this.#queries[id] = res
+        })
+        this.#send('PERM', { id: id, verb:verb, table:table })
+        return prom
     }
 
     //generates a unique key either via static counter or user provided key gen func
@@ -147,6 +164,13 @@ export class SocioClient {
             return SocioClient.#key
         }
     }
+    //checks if the ID of a query exists (i.e. has been registered), otherwise rejects and logs
+    #FindID(kind, id) {
+        if (id in this.#queries) return true
+        else if (this.verbose) soft_error(`${kind} message for unregistered SQL query! id - [${id}]`)
+        return false
+    }
 
     get client_id(){return this.#ses_id}
+    ready() { return new Promise(res => this.#is_ready = res) }
 }
