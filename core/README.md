@@ -2,7 +2,7 @@
 
 ## Connecting frontend to backend DB reactively!
 
-Say goodbye to REST APIs. No more API middleware and DB interfacing functions and wrappers and handlers. Write your SQL queries on the frontend and have their results be automagically refreshed on all clients when a resource is changed on the server DB.
+Say goodbye to REST APIs 👋. No more API middleware and DB interfacing functions and wrappers and handlers. Write your SQL queries on the frontend and have their results be automagically refreshed on all clients when a resource is changed on the server DB.
 
 Check [basic demo](../demos/basic/README.md) to try an interactive bare-bones demonstration.
 
