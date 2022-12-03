@@ -13,10 +13,7 @@
     :root{
         --b: #{$bloom};
     }
-
-    .tb{
-        --b:#{$bloom_thin};
-    }
+    .tb{--b:#{$bloom_thin};}
     .bloom_wrap{
         position: relative;
     }
@@ -26,6 +23,6 @@
         position: absolute;
         left: 0;
         top: 0;
-        filter: blur(var(--b));
+        filter: brightness(0.6) blur(var(--b));
     }
 </style>
