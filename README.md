@@ -10,7 +10,7 @@ Check [secure framework demo](./demos/framework/README.md) to try an interactive
 
 NB! These might not work sometimes, bcs i use them to develop the lib and forget to reset them. Just look for the import errors and in the source uncomment the right import.
 
-Check [docs](./docs.md) to see direct examples and explinations of how to use various parts of the lib. Might be out of date, but the lib core files arent that big, and they are full of comments, so u can read up on those.
+Check [docs](./core/docs.md) to see direct examples and explinations of how to use various parts of the lib. Might be out of date, but the lib core files arent that big, and they are full of comments, so u can read up on those.
 
 Comes with a class for auto securing the SQL, so no worries about injections. And even a simple Vite plugin that wraps it 🥳
 
@@ -22,9 +22,13 @@ Comes with a class for auto securing the SQL, so no worries about injections. An
 * Rate-limit query updates
 * Threading paralization pipelines for async querry queues
 * Data loading and success or fail states
+* Caching and dedup UPD msg kind
+* File and blob sending and replacing on the client side
 * plenty more
 
-# Dont be shy to try this out on your small project. Feedback from real world use cases is much appreciated 🥰
+### Dont be shy to try this out on your small project. Feedback from real world use cases is much appreciated 🥰
 
 ## Name:
 "Socio.js" comes from the latin verb "socio", which means to link or associate. Since this lib syncs your frontend and backend. Its also a play on words for "WebSockets" and "IO".
+
+I also have no idea how to describe this lib with technical terms, so let me know if you know :) also before starting this lib, i researched for something similar, but didnt find anything that does exactly this. Let me know if you are aware of a similar lib and i will include a link to it here!
