@@ -158,7 +158,7 @@ export class SessionManager{
                     }
                     break;
                 // case '': break;
-                default: throw (`[#msg-kind-issue]. Unrecognized message kind! [${kind}] with data:`, data);
+                default: throw (`Unrecognized message kind! [#msg-kind-issue]`, kind, data);
             }
         } catch (e) { this.#HandleError(e) }
     }
