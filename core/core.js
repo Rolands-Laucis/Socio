@@ -16,7 +16,7 @@ import { UUID } from './secure.js'
 export class SessionManager{
     // private:
     #wss=null
-    #sessions = {}//client_id:Session
+    #sessions = {}//client_id:SocioSession
     #secure=null //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages
     #lifecycle_hooks = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null } //call the register function to hook on these. They will be called if they exist
     //auth func can return any truthy or falsy value, the client will only receive a boolean, so its safe to set it to some credential or id or smth, as this would be accessible and useful to you when checking the session access to tables.
@@ -46,10 +46,10 @@ export class SessionManager{
         try{
             //construct the new session with a unique client ID
             const client_id = this.#lifecycle_hooks.gen_client_id ? this.#lifecycle_hooks.gen_client_id() : UUID()
-            this.#sessions[client_id] = new Session(client_id, conn, { verbose: this.verbose })
+            this.#sessions[client_id] = new SocioSession(client_id, conn, { verbose: this.verbose })
 
             //pass the object to the connection hook, if it exists
-            if (this.#lifecycle_hooks.con) //here you are free to set a session ID as Session.ses_id. Like whatever your web server generates. Then use the ClientIDsOfSession(ses_id) to get the web socket clients using that backend web server session
+            if (this.#lifecycle_hooks.con) //here you are free to set a session ID as SocioSession.ses_id. Like whatever your web server generates. Then use the ClientIDsOfSession(ses_id) to get the web socket clients using that backend web server session
                 this.#lifecycle_hooks.con(this.#sessions[client_id], req)
 
             //notify the client of their ID
@@ -247,7 +247,7 @@ export class SessionManager{
 
 
 //Homo vitae commodatus non donatus est. - Man's life is lent, not given. /Syrus/
-class Session{
+class SocioSession{
     //private:
     #client_id = null //unique ID for this session for my own purposes
     #ws=null
