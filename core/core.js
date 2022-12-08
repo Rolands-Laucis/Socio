@@ -19,6 +19,8 @@ export class SocioServer{
     #sessions = {}//client_id:SocioSession
     #secure=null //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages
     #lifecycle_hooks = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null } //call the register function to hook on these. They will be called if they exist
+    //msg hook receives all incomming msgs to the server. If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
+    //upd works the same as msg, but for everytime updates need to be propogated to all the sockets.
     //auth func can return any truthy or falsy value, the client will only receive a boolean, so its safe to set it to some credential or id or smth, as this would be accessible and useful to you when checking the session access to tables.
     //the grant_perm funtion is for validating that the user has access to whatever tables or resources the sql is working with. A client will ask for permission to a verb (SELECT, INSERT...) and table(s). If you grant access, then the server will persist it for the entire connection.
 
@@ -102,10 +104,9 @@ export class SocioServer{
             this.#HandleInfo(`received [${kind}] from [${client_id}]`, data);
 
             //let the developer handle the msg
-            if (this.#lifecycle_hooks.msg) {
-                this.#lifecycle_hooks.msg(client_id, kind, data)
-                return
-            }
+            if (this.#lifecycle_hooks.msg)
+                if(this.#lifecycle_hooks.msg(client_id, kind, data))
+                    return;
 
             switch (kind) {
                 case 'REG':
@@ -165,12 +166,12 @@ export class SocioServer{
 
     //OPTIMIZATION dont await the query, but queue up all of them on another thread then await and send there
     async Update(tables=[]){
-        if (this.#lifecycle_hooks.upd) {
-            this.#lifecycle_hooks.upd(tables)
-            return
-        }
+        if (this.#lifecycle_hooks.upd)
+            if (this.#lifecycle_hooks.upd(this.#sessions, tables))
+                return;
 
         try{
+            //a better algo: find all sqls that need to be rerun and run them once, then send result to all sessions that need it. Less DB usage.
             Object.values(this.#sessions).forEach(async (s) => {
                 tables.forEach(async (t) => {
                     if (s.hook_tables.includes(t)) {
