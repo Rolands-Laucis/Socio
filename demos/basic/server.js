@@ -1,5 +1,5 @@
-// import {SessionManager} from '../../core/core.js' //i use this locally
-import { SessionManager } from 'socio/core.js' //for using the lib as a download from npm
+// import {SocioServer} from '../../core/core.js' //i use this locally
+import { SocioServer } from 'socio/core.js' //for using the lib as a download from npm
 
 import express from 'express'
 import { Sequelize } from 'sequelize';
@@ -14,12 +14,12 @@ await sequelize.query('CREATE TABLE Users(name varchar(50), num INTEGER NOT NULL
 await sequelize.query('INSERT INTO Users VALUES("Jane", 42);')
 await sequelize.query('INSERT INTO Users VALUES("John", 69);')
 
-//set up the WebSocket manager and give it the DB querying function that comes from whatever your DB interface lib provides.
+//set up the WebSocket SocioServer and give it the DB querying function that comes from whatever your DB interface lib provides.
 //it needs the raw sql string, which can contain formatting parameters - insert dynamic data into the string. 
 //Either you in a wrapper function or your DB interface lib should do the sql validation and sanitization, as this lib does not!
 const QueryWrap = async ({ id = 0, ses_id = '', sql = '', params = {} } = {}) => (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))[0]
-const manager = new SessionManager({ port: ws_port }, QueryWrap, {verbose:true} )
-done(`Created SessionManager on port`, ws_port)
+const socserv = new SocioServer({ port: ws_port }, QueryWrap, {verbose:true} )
+done(`Created SocioServer on port`, ws_port)
 
 //init
 // const sec = Secure({})

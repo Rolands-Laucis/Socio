@@ -13,7 +13,7 @@ import { UUID } from './secure.js'
 //NB! some fields in these variables are private for safety reasons, but also bcs u shouldnt be altering them, only if through my defined ways. They are mostly expected to be constants.
 //whereas public variables are free for you to alter freely at any time during runtime.
 
-export class SessionManager{
+export class SocioServer{
     // private:
     #wss=null
     #sessions = {}//client_id:SocioSession
