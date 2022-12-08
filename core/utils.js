@@ -2,7 +2,7 @@
 
 "use strict";
 
-export const sql_string_regex = /(?<sql>.+?)(?<marker>--socio(?:-\w+?)*)?;?$/mi
+export const sql_string_regex = /(?<sql>.+?)(?<marker>--socio(?:-\w+?)*)?;?$/mi //markers currently support - auth, perm, \d+
 
 export function QueryIsSelect(sql = '') {
     return /^SELECT/im.test(sql)

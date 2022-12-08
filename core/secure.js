@@ -38,7 +38,7 @@ export function SocioSecurityPlugin({ secure_private_key = '', cipther_algorithm
     }
 }
 
-export const string_regex = /(?<q>["'])(?<str>[^ ]+? .+?)\1/g // /(?<q>["'])(?<str>.+?)\1/ig // match all strings
+export const string_regex = /(?<q>["'])(?<str>[^ ]+?.+?)\1/g // match all strings
 
 
 //The aim of the wise is not to secure pleasure, but to avoid pain. /Aristotle/
@@ -67,15 +67,15 @@ export class SocioSecurity{
         if (verbose) done('Initialized SocioSecurity object succesfully')
     }
     
-    //sql strings must be in double quotes and have an sql single line comment at the end with the name socio - "--socio" ^ see the sql_string_regex pattern
+    //sql strings must be in single or double quotes and have an sql single line comment at the end with the socio marker, e.g. "--socio" etc. See the sql_string_regex pattern in core/utils
     SecureSouceCode(source_code = '') {
         const s = new MagicString(source_code);
 
         //loop over match iterator f
-        for (const m of source_code.matchAll(string_regex)){
-            const sql = m.groups.str.match(sql_string_regex)?.groups?.sql
-            if (sql){
-                s.update(m.index, m.index + m[0].length, m.groups.q + this.EncryptString(sql) + m.groups.q)
+        for (const m of source_code.matchAll(string_regex)){ //loop over all strings in either '' or ""
+            const found = m.groups.str.match(sql_string_regex)?.groups
+            if (found?.sql && found.marker){
+                s.update(m.index, m.index + m[0].length, m.groups.q + this.EncryptString(found?.sql) + m.groups.q)
             }
         }
 
