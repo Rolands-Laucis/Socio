@@ -7,7 +7,7 @@ import { WebSocketServer } from 'ws'; //https://github.com/websockets/ws https:/
 
 //mine
 import { log, soft_error, error, info, setPrefix, setShowTime } from '@rolands/log'; setPrefix('Socio'); setShowTime(false); //for my logger
-import { QueryIsSelect, ParseQueryTables, SocioArgsParse, SocioArgHas, ParseQueryVerb } from './utils.js'
+import { QueryIsSelect, ParseQueryTables, SocioArgsParse, SocioArgHas, ParseQueryVerb, E } from './utils.js'
 import { UUID } from './secure.js'
 import {SocioSession} from './core-session.js'
 
@@ -82,24 +82,24 @@ export class SocioServer{
                 data.sql = this.#secure.DecryptString(data.sql)
                 const socio_args = SocioArgsParse(data.sql) //speed optimization
 
-                if (SocioArgHas('socio', { parsed: socio_args })) //secured sql queries must end with the marker, to validate that they havent been tampered with and are not giberish.
-                    throw ('Decrypted sql string does not end with the --socio marker, therefor is invalid. [#marker-issue]', client_id, kind, data)
-                
+                if (!SocioArgHas('socio', { parsed: socio_args })) //secured sql queries must end with the marker, to validate that they havent been tampered with and are not giberish.
+                    throw new E('Decrypted sql string does not end with the --socio marker, therefor is invalid. [#marker-issue]', client_id, kind, data, socio_args);
+
                 if (SocioArgHas('auth', { parsed: socio_args }))//query requiers auth to execute
                     if(!this.#sessions[client_id].authenticated)
-                        throw (`Client ${client_id} tried to execute an auth query without being authenticated. [#auth-issue]`)
+                        throw new E (`Client ${client_id} tried to execute an auth query without being authenticated. [#auth-issue]`);
                 
                 if (SocioArgHas('perm', { parsed: socio_args })) {//query requiers perm to execute
-                    const verb = ParseQueryVerb(data.sql)
+                    const verb = ParseQueryVerb(data.sql);
                     if(!verb)
-                        throw (`Client ${client_id} sent an unrecognized SQL query first clause. [#verb-issue]`, data.sql)
+                        throw new E (`Client ${client_id} sent an unrecognized SQL query first clause. [#verb-issue]`, data.sql);
                     
-                    const tables = ParseQueryTables(data.sql)
+                    const tables = ParseQueryTables(data.sql);
                     if (!tables)
-                        throw (`Client ${client_id} sent an SQL query without table names. [#table-name-issue]`, data.sql)
-
+                        throw new E (`Client ${client_id} sent an SQL query without table names. [#table-name-issue]`, data.sql);
+                    
                     if (!tables.every((t) => this.#sessions[client_id].HasPermFor(verb, t)))
-                        throw (`Client ${client_id} tried to execute a perms query without having the required permissions. [#perm-issue]`, verb, tables)   
+                        throw new E (`Client ${client_id} tried to execute a perms query without having the required permissions. [#perm-issue]`, verb, tables);
                 }
             }
             this.#HandleInfo(`received [${kind}] from [${client_id}]`, data);
@@ -160,7 +160,7 @@ export class SocioServer{
                     }
                     break;
                 // case '': break;
-                default: throw (`Unrecognized message kind! [#msg-kind-issue]`, kind, data);
+                default: throw new E(`Unrecognized message kind! [#msg-kind-issue]`, kind, data);
             }
         } catch (e) { this.#HandleError(e) }
     }
@@ -208,7 +208,7 @@ export class SocioServer{
         try{
             if (client_id in this.#sessions)
                 this.#sessions[client_id].Send('PUSH', data)
-            else throw `The provided session ID [${client_id}] was not found in the tracked web socket connections!`
+            else throw new E(`The provided session ID [${client_id}] was not found in the tracked web socket connections!`)
         } catch (e) { this.#HandleError(e) }
     }
     Emit(data={}){
@@ -224,14 +224,14 @@ export class SocioServer{
         try{
             if (name in this.#lifecycle_hooks)
                 this.#lifecycle_hooks[name] = handler
-            else throw `Lifecycle hook [${name}] does not exist!`
+            else throw new E(`Lifecycle hook [${name}] does not exist!`)
         } catch (e) { this.#HandleError(e) }
     }
     UnRegisterLifecycleHookHandler(name = '') {
         try{
             if (name in this.#lifecycle_hooks)
                 delete this.#lifecycle_hooks[name]
-            else throw `Lifecycle hook [${name}] does not exist!`
+            else throw new E(`Lifecycle hook [${name}] does not exist!`)
         } catch (e) { this.#HandleError(e) }
     }
     get LifecycleHookNames(){
@@ -248,7 +248,7 @@ export class SocioServer{
     #HandleError(e) {
         if (this.hard_crash) throw e
         if (this.log_handlers.error) this.log_handlers.error(e)
-        else if (this.verbose) error(e)
+        else if (this.verbose) error(e, ...(e?.logs || []))
     }
     #HandleInfo(...args) {
         if (this.log_handlers.info) this.log_handlers.info(...args)

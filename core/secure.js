@@ -50,8 +50,9 @@ export class SocioSecurity{
 
     //public:
     verbose=false
+    rand_int_gen=null
 
-    constructor({ secure_private_key = '', cipther_algorithm = 'aes-256-ctr', cipher_iv ='', verbose=false} = {}){
+    constructor({ secure_private_key = '', cipther_algorithm = 'aes-256-ctr', cipher_iv ='', rand_int_gen=null, verbose=false} = {}){
         if (!cipher_iv) cipher_iv = UUID()
         if (!secure_private_key || !cipther_algorithm || !cipher_iv) throw `Missing constructor arguments!`
         if (secure_private_key.length < 32) throw `secure_private_key has to be at least 32 characters! Got ${secure_private_key.length}`
@@ -64,7 +65,9 @@ export class SocioSecurity{
         this.#algo = cipther_algorithm
         this.#iv = te.encode(cipher_iv).slice(0, 16) //has to be this length
 
-        if (verbose) done('Initialized SocioSecurity object succesfully')
+        this.verbose = verbose
+        this.rand_int_gen = rand_int_gen
+        if (this.verbose) done('Initialized SocioSecurity object succesfully')
     }
     
     //sql strings must be in single or double quotes and have an sql single line comment at the end with the socio marker, e.g. "--socio" etc. See the sql_string_regex pattern in core/utils
@@ -73,10 +76,9 @@ export class SocioSecurity{
 
         //loop over match iterator f
         for (const m of source_code.matchAll(string_regex)){ //loop over all strings in either '' or ""
-            const found = m.groups.str.match(sql_string_regex)?.groups
-            if (found?.sql && found.marker){
-                s.update(m.index, m.index + m[0].length, m.groups.q + this.EncryptString(found?.sql) + m.groups.q)
-            }
+            const found = m?.groups?.str?.match(sql_string_regex)?.groups || {}
+            if (found?.sql && found?.marker && m.groups?.q)
+                s.update(m.index, m.index + m[0].length, this.EncryptSocioString(m.groups.q, found.sql, found.marker));
         }
 
         return s
@@ -90,6 +92,16 @@ export class SocioSecurity{
     DecryptString(query = '') {
         const decipther = createDecipheriv(this.#algo, Buffer.from(this.#key), this.#iv)
         return decipther.update(query, 'base64', 'utf-8') + decipther.final('utf-8')
+    }
+
+    //surrouded by the same quotes as original, the sql gets encrypted along with its marker, so neither can be altered on the front end. 
+    //+ a random int to scramble and randomize the encrypted string for every build.
+    EncryptSocioString(q='', sql='', marker=''){
+        return q + this.EncryptString(sql + (marker ? marker : '--socio') + '-' + this.GenRandInt()) + q
+    }
+
+    GenRandInt(min = 100, max = 10_000){
+        return this.rand_int_gen ? this.rand_int_gen(min, max) : Math.floor((Math.random() * (max - min)) + min)
     }
 }
 

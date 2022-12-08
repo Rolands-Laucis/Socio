@@ -23,7 +23,7 @@ export function SocioArgsParse(str=''){
 }
 
 export function SocioArgHas(val = '', { parsed = null, str = '' } = {}){
-    return parsed ? parsed.includes(val) : SocioArgsParse(str).includes(val)
+    return val ? (parsed ? parsed.includes(val) : (str ? SocioArgsParse(str).includes(val) : false)) : false
 }
 
 //always returns uppercase verb if found
@@ -34,5 +34,13 @@ export function ParseQueryVerb(q=''){
 export class SocioRateLimit{
     constructor(){
         
+    }
+}
+
+//for my own error throwing, bcs i want to throw a msg + some objects maybe to log the current state of the program
+export class E extends Error{
+    constructor(msg='', ...logs){
+        super(msg)
+        this.logs = logs
     }
 }
