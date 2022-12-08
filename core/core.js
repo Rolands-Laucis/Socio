@@ -6,7 +6,7 @@
 import { WebSocketServer } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
 
 //mine
-import { log, soft_error, info, setPrefix, setShowTime } from '@rolands/log'; setPrefix('Socio'); setShowTime(false); //for my logger
+import { log, soft_error, error, info, setPrefix, setShowTime } from '@rolands/log'; setPrefix('Socio'); setShowTime(false); //for my logger
 import { QueryIsSelect, ParseQueryTables, SocioArgsParse, SocioArgHas, ParseQueryVerb } from './utils.js'
 import { UUID } from './secure.js'
 import {SocioSession} from './core-session.js'
@@ -41,7 +41,7 @@ export class SocioServer{
         this.hard_crash = hard_crash
 
         this.#wss.on('connection', this.#Connect.bind(this)); //https://thenewstack.io/mastering-javascript-callbacks-bind-apply-call/ have to bind 'this' to the function, otherwise it will use the .on()'s 'this', so that this.[prop] are not undefined
-        this.#wss.on('close', (...stuff) => { info('WebSocketServer close event', ...stuff) });
+        this.#wss.on('close', (...stuff) => { this.#HandleInfo('WebSocketServer close event', ...stuff) });
         this.#wss.on('error', (...stuff) => { this.#HandleError('WebSocketServer error event', ...stuff)});
     }
 
@@ -137,7 +137,7 @@ export class SocioServer{
                     //if the sql wasnt a SELECT, but altered some resource, then need to propogate that to other connection hooks
                     if (!is_select)
                         this.Update(ParseQueryTables(data.sql))
-
+                    
                     break;
                 case 'PING': this.#sessions[client_id].Send('PONG', { id: data?.id }); break;
                 case 'AUTH'://client requests to authenticate itself with the server
@@ -165,36 +165,41 @@ export class SocioServer{
         } catch (e) { this.#HandleError(e) }
     }
 
-    //OPTIMIZATION dont await the query, but queue up all of them on another thread then await and send there
-    async Update(tables=[]){
+    Update(tables=[]){
         if (this.#lifecycle_hooks.upd)
             if (this.#lifecycle_hooks.upd(this.#sessions, tables))
                 return;
 
         try{
-            //a better algo: find all sqls that need to be rerun and run them once, then send result to all sessions that need it. Less DB usage.
+            //gather all sessions hooks sql queries that involve the altered tables
             const queries = {}
             Object.values(this.#sessions).forEach(s => {
-
-            })
-
-            Object.values(this.#sessions).forEach(async (s) => {
-                tables.forEach(async (t) => {
-                    if (s.hook_tables.includes(t)) {
-                        for await (const hook of s.GetHookObjs(t)) {
-                            s.Send('UPD', {
-                                id: hook.id,
-                                result: (await this.Query(
-                                    {
-                                        ses_id: s.ses_id,
-                                        ...hook
-                                    }))
-                                }
-                            )
-                        }
-                    }
+                s.GetHooksForTables(tables).forEach(h => { //GetHooksQueriesForTables always returns array. If empty, then the foreach wont run, so each sql guaranteed to have hooks array
+                    const obj = { id: h.id, params: h.params, session: s }
+                    if(h.sql in queries)
+                        queries[h.sql].push(obj)
+                    else
+                        queries[h.sql] = [obj]
                 })
             })
+
+            //asyncronously bombard the DB with queries. When they resolve, send the client the result.
+            for (const [sql, hooks] of Object.entries(queries)){
+                try{
+                    //group the hooks based on SQL + PARAMS (to optimize DB mashing), since those queries would be identical, but the recipients most likely arent, so cant just dedup the array.
+                    for (const group_hooks of GroupHooks(sql, hooks)){
+                        this.Query({ sql: sql, params: group_hooks[0].params }) //grab the first ones params, since all params of hooks of a group should be the same. Seeing as this query is done on behalf of a bunch of sessions, then the other args cannot be provided.
+                        .then(res => { //once the query completes, send out this result to all sessions that are subed to it
+                            group_hooks.forEach(h => {
+                                h.session.Send('UPD', {
+                                    id: h.id,
+                                    result: res
+                                })
+                            })
+                        })
+                    }
+                } catch (e) { this.#HandleError(e) }
+            }
         } catch (e) { this.#HandleError(e) }
     }
 
@@ -225,8 +230,7 @@ export class SocioServer{
     UnRegisterLifecycleHookHandler(name = '') {
         try{
             if (name in this.#lifecycle_hooks)
-                // this.#lifecycle_hooks[name] = null
-                delete this.#lifecycle_hooks[name] //cant delete private properties, even if this is a key in an obj. IDK js, wtf...
+                delete this.#lifecycle_hooks[name]
             else throw `Lifecycle hook [${name}] does not exist!`
         } catch (e) { this.#HandleError(e) }
     }
@@ -244,10 +248,24 @@ export class SocioServer{
     #HandleError(e) {
         if (this.hard_crash) throw e
         if (this.log_handlers.error) this.log_handlers.error(e)
-        else if (this.verbose) soft_error(e)
+        else if (this.verbose) error(e)
     }
     #HandleInfo(...args) {
         if (this.log_handlers.info) this.log_handlers.info(...args)
         else if (this.verbose) info(...args)
     }
+}
+
+//group the hooks based on SQL + PARAMS (to optimize DB mashing), since those queries would be identical, but the recipients most likely arent, so cant just dedup the array.
+//the key is only needed for grouping into arrays. So returns just the values of the final object. Array of arrays (hooks).
+function GroupHooks(sql='', hooks=[]){
+    const grouped = {}
+    for(const h of hooks){
+        const key = sql + JSON.stringify(h.params)
+        if(key in grouped)
+            grouped[key].push(h)
+        else
+            grouped[key] = [h]
+    }
+    return Object.values(grouped)
 }

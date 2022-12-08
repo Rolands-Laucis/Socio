@@ -1,5 +1,7 @@
 "use strict";
 
+import { log, info, setPrefix, setShowTime } from '@rolands/log'; setPrefix('SocioSession'); setShowTime(false); //for my logger
+
 //NB! some fields in these variables are private for safety reasons, but also bcs u shouldnt be altering them, only if through my defined ways. They are mostly expected to be constants.
 //whereas public variables are free for you to alter freely at any time during runtime.
 
@@ -31,20 +33,25 @@ export class SocioSession {
 
     //accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
     Send(kind = '', ...data) {//data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
-        if (data.length < 1) soft_error('Not enough arguments to send data! kind;data:', kind, ...data) //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
+        if (data.length < 1) throw ('Not enough arguments to send data! kind;data:', kind, data) //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
         this.#ws.send(JSON.stringify(Object.assign({}, { kind: kind, data: data[0] }, ...data.slice(1))))
         if (this.verbose) info('sent:', kind, data)
     }
 
-    get hook_tables() { return Object.keys(this.#hooks) }
-    GetHookObjs(table = '') { return this.#hooks[table] }
     RegisterHook(table = '', id = '', sql = '', params = null) { //TODO this is actually very bad
-        if (this.HasPermFor('SELECT', table))
-            if (table in this.#hooks && !this.#hooks[table].find((t) => t.sql == sql && t.params == params))
-                this.#hooks[table].push({ id: id, sql: sql, params: params });
-            else
-                this.#hooks[table] = [{ id: id, sql: sql, params: params }];
+        if (table in this.#hooks && !this.#hooks[table].find((t) => t.sql == sql && t.params == params))
+            this.#hooks[table].push({ id: id, sql: sql, params: params });
+        else
+            this.#hooks[table] = [{ id: id, sql: sql, params: params }];
         // log('reg hook', table, this.#hooks[table])
+    }
+    get hook_tables() { return Object.keys(this.#hooks) }
+    // GetHookObjsForTable(table = '') { return this.#hooks[table] }
+    GetHooksForTables(tables=[]){
+        return Object.entries(this.#hooks)
+            .filter(h => tables.includes(h[0]))
+            .map(h => h[1])
+            .flat() //flatten because all hooks are actually arrays of hooks, since a single table can have many sql queries involving it. But for simplicity of iteration, we dont care for it here. We just want to iter all of these objs of a table
     }
 
     get authenticated() { return this.#authenticated }
