@@ -11,8 +11,8 @@ try { //for my logger
     soft_error = (...objs) => console.log('[Socio Client]', ...objs)
 }
 
-// import { QueryIsSelect, ParseSQLForTables } from 'socio/utils'
-import { ParseSQLForTables, ParseQueryVerb, SocioArgHas, SocioArgsParse } from './utils.js'
+// import { QueryIsSelect, ParseQueryTables } from 'socio/utils'
+import { ParseQueryTables, ParseQueryVerb, SocioArgHas, SocioArgsParse } from './utils.js'
 
 //"Because he not only wants to perform well, he wants to be well received — and the latter lies outside his control." /Epictetus/
 export class SocioClient {
@@ -215,7 +215,7 @@ export class SocioClient {
                 const verb = ParseQueryVerb(sql)
                 if (!verb)
                     throw (`Client ${this.#ses_id} sent an unrecognized SQL query first clause. [#verb-issue]`, sql, this.name)
-                const tables = ParseSQLForTables(sql)
+                const tables = ParseQueryTables(sql)
                 if (!tables)
                     throw (`Client ${this.#ses_id} sent an SQL query without table names. [#table-name-issue]`, sql, this.name)
 
