@@ -20,16 +20,16 @@ import { SocioServer } from 'socio/core.js'
 const QueryWrap = async ({ id = 0, sql = '', params = {} } = {}) => (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))[0]
 
 //The actual instance of the manager on port 3000 using the created query function. Verbose will make it print all incoming and outgoing traffic from all sockets in a pretty printed look :)
-const manager = new SocioServer({ port: 3000 }, QueryWrap, {verbose:true} )
+const socserv = new SocioServer({ port: 3000 }, QueryWrap, {verbose:true} )
 
 //This class has a few public fields that you can alter, as well as useful functions to call later in your program at any time. E.g. set up lifecycle hooks:
 console.log(manager.LifecycleHookNames) //get an array of the hooks currently recognized in Socio. Or look them up yourself in the core lib :)
-manager.RegisterLifecycleHookHandler("con", (ses, req) => {
+socserv.RegisterLifecycleHookHandler("con", (ses, req) => {
     //woohoo a new client connection!
     //ses is the already created instance of Session class, that has useful properties and methods.
 })
 
-manager.Emit({data:'literally data.', all:'currently connected clients will receive this object now!'}) //imagine using this to send a new css style sheet to change how a button looks for everyone without them refreshing the page - realtime madness aaaa!
+socserv.Emit({data:'literally data.', all:'currently connected clients will receive this object now!'}) //imagine using this to send a new css style sheet to change how a button looks for everyone without them refreshing the page - realtime madness aaaa!
 ```
 
 ### Setup of ``SocioClient``
@@ -66,4 +66,23 @@ await sc.query("SELECT COUNT(*) FROM users;--socio-auth") //the backend will onl
 
 //Fear not, after awaiting ready, just send an auth request:
 const success = sc.authenticate({username:'Bob', password:'pass123'}) //success will be a boolean representing the status of the auth request. The params to the request are your free choice. This object will be passed to your auth hook callback, and it is there that you compute the decision yourself. Then you may execute --socio-auth queries. If this socket were to disconnect, you'd have to redo the auth.
+```
+
+### Setup of ``SocioSecurityPlugin``
+
+```js
+//vite.config.js
+
+import { defineConfig } from 'vite'
+import { svelte } from '@sveltejs/vite-plugin-svelte'
+
+import { SocioSecurityPlugin } from 'socio/secure.js'
+
+export default defineConfig({
+  plugins: [
+    svelte(),
+    //note that these key and iv are here for demonstration purposes and you should always generate your own. You may also supply any cipher algorithm supported by node's crypto module
+    SocioSecurityPlugin({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', cipher_iv: 'dsjkfh45h4lu45ilULIY$%IUfdjg', verbose: true })
+  ]
+})
 ```
