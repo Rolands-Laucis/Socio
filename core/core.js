@@ -52,7 +52,7 @@ export class SocioServer{
             this.#sessions[client_id] = new SocioSession(client_id, conn, { verbose: this.verbose })
 
             //pass the object to the connection hook, if it exists
-            if (this.#lifecycle_hooks.con) //here you are free to set a session ID as SocioSession.ses_id. Like whatever your web server generates. Then use the ClientIDsOfSession(ses_id) to get the web socket clients using that backend web server session
+            if (this.#lifecycle_hooks.con)
                 this.#lifecycle_hooks.con(this.#sessions[client_id], req)
 
             //notify the client of their ID
@@ -114,10 +114,7 @@ export class SocioServer{
                     if (client_id in this.#sessions)
                         this.#sessions[client_id].Send('UPD', {
                             id: data.id,
-                            result: await this.Query({
-                                ...data,
-                                ses_id: this.#sessions[client_id].ses_id
-                            })
+                            result: await this.Query(data)
                         })
 
                     //set up hook
@@ -129,7 +126,7 @@ export class SocioServer{
                     const is_select = QueryIsSelect(data.sql)
                     if (client_id in this.#sessions) {
                         //have to do the query in every case
-                        const res = this.Query({ ...data, ses_id: this.#sessions[client_id].ses_id })
+                        const res = this.Query(data)
                         if (is_select) //wait for result, if a result is expected, and send it back
                             this.#sessions[client_id].Send('SQL', { id: data.id, result: await res })
                     }
@@ -240,9 +237,6 @@ export class SocioServer{
 
     GetClientSession(client_id=''){
         return this.#sessions[client_id] || null
-    }
-    ClientIDsOfSession(ses_id = ''){
-        return this.#sessions?.filter(s => s.ses_id === ses_id)?.map(s => s.id) || []
     }
 
     #HandleError(e) {

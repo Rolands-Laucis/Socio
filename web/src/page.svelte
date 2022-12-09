@@ -18,13 +18,12 @@
         <Code>
             {`const ws = new SocioClient('ws://localhost:3000', {verbose:true, name:'Main'})
 await ws.ready()
-clienID = ws.ses_id
 
 ws.subscribe({ sql: "SELECT COUNT(*) AS RESULT FROM users WHERE name = :name;--socio", params: { name: 'Bob' } }, (res) => {
     bob_count = res[0].RESULT
 })
 
-ws.subscribe({ sql: "SELECT * FROM users;--socio"}, (res) => {})`}
+ws.query({ sql: "INSERT INTO users VALUES(:name);--socio-auth-perm"}, {name:'Joe'})`}
         </Code>
     </Border>
 </section>

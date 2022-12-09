@@ -17,8 +17,7 @@ import { SocioServer } from 'socio/core.js'
 
 //SocioServer needs a "query" function that it can call to fetch data. This would usually be your preffered ORM lib interface raw query function, but really this function is as simple as input and output, so it can do whatever you want. Like read from a txt file or whatever. It should be async and Socio will always await its response to send back to the client.
 //id is a unique auto incrementing index for the query itself that is sent from the client - not really important for you, but perhaps for debugging.
-//ses_id is the session identifier, for which one or more clients (with their own ID) may have connected, that you can use to validate the sql access params or whatever. You can also use it to ask Socio for the Session of this client, to do whatever you want with it.
-const QueryWrap = async ({ id = 0, ses_id = '', sql = '', params = {} } = {}) => (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))[0]
+const QueryWrap = async ({ id = 0, sql = '', params = {} } = {}) => (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))[0]
 
 //The actual instance of the manager on port 3000 using the created query function. Verbose will make it print all incoming and outgoing traffic from all sockets in a pretty printed look :)
 const manager = new SocioServer({ port: 3000 }, QueryWrap, {verbose:true} )

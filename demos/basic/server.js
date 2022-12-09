@@ -17,7 +17,7 @@ await sequelize.query('INSERT INTO Users VALUES("John", 69);')
 //set up the WebSocket SocioServer and give it the DB querying function that comes from whatever your DB interface lib provides.
 //it needs the raw sql string, which can contain formatting parameters - insert dynamic data into the string. 
 //Either you in a wrapper function or your DB interface lib should do the sql validation and sanitization, as this lib does not!
-async function QueryWrap({ id = 0, ses_id = '', sql = '', params = {} } = {}) {
+async function QueryWrap({ id = 0, sql = '', params = {} } = {}) {
     return (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))[0]
 }
 

@@ -18,7 +18,7 @@ import { ParseQueryTables, ParseQueryVerb, SocioArgHas, SocioArgsParse } from '.
 export class SocioClient {
     // private:
     #ws = null
-    #ses_id = null
+    #client_id = null
     #is_ready = false
     #authenticated=false
 
@@ -58,7 +58,7 @@ export class SocioClient {
 
             switch (kind) {
                 case 'CON':
-                    this.#ses_id = data;
+                    this.#client_id = data;
                     this.#is_ready(true); //resolve promise to true
                     if (this.verbose) done(`WebSocket connected.`, this.name);
 
@@ -110,7 +110,7 @@ export class SocioClient {
     //private method - accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
     #send(kind='', ...data){ //data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
         if(data.length < 1) soft_error('Not enough arguments to send data! kind;data:', kind, ...data) //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
-        this.#ws.send(JSON.stringify(Object.assign({}, { client_id: this.#ses_id, kind: kind, data:data[0] }, ...data.slice(1))))
+        this.#ws.send(JSON.stringify(Object.assign({}, { client_id: this.#client_id, kind: kind, data:data[0] }, ...data.slice(1))))
         this.#HandleInfo('sent:', kind, data)
     }
 
@@ -188,7 +188,7 @@ export class SocioClient {
         return false
     }
 
-    get client_id(){return this.#ses_id}
+    get client_id(){return this.#client_id}
     ready() { return new Promise(res => this.#is_ready = res) }
 
     #HandleError(e) {
@@ -208,19 +208,19 @@ export class SocioClient {
 
             //check auth
             if (SocioArgHas('auth', { parsed: args }) && !this.#authenticated)
-                throw (`Client ${this.#ses_id} tried to execute an auth query without being authenticated`, sql, this.name)
+                throw (`Client ${this.#client_id} tried to execute an auth query without being authenticated`, sql, this.name)
 
             //check perms
             if (SocioArgHas('perm', { parsed: args })) {
                 const verb = ParseQueryVerb(sql)
                 if (!verb)
-                    throw (`Client ${this.#ses_id} sent an unrecognized SQL query first clause. [#verb-issue]`, sql, this.name)
+                    throw (`Client ${this.#client_id} sent an unrecognized SQL query first clause. [#verb-issue]`, sql, this.name)
                 const tables = ParseQueryTables(sql)
                 if (!tables)
-                    throw (`Client ${this.#ses_id} sent an SQL query without table names. [#table-name-issue]`, sql, this.name)
+                    throw (`Client ${this.#client_id} sent an SQL query without table names. [#table-name-issue]`, sql, this.name)
 
                 if (!(verb in this.#perms) || !tables.every(t => this.#perms[verb].includes(t)))
-                    throw (`Client ${this.#ses_id} has insufficient permissions for query!`, verb, tables, this.name)
+                    throw (`Client ${this.#client_id} has insufficient permissions for query!`, verb, tables, this.name)
             }
         }
     }

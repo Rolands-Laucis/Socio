@@ -15,7 +15,6 @@ export class SocioSession {
     #perms = {} //verb:[tables strings] keeps a dict of access permissions of verb type and to which tables this session has been granted
 
     //public:
-    ses_id = null //you are free to set this to whatever, so that you can later identify it by any means. Usually set it to whatever your session cookie is for this client on your web server
     verbose = true
 
     constructor(client_id = '', browser_ws_conn = null, { verbose = true, default_perms = {} } = {}) {
