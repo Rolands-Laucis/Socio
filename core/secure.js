@@ -97,7 +97,7 @@ export class SocioSecurity{
     //surrouded by the same quotes as original, the sql gets encrypted along with its marker, so neither can be altered on the front end. 
     //+ a random int to scramble and randomize the encrypted string for every build.
     EncryptSocioString(q='', sql='', marker=''){
-        return q + this.EncryptString(sql + (marker ? marker : '--socio') + '-' + this.GenRandInt()) + q
+        return q + this.EncryptString(sql + (marker ? marker : '--socio') + '-' + this.GenRandInt()) + q //`--${this.GenRandInt()}\n` +
     }
 
     GenRandInt(min = 100, max = 10_000){

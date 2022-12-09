@@ -31,7 +31,7 @@
 			users = res //res is whatever object your particular DB interface lib returns from a raw query
 		})
 
-		console.log(await sc.query("SELECT 42+69 AS RESULT;--socio-auth;"))
+		console.log(await sc.query("SELECT 42+69 AS RESULT;--socio;"))
 	})
 </script>
 
