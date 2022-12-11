@@ -17,6 +17,7 @@ export class SocioSession extends LogHandler {
 
     //public:
     verbose = true
+    last_seen = null //date and time of last seen active session
 
     constructor(client_id = '', browser_ws_conn = null, { verbose = true, default_perms = {} } = {}) {
         super(info, soft_error);
@@ -30,6 +31,7 @@ export class SocioSession extends LogHandler {
         //public:
         this.verbose = verbose
 
+        this.last_seen_now()
         // this.HandleInfo('New session created', client_id)
     }
 
@@ -89,5 +91,9 @@ export class SocioSession extends LogHandler {
                 this.#perms[verb].push(key);
         }
         else this.#perms[verb] = [key];
+    }
+
+    last_seen_now(){
+        this.last_seen = new Date().toISOString()
     }
 }

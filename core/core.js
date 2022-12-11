@@ -218,6 +218,7 @@ export class SocioServer extends LogHandler {
     #CheckClientID(client_id, kind){
         if (!(client_id in this.#sessions)) 
             throw new E('Message arrived, but client_id not in sessions. [#client_id-issue]', client_id, kind)
+        this.#sessions[client_id].last_seen_now()
     }
 
     //when the server wants to send some data to a specific session client - can be any raw data
