@@ -30,17 +30,3 @@ export function SocioArgHas(val = '', { parsed = null, str = '' } = {}){
 export function ParseQueryVerb(q=''){
     return q.match(/^(?<verb>SELECT|INSERT|DROP|UPDATE|CREATE)/mi)?.groups?.verb.toUpperCase() || null
 }
-
-export class SocioRateLimit{
-    constructor(){
-        
-    }
-}
-
-//for my own error throwing, bcs i want to throw a msg + some objects maybe to log the current state of the program
-export class E extends Error{
-    constructor(msg='', ...logs){
-        super(msg)
-        this.logs = logs
-    }
-}

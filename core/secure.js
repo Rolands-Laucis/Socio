@@ -5,9 +5,10 @@
 import MagicString from 'magic-string'; //https://github.com/Rich-Harris/magic-string
 import { randomUUID, createCipheriv, createDecipheriv, getCiphers } from 'crypto'
 import { SocioArgsParse, sql_string_regex } from './utils.js'
+import { LogHandler } from './logging.js'
 
 try { //for my logger
-    var { info, log, error, done, setPrefix, setShowTime } = await import('@rolands/log')
+    var { info, log, error, soft_error, done, setPrefix, setShowTime } = await import('@rolands/log')
     setPrefix('Socio Secure')
     setShowTime(false)
 } catch (e) {
@@ -42,7 +43,7 @@ export const string_regex = /(?<q>["'])(?<str>[^ ]+?.+?)\1/g // match all string
 
 
 //The aim of the wise is not to secure pleasure, but to avoid pain. /Aristotle/
-export class SocioSecurity{
+export class SocioSecurity extends LogHandler {
     //private:
     #key=''
     #algo=''
@@ -53,6 +54,8 @@ export class SocioSecurity{
     rand_int_gen=null
 
     constructor({ secure_private_key = '', cipther_algorithm = 'aes-256-ctr', cipher_iv ='', rand_int_gen=null, verbose=false} = {}){
+        super(info, soft_error);
+        
         if (!cipher_iv) cipher_iv = UUID()
         if (!secure_private_key || !cipther_algorithm || !cipher_iv) throw `Missing constructor arguments!`
         if (secure_private_key.length < 32) throw `secure_private_key has to be at least 32 characters! Got ${secure_private_key.length}`

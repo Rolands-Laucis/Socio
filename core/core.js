@@ -7,14 +7,15 @@ import { WebSocketServer } from 'ws'; //https://github.com/websockets/ws https:/
 
 //mine
 import { log, soft_error, error, info, setPrefix, setShowTime } from '@rolands/log'; setPrefix('Socio'); setShowTime(false); //for my logger
-import { QueryIsSelect, ParseQueryTables, SocioArgsParse, SocioArgHas, ParseQueryVerb, E } from './utils.js'
+import { QueryIsSelect, ParseQueryTables, SocioArgsParse, SocioArgHas, ParseQueryVerb } from './utils.js'
+import { E, LogHandler } from './logging.js'
 import { UUID } from './secure.js'
 import {SocioSession} from './core-session.js'
 
 //NB! some fields in these variables are private for safety reasons, but also bcs u shouldnt be altering them, only if through my defined ways. They are mostly expected to be constants.
 //whereas public variables are free for you to alter freely at any time during runtime.
 
-export class SocioServer{
+export class SocioServer extends LogHandler {
     // private:
     #wss=null
     #sessions = {}//client_id:SocioSession
@@ -26,11 +27,14 @@ export class SocioServer{
     //the grant_perm funtion is for validating that the user has access to whatever tables or resources the sql is working with. A client will ask for permission to a verb (SELECT, INSERT...) and table(s). If you grant access, then the server will persist it for the entire connection.
 
     //public:
-    log_handlers = { error: null, info:null} //register your logger functions here. By default like this it will log to console, if verbose.
+
+    //public:
     hard_crash = false //will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
     verbose = true
 
     constructor(opts = {}, DB_query_function = null, { secure =null, verbose = true, hard_crash=false } = {}){
+        super(info, error);
+
         //private:
         this.#wss = new WebSocketServer(opts); //take a look at the WebSocketServer docs - the opts can have a server param, that can be your http server
         this.#secure = secure
@@ -41,8 +45,8 @@ export class SocioServer{
         this.hard_crash = hard_crash
 
         this.#wss.on('connection', this.#Connect.bind(this)); //https://thenewstack.io/mastering-javascript-callbacks-bind-apply-call/ have to bind 'this' to the function, otherwise it will use the .on()'s 'this', so that this.[prop] are not undefined
-        this.#wss.on('close', (...stuff) => { this.#HandleInfo('WebSocketServer close event', ...stuff) });
-        this.#wss.on('error', (...stuff) => { this.#HandleError('WebSocketServer error event', ...stuff)});
+        this.#wss.on('close', (...stuff) => { this.HandleInfo('WebSocketServer close event', ...stuff) });
+        this.#wss.on('error', (...stuff) => { this.HandleError('WebSocketServer error event', ...stuff)});
     }
 
     #Connect(conn, req){
@@ -57,7 +61,7 @@ export class SocioServer{
 
             //notify the client of their ID
             this.#sessions[client_id].Send('CON', client_id);
-            this.#HandleInfo('CON', client_id)
+            this.HandleInfo('CON', client_id)
 
             //set this client websockets event handlers
             conn.on('message', this.#Message.bind(this));
@@ -70,9 +74,9 @@ export class SocioServer{
                 // this.#sessions[client_id] = null
                 delete this.#sessions[client_id] //cant delete private properties, even if this is a key in an obj. IDK js, wtf... Could assign to new dup object without this key, but ehhh
                 
-                this.#HandleInfo('DISCON', client_id)
+                this.HandleInfo('DISCON', client_id)
             });
-        }catch(e){this.#HandleError(e)}
+        }catch(e){this.HandleError(e)}
     }
 
     async #Message(req, head){
@@ -102,7 +106,7 @@ export class SocioServer{
                         throw new E (`Client ${client_id} tried to execute a perms query without having the required permissions. [#perm-issue]`, verb, tables);
                 }
             }
-            this.#HandleInfo(`received [${kind}] from [${client_id}]`, data);
+            this.HandleInfo(`received [${kind}] from [${client_id}]`, data);
 
             //let the developer handle the msg
             if (this.#lifecycle_hooks.msg)
@@ -111,11 +115,11 @@ export class SocioServer{
 
             switch (kind) {
                 case 'REG':
-                    if (client_id in this.#sessions)
-                        this.#sessions[client_id].Send('UPD', {
-                            id: data.id,
-                            result: await this.Query(data)
-                        })
+                    this.#CheckClientID(client_id, kind)
+                    this.#sessions[client_id].Send('UPD', {
+                        id: data.id,
+                        result: await this.Query(data)
+                    })
 
                     //set up hook
                     if (QueryIsSelect(data.sql))
@@ -123,43 +127,54 @@ export class SocioServer{
 
                     break;
                 case 'SQL':
+                    this.#CheckClientID(client_id, kind)
                     const is_select = QueryIsSelect(data.sql)
-                    if (client_id in this.#sessions) {
-                        //have to do the query in every case
-                        const res = this.Query(data)
-                        if (is_select) //wait for result, if a result is expected, and send it back
-                            this.#sessions[client_id].Send('SQL', { id: data.id, result: await res })
-                    }
+
+                    //have to do the query in every case
+                    const res = this.Query(data)
+                    if (is_select) //wait for result, if a result is expected, and send it back
+                        this.#sessions[client_id].Send('SQL', { id: data.id, result: await res })
 
                     //if the sql wasnt a SELECT, but altered some resource, then need to propogate that to other connection hooks
                     if (!is_select)
                         this.Update(ParseQueryTables(data.sql))
                     
                     break;
-                case 'PING': this.#sessions[client_id].Send('PONG', { id: data?.id }); break;
+                case 'PING': 
+                    this.#CheckClientID(client_id, kind); 
+                    this.#sessions[client_id].Send('PONG', { id: data?.id }); 
+                    break;
                 case 'AUTH'://client requests to authenticate itself with the server
+                    this.#CheckClientID(client_id, kind)
                     if (this.#lifecycle_hooks.auth){
                         await this.#sessions[client_id].Authenticate(this.#lifecycle_hooks.auth, this.#sessions[client_id], data.params) //bcs its a private class field, give this function the hook to call and params to it. It will set its field and we can just read that off and send it back as the result
                         this.#sessions[client_id].Send('AUTH', { id: data.id, result: this.#sessions[client_id].authenticated == true }) //authenticated can be any truthy or falsy value, but the client will only receive a boolean, so its safe to set this to like an ID or token or smth for your own use
                     }else{
-                        this.#HandleError('Auth function hook not registered, so client not authenticated. [#no-auth-func]')
+                        this.HandleError('Auth function hook not registered, so client not authenticated. [#no-auth-func]')
                         this.#sessions[client_id].Send('AUTH', { id: data.id, result: false })
                     }
                     break;
-                case 'PERM': 
+                case 'PERM':
+                    this.#CheckClientID(client_id, kind)
                     if(this.#lifecycle_hooks?.grant_perm){
                         const granted = await this.#lifecycle_hooks?.grant_perm(client_id, data)
                         this.#sessions[client_id].Send('PERM', { id: data.id, result: { granted: granted === true, verb:data.verb, table:data.table} }) //the client will only receive a boolean, but still make sure to only return bools as well
                     }
                     else {
-                        this.#HandleError('grant_perm function hook not registered, so client not granted perm. [#no-grant_perm-func]')
+                        this.HandleError('grant_perm function hook not registered, so client not granted perm. [#no-grant_perm-func]')
                         this.#sessions[client_id].Send('PERM', { id: data.id, result: false })
                     }
+                    break;
+                case 'UNREG':
+                    this.#CheckClientID(client_id, kind);
+                    const res_1 = this.#sessions[client_id].UnRegisterHook(data.unreg_id);
+                    this.#sessions[client_id].Send('UNREG', { id: data.id, result: res_1 === true }) 
+
                     break;
                 // case '': break;
                 default: throw new E(`Unrecognized message kind! [#msg-kind-issue]`, kind, data);
             }
-        } catch (e) { this.#HandleError(e) }
+        } catch (e) { this.HandleError(e); this.#sessions[client_id].Send('ERR', { id: data.id }) } //, cause: e.message
     }
 
     Update(tables=[]){
@@ -195,9 +210,14 @@ export class SocioServer{
                             })
                         })
                     }
-                } catch (e) { this.#HandleError(e) }
+                } catch (e) { this.HandleError(e) }
             }
-        } catch (e) { this.#HandleError(e) }
+        } catch (e) { this.HandleError(e) }
+    }
+
+    #CheckClientID(client_id, kind){
+        if (!(client_id in this.#sessions)) 
+            throw new E('Message arrived, but client_id not in sessions. [#client_id-issue]', client_id, kind)
     }
 
     //when the server wants to send some data to a specific session client - can be any raw data
@@ -206,7 +226,7 @@ export class SocioServer{
             if (client_id in this.#sessions)
                 this.#sessions[client_id].Send('PUSH', data)
             else throw new E(`The provided session ID [${client_id}] was not found in the tracked web socket connections!`)
-        } catch (e) { this.#HandleError(e) }
+        } catch (e) { this.HandleError(e) }
     }
     Emit(data={}){
         switch(true){
@@ -222,14 +242,14 @@ export class SocioServer{
             if (name in this.#lifecycle_hooks)
                 this.#lifecycle_hooks[name] = handler
             else throw new E(`Lifecycle hook [${name}] does not exist!`)
-        } catch (e) { this.#HandleError(e) }
+        } catch (e) { this.HandleError(e) }
     }
     UnRegisterLifecycleHookHandler(name = '') {
         try{
             if (name in this.#lifecycle_hooks)
                 delete this.#lifecycle_hooks[name]
             else throw new E(`Lifecycle hook [${name}] does not exist!`)
-        } catch (e) { this.#HandleError(e) }
+        } catch (e) { this.HandleError(e) }
     }
     get LifecycleHookNames(){
         return Object.keys(this.#lifecycle_hooks)
@@ -237,16 +257,6 @@ export class SocioServer{
 
     GetClientSession(client_id=''){
         return this.#sessions[client_id] || null
-    }
-
-    #HandleError(e) {
-        if (this.hard_crash) throw e
-        if (this.log_handlers.error) this.log_handlers.error(e)
-        else if (this.verbose) error(e, ...(e?.logs || []))
-    }
-    #HandleInfo(...args) {
-        if (this.log_handlers.info) this.log_handlers.info(...args)
-        else if (this.verbose) info(...args)
     }
 }
 

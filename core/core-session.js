@@ -1,12 +1,13 @@
 "use strict";
 
-import { log, info, setPrefix, setShowTime } from '@rolands/log'; setPrefix('SocioSession'); setShowTime(false); //for my logger
+import { log, info, soft_error, setPrefix, setShowTime } from '@rolands/log'; setPrefix('SocioSession'); setShowTime(false); //for my logger
+import { LogHandler } from './logging.js'
 
 //NB! some fields in these variables are private for safety reasons, but also bcs u shouldnt be altering them, only if through my defined ways. They are mostly expected to be constants.
 //whereas public variables are free for you to alter freely at any time during runtime.
 
 //Homo vitae commodatus non donatus est. - Man's life is lent, not given. /Syrus/
-export class SocioSession {
+export class SocioSession extends LogHandler {
     //private:
     #client_id = null //unique ID for this session for my own purposes
     #ws = null
@@ -18,6 +19,8 @@ export class SocioSession {
     verbose = true
 
     constructor(client_id = '', browser_ws_conn = null, { verbose = true, default_perms = {} } = {}) {
+        super(info, soft_error);
+        
         //private:
         this.#client_id = client_id //unique ID for this session for my own purposes
         this.#ws = browser_ws_conn
@@ -26,6 +29,8 @@ export class SocioSession {
 
         //public:
         this.verbose = verbose
+
+        // this.HandleInfo('New session created', client_id)
     }
 
     get client_id() { return this.#client_id }
@@ -34,15 +39,34 @@ export class SocioSession {
     Send(kind = '', ...data) {//data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
         if (data.length < 1) throw ('Not enough arguments to send data! kind;data:', kind, data) //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
         this.#ws.send(JSON.stringify(Object.assign({}, { kind: kind, data: data[0] }, ...data.slice(1))))
-        if (this.verbose) info('sent:', kind, data)
+        this.HandleInfo('sent:', kind, data)
     }
 
     RegisterHook(table = '', id = '', sql = '', params = null) { //TODO this is actually very bad
-        if (table in this.#hooks && !this.#hooks[table].find((t) => t.sql == sql && t.params == params))
-            this.#hooks[table].push({ id: id, sql: sql, params: params });
+        const hook_obj = { id: id, sql: sql, params: params }
+        if (table in this.#hooks && !this.#hooks[table].includes(hook_obj))
+            this.#hooks[table].push(hook_obj);
         else
-            this.#hooks[table] = [{ id: id, sql: sql, params: params }];
-        // log('reg hook', table, this.#hooks[table])
+            this.#hooks[table] = [hook_obj];
+    }
+    UnRegisterHook(id) {
+        log(Object.entries(this.#hooks))
+        const found_table = Object.entries(this.#hooks).find(entry => entry[1].find(hook => hook.id === id))
+        if(!found_table || !found_table[0])
+            return false 
+
+        //iterate all the hooks of this table for this client session
+        for (const hook of this.#hooks[found_table[0]]){
+            log(hook)
+            if(hook.id == id){
+                log(hook, id)
+                const i = this.#hooks[found_table[0]].indexOf(hook) //get which object it is in the array
+                this.#hooks[found_table[0]].splice(i, 1) //remove the object from the array
+                return true; //return early with success
+            }
+        }
+
+        return false;
     }
     get hook_tables() { return Object.keys(this.#hooks) }
     // GetHookObjsForTable(table = '') { return this.#hooks[table] }
