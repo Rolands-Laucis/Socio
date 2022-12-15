@@ -12,7 +12,7 @@ try { //for my logger
 }
 
 // import { QueryIsSelect, ParseQueryTables } from 'socio/utils'
-import { ParseQueryTables, ParseQueryVerb, SocioArgHas, SocioArgsParse } from './utils.js'
+import { QueryIsSelect, ParseQueryTables, ParseQueryVerb, SocioArgHas, SocioArgsParse } from './utils.js'
 import { LogHandler, E } from './logging.js'
 
 //"Because he not only wants to perform well, he wants to be well received — and the latter lies outside his control." /Epictetus/
@@ -66,7 +66,7 @@ export class SocioClient extends LogHandler {
                     break;
                 case 'UPD':
                     this.#FindID(kind, data?.id)
-                    this.#queries[data.id].f.forEach(f => f(data.result));
+                    this.#queries[data.id].f.forEach(f => data.status in f ? f[data.status](data.result) : undefined); //status might be success or error, and error might not be defined
                     break;
                 case 'SQL':
                     this.#HandleBasicPromiseMessage(kind, data)
@@ -120,19 +120,20 @@ export class SocioClient extends LogHandler {
 
     //subscribe to an sql query. Can add multiple callbacks where ever in your code, if their sql queries are identical
     //returns the created ID for that query, to use to unsubscribe all callbacks to the query
-    subscribe({ sql = '', params = null } = {}, callback = null, t=null){
+    subscribe({ sql = '', params = null } = {}, callback = null, status_callbacks={}){
+        //callback is the success standard function, that gets called, when the DB sends an update of its data
+        //status_callbacks is an optional object, that expects 1 optional key - "error", and it must be a callable function, that receives 1 arg - the error msg.
         try{
-            this.#QueryChecks(sql)
-
-            const found = Object.entries(this.#queries).find(q => q[1].sql === sql)
+            const found = Object.entries(this.#queries).find(q => q[1].sql === sql && q[1].params === params)
+            const callbacks = { success: callback, ...status_callbacks }
 
             if (found){
-                this.#queries[found[0]].f.push(t ? callback.bind(t) : callback)
+                this.#queries[found[0]].f.push(callbacks)
                 return found[0] //the ID of the query
             }
             else {
                 const id = this.#gen_key
-                this.#queries[id] = { sql: sql, f: [t ? callback.bind(t) : callback] }
+                this.#queries[id] = { sql: sql, params: params, f: [callbacks] }
                 this.#send('REG', { id: id, sql: sql, params: params })
                 return id //the ID of the query
             }
@@ -162,13 +163,12 @@ export class SocioClient extends LogHandler {
     }
     query(sql='', params=null){
         try{
-            this.#QueryChecks(sql)
-
             //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
             const id = this.#gen_key;
             const prom = new Promise((res) => {
                 this.#queries[id] = res
             })
+
             //send off the request, which will be resolved in the message handler
             this.#send('SQL', { id: id, sql: sql, params: params })
             return prom
@@ -188,7 +188,7 @@ export class SocioClient extends LogHandler {
         this.#send('AUTH', { id: id, params: params })
         return prom
     }
-    get_permission(verb='', table='') { //params here can be anything, like username and password stuff etc. The backend server auth function callback will receive this entire object
+    get_permission(verb='', table='') {//ask the backend for a permission on a table with the SQL verb u want to perform on it, i.e. SELECT, INSERT etc.
         //if the perm already exists, lets not bother the poor server :)
         if (verb in this.#perms && this.#perms[verb].includes(key)) 
             return true
@@ -224,28 +224,4 @@ export class SocioClient extends LogHandler {
 
     get client_id(){return this.#client_id}
     ready() { return new Promise(res => this.#is_ready = res) }
-
-    //perform auth and perm checks before doing the query
-    #QueryChecks(sql=''){
-        if (sql.includes(' ')) { //might be encrypted string, so the marker might not be readable. Can only check when not encrypted.
-            const args = SocioArgsParse(sql)
-
-            //check auth
-            if (SocioArgHas('auth', { parsed: args }) && !this.#authenticated)
-                throw (`Client ${this.#client_id} tried to execute an auth query without being authenticated`, sql, this.name)
-
-            //check perms
-            if (SocioArgHas('perm', { parsed: args })) {
-                const verb = ParseQueryVerb(sql)
-                if (!verb)
-                    throw (`Client ${this.#client_id} sent an unrecognized SQL query first clause. [#verb-issue]`, sql, this.name)
-                const tables = ParseQueryTables(sql)
-                if (!tables)
-                    throw (`Client ${this.#client_id} sent an SQL query without table names. [#table-name-issue]`, sql, this.name)
-
-                if (!(verb in this.#perms) || !tables.every(t => this.#perms[verb].includes(t)))
-                    throw (`Client ${this.#client_id} has insufficient permissions for query!`, verb, tables, this.name)
-            }
-        }
-    }
 }
