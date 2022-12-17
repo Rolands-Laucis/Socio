@@ -13,6 +13,7 @@ The ``./secure.js`` file contains logic to be run on a backend server. It export
 ### Setup of ``SocioServer``
 
 ```js
+//your server.js
 import { SocioServer } from 'socio/core.js'
 
 //SocioServer needs a "query" function that it can call to fetch data. This would usually be your preffered ORM lib interface raw query function, but really this function is as simple as input and output, so it can do whatever you want. Like read from a txt file or whatever. It should be async and Socio will always await its response to send back to the client.
@@ -35,6 +36,7 @@ socserv.Emit({data:'literally data.', all:'currently connected clients will rece
 ### Setup of ``SocioClient``
 
 ```js
+//browser code
 import {SocioClient} from 'socio/core-client.js'
 
 //instantiate the Socio Client from lib on the expected websocket port and wait for it to connect
@@ -59,13 +61,15 @@ await sc.query("INSERT INTO users VALUES('Bob', 420);")
 await sc.query("SELECT COUNT(*) AS RESULT FROM users WHERE name = :name;", params: { name: 'Bob' } ) //it is up to you to sanitize 'Bob' here or hope your DB has injection protection.
 
 //security:
-await sc.query("SELECT COUNT(*) FROM users;--socio") //postfix a literal '--socio' at the end of your query, which by popular SQL notation should be a line comment and thus shouldnt interfere with the query itself, to mark it as to be encrypted by the SocioSecurity class during code building or bundling. Use the included Vite plugin or make your own way of integrating the class.
+await sc.query("SELECT COUNT(*) FROM users;--socio") //postfix a literal '--socio' at the end of your query, which by popular SQL notation should be a line comment and thus shouldnt interfere with the query itself, to mark it as to be encrypted by the SocioSecurity class during code building or bundling. Use the included Vite plugin or make your own way of integrating the class. NB! All strings in your entire frontend code base that end with the --socio marker will be encrypted. The marker also accepts an infinite amount of dash seperated params in any order, e.g. '--socio-perm-auth' to indicate, that this query shouldnt run without the required permissions on tables and that the session must be authenticated. Socio automatically appends a random integer as one of these params, just to randomize the encrypted string from being guessed or deduced.
 
 //you may also want to be safe that the encrypted query can only be executed by "logged in" or authenticated users. Just include another postfix:
 await sc.query("SELECT COUNT(*) FROM users;--socio-auth") //the backend will only execute this, if the session is marked as authenticated. But how would that come to be? 
 
 //Fear not, after awaiting ready, just send an auth request:
-const success = sc.authenticate({username:'Bob', password:'pass123'}) //success will be a boolean representing the status of the auth request. The params to the request are your free choice. This object will be passed to your auth hook callback, and it is there that you compute the decision yourself. Then you may execute --socio-auth queries. If this socket were to disconnect, you'd have to redo the auth.
+const success = sc.authenticate({username:'Bob', password:'pass123'}) //success will be a boolean representing the status of the auth request. The params to the request are your free choice. This object will be passed to your auth hook callback, and it is there that you compute the decision yourself. Then you may execute --socio-auth queries. If this socket were to disconnect, you'd have to redo the auth, but that isnt very likely.
+
+
 ```
 
 ### Setup of ``SocioSecurityPlugin``

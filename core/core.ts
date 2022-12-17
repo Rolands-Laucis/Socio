@@ -1,38 +1,41 @@
 //Nullum magnum ingenium sine mixture dementia fuit. - There has been no great wisdom without an element of madness.
 
-"use strict";
-
 //libs
-import { WebSocketServer } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
+import { WebSocketServer, ServerOptions, WebSocket } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
+import { IncomingMessage } from 'http'
 
 //mine
 import { log, soft_error, error, info, setPrefix, setShowTime } from '@rolands/log'; setPrefix('Socio'); setShowTime(false); //for my logger
-import { QueryIsSelect, ParseQueryTables, SocioArgsParse, SocioArgHas, ParseQueryVerb } from './utils.js'
-import { E, LogHandler } from './logging.js'
-import { UUID } from './secure.js'
+import { QueryIsSelect, ParseQueryTables, SocioArgsParse, SocioArgHas, ParseQueryVerb, sleep } from './utils.js'
+import { E, LogHandler, err } from './logging.js'
+import { UUID, SocioSecurity } from './secure.js'
 import {SocioSession} from './core-session.js'
 
 //NB! some fields in these variables are private for safety reasons, but also bcs u shouldnt be altering them, only if through my defined ways. They are mostly expected to be constants.
 //whereas public variables are free for you to alter freely at any time during runtime.
 
+//types
+type MessageDataObj = { id?: string | number, sql?: string, params?: object | null, verb?: string, table?: string, unreg_id?: string | number };
+type QueryFunction = (obj: { sql: string, params: object | null } | MessageDataObj) => Promise<any>;
+type QueryObject = { id: number | string, params: object | null, session: SocioSession };
+
 export class SocioServer extends LogHandler {
     // private:
-    #wss=null
-    #sessions = {}//client_id:SocioSession
-    #secure=null //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages
-    #lifecycle_hooks = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null } //call the register function to hook on these. They will be called if they exist
+    #wss: WebSocketServer;
+    #sessions = {} as { [key: string]: SocioSession }; //client_id:SocioSession
+    #secure: SocioSecurity | null;  //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages
+    #lifecycle_hooks: { [key: string]: Function | null; } = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null } //call the register function to hook on these. They will be called if they exist
     //msg hook receives all incomming msgs to the server. If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //upd works the same as msg, but for everytime updates need to be propogated to all the sockets.
     //auth func can return any truthy or falsy value, the client will only receive a boolean, so its safe to set it to some credential or id or smth, as this would be accessible and useful to you when checking the session access to tables.
     //the grant_perm funtion is for validating that the user has access to whatever tables or resources the sql is working with. A client will ask for permission to a verb (SELECT, INSERT...) and table(s). If you grant access, then the server will persist it for the entire connection.
 
     //public:
-
-    //public:
+    Query: QueryFunction;
     hard_crash = false //will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
     verbose = true
 
-    constructor(opts = {}, DB_query_function = null, { secure =null, verbose = true, hard_crash=false } = {}){
+    constructor(opts: ServerOptions | undefined = {}, DB_query_function: QueryFunction, { secure = null, verbose = true, hard_crash=false } = {}){
         super(info, error);
 
         //private:
@@ -46,13 +49,13 @@ export class SocioServer extends LogHandler {
 
         this.#wss.on('connection', this.#Connect.bind(this)); //https://thenewstack.io/mastering-javascript-callbacks-bind-apply-call/ have to bind 'this' to the function, otherwise it will use the .on()'s 'this', so that this.[prop] are not undefined
         this.#wss.on('close', (...stuff) => { this.HandleInfo('WebSocketServer close event', ...stuff) });
-        this.#wss.on('error', (...stuff) => { this.HandleError('WebSocketServer error event', ...stuff)});
+        this.#wss.on('error', (...stuff) => { this.HandleError(new E('WebSocketServer error event', ...stuff))});
     }
 
-    #Connect(conn, req){
+    #Connect(conn: WebSocket, req: IncomingMessage){
         try{
             //construct the new session with a unique client ID
-            const client_id = this.#lifecycle_hooks.gen_client_id ? this.#lifecycle_hooks.gen_client_id() : UUID()
+            const client_id = (this.#lifecycle_hooks.gen_client_id ? this.#lifecycle_hooks.gen_client_id() : UUID())?.toString()
             this.#sessions[client_id] = new SocioSession(client_id, conn, { verbose: this.verbose })
 
             //pass the object to the connection hook, if it exists
@@ -76,12 +79,12 @@ export class SocioServer extends LogHandler {
                 
                 this.HandleInfo('DISCON', client_id)
             });
-        }catch(e){this.HandleError(e)}
+        } catch (e: err) { this.HandleError(e); }
     }
 
-    async #Message(req, head){
+    async #Message(req: Buffer | ArrayBuffer | Buffer[], isBinary: Boolean){
         try{
-            const { client_id, kind, data } = JSON.parse(req.toString())
+            const { client_id, kind, data }: { client_id: string | number; kind: string; data: MessageDataObj } = JSON.parse(req.toString())
             if (this.#secure && data?.sql) {//if this is supposed to be secure and sql was received, then decrypt it before continuing
                 data.sql = this.#secure.DecryptString(data.sql)
                 const socio_args = SocioArgsParse(data.sql) //speed optimization
@@ -107,6 +110,7 @@ export class SocioServer extends LogHandler {
                 }
             }
             this.HandleInfo(`received [${kind}] from [${client_id}]`, data);
+            // await sleep(2);
 
             //let the developer handle the msg
             if (this.#lifecycle_hooks.msg)
@@ -118,7 +122,8 @@ export class SocioServer extends LogHandler {
                     this.#CheckClientID(client_id, kind)
                     this.#sessions[client_id].Send('UPD', {
                         id: data.id,
-                        result: await this.Query(data)
+                        result: await this.Query(data),
+                        status:'success'
                     })
 
                     //set up hook
@@ -137,7 +142,7 @@ export class SocioServer extends LogHandler {
 
                     //if the sql wasnt a SELECT, but altered some resource, then need to propogate that to other connection hooks
                     if (!is_select)
-                        this.Update(ParseQueryTables(data.sql))
+                        this.Update(ParseQueryTables(data?.sql || ''))
                     
                     break;
                 case 'PING': 
@@ -157,8 +162,8 @@ export class SocioServer extends LogHandler {
                 case 'PERM':
                     this.#CheckClientID(client_id, kind)
                     if(this.#lifecycle_hooks?.grant_perm){
-                        const granted = await this.#lifecycle_hooks?.grant_perm(client_id, data)
-                        this.#sessions[client_id].Send('PERM', { id: data.id, result: { granted: granted === true, verb:data.verb, table:data.table} }) //the client will only receive a boolean, but still make sure to only return bools as well
+                        const granted:boolean = await this.#lifecycle_hooks?.grant_perm(client_id, data)
+                        this.#sessions[client_id].Send('PERM', { id: data.id, result: granted === true, verb: data.verb, table: data.table }) //the client will only receive a boolean, but still make sure to only return bools as well
                     }
                     else {
                         this.HandleError('grant_perm function hook not registered, so client not granted perm. [#no-grant_perm-func]')
@@ -167,27 +172,27 @@ export class SocioServer extends LogHandler {
                     break;
                 case 'UNREG':
                     this.#CheckClientID(client_id, kind);
-                    const res_1 = this.#sessions[client_id].UnRegisterHook(data.unreg_id);
+                    const res_1 = this.#sessions[client_id].UnRegisterHook(data.unreg_id || '');
                     this.#sessions[client_id].Send('UNREG', { id: data.id, result: res_1 === true }) 
 
                     break;
                 // case '': break;
                 default: throw new E(`Unrecognized message kind! [#msg-kind-issue]`, kind, data);
             }
-        } catch (e) { this.HandleError(e); this.#sessions[client_id].Send('ERR', { id: data.id }) } //, cause: e.message
+        } catch (e: err) { this.HandleError(e); }
     }
 
-    Update(tables=[]){
+    Update(tables:string[]=[]){
         if (this.#lifecycle_hooks.upd)
             if (this.#lifecycle_hooks.upd(this.#sessions, tables))
                 return;
 
         try{
             //gather all sessions hooks sql queries that involve the altered tables
-            const queries = {}
+            const queries: { [key: string]: QueryObject[]} = {}
             Object.values(this.#sessions).forEach(s => {
                 s.GetHooksForTables(tables).forEach(h => { //GetHooksQueriesForTables always returns array. If empty, then the foreach wont run, so each sql guaranteed to have hooks array
-                    const obj = { id: h.id, params: h.params, session: s }
+                    const obj: QueryObject = { id: h.id, params: h.params, session: s }
                     if(h.sql in queries)
                         queries[h.sql].push(obj)
                     else
@@ -199,23 +204,33 @@ export class SocioServer extends LogHandler {
             for (const [sql, hooks] of Object.entries(queries)){
                 try{
                     //group the hooks based on SQL + PARAMS (to optimize DB mashing), since those queries would be identical, but the recipients most likely arent, so cant just dedup the array.
-                    for (const group_hooks of GroupHooks(sql, hooks)){
+                    for (const group_hooks of GroupHooks(sql, hooks)){ //not using for await, bcs there is no need to block the thread. Instead we can queue up all the queries and they will continue, once DB returns value.
                         this.Query({ sql: sql, params: group_hooks[0].params }) //grab the first ones params, since all params of hooks of a group should be the same. Seeing as this query is done on behalf of a bunch of sessions, then the other args cannot be provided.
                         .then(res => { //once the query completes, send out this result to all sessions that are subed to it
                             group_hooks.forEach(h => {
                                 h.session.Send('UPD', {
                                     id: h.id,
-                                    result: res
+                                    result: res,
+                                    status:'success'
+                                })
+                            })
+                        })
+                        .catch(err => { //otherwise an error occured with that particular query and we send that out
+                            group_hooks.forEach(h => {
+                                h.session.Send('UPD', {
+                                    id: h.id,
+                                    result: err,
+                                    status: 'error'
                                 })
                             })
                         })
                     }
-                } catch (e) { this.HandleError(e) }
+                } catch (e:err) { this.HandleError(e) }
             }
-        } catch (e) { this.HandleError(e) }
+        } catch (e:err) { this.HandleError(e) }
     }
 
-    #CheckClientID(client_id, kind){
+    #CheckClientID(client_id: string|number, kind:string){
         if (!(client_id in this.#sessions)) 
             throw new E('Message arrived, but client_id not in sessions. [#client_id-issue]', client_id, kind)
         this.#sessions[client_id].last_seen_now()
@@ -227,44 +242,44 @@ export class SocioServer extends LogHandler {
             if (client_id in this.#sessions)
                 this.#sessions[client_id].Send('PUSH', data)
             else throw new E(`The provided session ID [${client_id}] was not found in the tracked web socket connections!`)
-        } catch (e) { this.HandleError(e) }
+        } catch (e:err) { this.HandleError(e) }
     }
-    Emit(data={}){
-        switch(true){
-            case data instanceof Blob: this.#wss.emit(data); break;
-            // case data instanceof Object || data instanceof Array: this.#wss.emit(JSON.stringify({ kind: 'EMIT', data: data })); break;
-            // case data instanceof Blob: this.#wss.emit(data); break;
-            default: this.#wss.emit(JSON.stringify({ kind: 'EMIT', data: data })); break;
-        }
-    }
+    // Emit(data={}){
+    //     switch(true){
+    //         case data instanceof Blob: this.#wss.emit(data); break;
+    //         // case data instanceof Object || data instanceof Array: this.#wss.emit(JSON.stringify({ kind: 'EMIT', data: data })); break;
+    //         // case data instanceof Blob: this.#wss.emit(data); break;
+    //         default: this.#wss.emit(JSON.stringify({ kind: 'EMIT', data: data })); break;
+    //     }
+    // }
 
-    RegisterLifecycleHookHandler(name='', handler=null){
+    RegisterLifecycleHookHandler(name='', handler:Function|null=null){
         try{
             if (name in this.#lifecycle_hooks)
                 this.#lifecycle_hooks[name] = handler
             else throw new E(`Lifecycle hook [${name}] does not exist!`)
-        } catch (e) { this.HandleError(e) }
+        } catch (e:err) { this.HandleError(e) }
     }
     UnRegisterLifecycleHookHandler(name = '') {
         try{
             if (name in this.#lifecycle_hooks)
-                delete this.#lifecycle_hooks[name]
+                this.#lifecycle_hooks[name] = null;
             else throw new E(`Lifecycle hook [${name}] does not exist!`)
-        } catch (e) { this.HandleError(e) }
+        } catch (e:err) { this.HandleError(e) }
     }
     get LifecycleHookNames(){
         return Object.keys(this.#lifecycle_hooks)
     }
 
-    GetClientSession(client_id=''){
+    GetClientSession(client_id=''): SocioSession | null{
         return this.#sessions[client_id] || null
     }
 }
 
 //group the hooks based on SQL + PARAMS (to optimize DB mashing), since those queries would be identical, but the recipients most likely arent, so cant just dedup the array.
 //the key is only needed for grouping into arrays. So returns just the values of the final object. Array of arrays (hooks).
-function GroupHooks(sql='', hooks=[]){
-    const grouped = {}
+function GroupHooks(sql = '', hooks: QueryObject[]=[]){
+    const grouped: { [key: string]: QueryObject[] } = {}
     for(const h of hooks){
         const key = sql + JSON.stringify(h.params)
         if(key in grouped)

@@ -8,6 +8,9 @@
     "ws": "node core.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "files": [
+    "./dist"
+  ],
   "keywords": [
     "DB",
     "sync",
@@ -31,5 +34,8 @@
     "@rolands/log": "^1.1.1",
     "magic-string": "^0.26.7",
     "ws": "^8.9.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.3"
   }
 }
