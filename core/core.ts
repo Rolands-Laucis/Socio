@@ -6,24 +6,27 @@ import { IncomingMessage } from 'http'
 
 //mine
 import { log, soft_error, error, info, setPrefix, setShowTime } from '@rolands/log'; setPrefix('Socio'); setShowTime(false); //for my logger
-import { QueryIsSelect, ParseQueryTables, SocioArgsParse, SocioArgHas, ParseQueryVerb, sleep } from './utils.js'
-import { E, LogHandler, err } from './logging.js'
-import { UUID, SocioSecurity } from './secure.js'
-import {SocioSession} from './core-session.js'
+import { id, QueryIsSelect, ParseQueryTables, SocioArgsParse, SocioArgHas, ParseQueryVerb, sleep } from './utils'
+import { E, LogHandler, err } from './logging'
+import { UUID, SocioSecurity } from './secure'
+import {SocioSession} from './core-session'
 
 //NB! some fields in these variables are private for safety reasons, but also bcs u shouldnt be altering them, only if through my defined ways. They are mostly expected to be constants.
 //whereas public variables are free for you to alter freely at any time during runtime.
 
 //types
-type MessageDataObj = { id?: string | number, sql?: string, params?: object | null, verb?: string, table?: string, unreg_id?: string | number };
-type QueryFunction = (obj: { sql: string, params: object | null } | MessageDataObj) => Promise<any>;
-type QueryObject = { id: number | string, params: object | null, session: SocioSession };
+type MessageDataObj = { id?: id, sql?: string, params?: object | null, verb?: string, table?: string, unreg_id?: string | number };
+export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
+export type QueryFunction = (obj: QueryFuncParams | MessageDataObj) => Promise<any>;
+type QueryObject = { id: id, params: object | null, session: SocioSession }; //for grouping hooks
 
 export class SocioServer extends LogHandler {
     // private:
     #wss: WebSocketServer;
     #sessions = {} as { [key: string]: SocioSession }; //client_id:SocioSession
     #secure: SocioSecurity | null;  //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages
+    #props = {}
+
     #lifecycle_hooks: { [key: string]: Function | null; } = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null } //call the register function to hook on these. They will be called if they exist
     //msg hook receives all incomming msgs to the server. If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //upd works the same as msg, but for everytime updates need to be propogated to all the sockets.
@@ -31,11 +34,11 @@ export class SocioServer extends LogHandler {
     //the grant_perm funtion is for validating that the user has access to whatever tables or resources the sql is working with. A client will ask for permission to a verb (SELECT, INSERT...) and table(s). If you grant access, then the server will persist it for the entire connection.
 
     //public:
-    Query: QueryFunction;
-    hard_crash = false //will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
-    verbose = true
+    Query: QueryFunction; //you can change this at any time
+    hard_crash:boolean; //will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
+    verbose: boolean; //print stuff to the console using my lib. Doesnt affect the log handlers
 
-    constructor(opts: ServerOptions | undefined = {}, DB_query_function: QueryFunction, { secure = null, verbose = true, hard_crash=false } = {}){
+    constructor(opts: ServerOptions | undefined = {}, DB_query_function: QueryFunction, { secure = null, verbose = true, hard_crash=false }: {secure?:SocioSecurity|null, verbose?:boolean, hard_crash?:boolean} = {}){
         super(info, error);
 
         //private:
@@ -55,7 +58,7 @@ export class SocioServer extends LogHandler {
     #Connect(conn: WebSocket, req: IncomingMessage){
         try{
             //construct the new session with a unique client ID
-            const client_id = (this.#lifecycle_hooks.gen_client_id ? this.#lifecycle_hooks.gen_client_id() : UUID())?.toString()
+            const client_id:string = (this.#lifecycle_hooks.gen_client_id ? this.#lifecycle_hooks.gen_client_id() : UUID())?.toString()
             this.#sessions[client_id] = new SocioSession(client_id, conn, { verbose: this.verbose })
 
             //pass the object to the connection hook, if it exists

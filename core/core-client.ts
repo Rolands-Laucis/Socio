@@ -3,19 +3,20 @@ try { //for my logger
     var { info, log, error, done, soft_error, setPrefix, setShowTime } = await import('@rolands/log'); setPrefix('Socio Client'); setShowTime(false);
 } catch (e) {
     console.log('[Socio Client ERROR] IMPORT:', e)
-    var info:any = (...objs) => console.log('[Socio Client]', ...objs),
-    done: any = (...objs) => console.log('[Socio Client]', ...objs),
-    log: any = (...objs) => console.log('[Socio Client]', ...objs),
-    soft_error: any = (...objs) => console.log('[Socio Client]', ...objs);
+    var info:any = (...objs: any[]) => console.log('[Socio Client]', ...objs),
+        done: any = (...objs: any[]) => console.log('[Socio Client]', ...objs),
+        log: any = (...objs: any[]) => console.log('[Socio Client]', ...objs),
+        soft_error: any = (...objs: any[]) => console.log('[Socio Client]', ...objs);
 }
 
 //libs
 import { WebSocket, ClientOptions } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
 
-import { LogHandler, E, err } from './logging.js'
+import { LogHandler, E, err } from './logging'
+import { id } from './utils';
 
 //types
-type MessageDataObj = { id: string | number, verb?: string, table?: string, status?:string, result?:string|object|boolean };
+type MessageDataObj = { id: id, verb?: string, table?: string, status?:string, result?:string|object|boolean };
 type QueryObjectFunctionSuccess = ((res: object) => void) | null;
 type QueryObjectFunction = { success: QueryObjectFunctionSuccess, error?: Function};
 type QueryObject = { sql: string, params?: object | null, f: QueryObjectFunction[] }
@@ -24,7 +25,7 @@ type QueryObject = { sql: string, params?: object | null, f: QueryObjectFunction
 export class SocioClient extends LogHandler {
     // private:
     #ws: WebSocket | null = null;
-    #client_id:string|number = '';
+    #client_id:id = '';
     #is_ready: Function | boolean = false
     #authenticated=false
 
@@ -38,7 +39,7 @@ export class SocioClient extends LogHandler {
     verbose:boolean;
     key_generator: (() => number | string) | undefined;
 
-    constructor(url: string, opts: ClientOptions, { name = '', verbose = false, keep_alive = true, reconnect_tries = 1 } = {}) {
+    constructor(url: string, { ws_opts = {}, name = '', verbose = false, keep_alive = true, reconnect_tries = 1 }: { ws_opts?: ClientOptions, name?: string, verbose?: boolean, keep_alive?: boolean, reconnect_tries?:number} = {}) {
         super(info, soft_error);
 
         if (window || undefined && url.startsWith('ws://'))
@@ -48,15 +49,15 @@ export class SocioClient extends LogHandler {
         this.name = name
         this.verbose = verbose //It is recommended to turn off verbose in prod.
         
-        this.#connect(url, opts, keep_alive, verbose, reconnect_tries)
+        this.#connect(url, ws_opts, keep_alive, verbose, reconnect_tries)
     }
 
-    #connect(url: string, opts: ClientOptions, keep_alive: boolean, verbose: boolean, reconnect_tries:number){
-        this.#ws = new WebSocket(url, opts)
+    #connect(url: string, ws_opts: ClientOptions, keep_alive: boolean, verbose: boolean, reconnect_tries:number){
+        this.#ws = new WebSocket(url, ws_opts)
         if (keep_alive && reconnect_tries)
             this.#ws.addEventListener("close", () => { 
                 this.HandleError(new E(`WebSocket closed. Retrying...`, this.name)); 
-                this.#connect(url, opts, keep_alive, verbose, reconnect_tries - 1)
+                this.#connect(url, ws_opts, keep_alive, verbose, reconnect_tries - 1)
             }); // <- rise from your grave!
 
         //@ts-ignore
@@ -154,7 +155,7 @@ export class SocioClient extends LogHandler {
             }
         } catch (e: err) { this.HandleError(e); return null; }
     }
-    async unsubscribe(id:number|string, force=false) {
+    async unsubscribe(id: id, force=false) {
         try {
             if (id in this.#queries){
                 if(force)//will first delete from here, to not wait for server response
@@ -221,7 +222,7 @@ export class SocioClient extends LogHandler {
     
 
     //generates a unique key either via static counter or user provided key gen func
-    get #genKey():number | string {
+    get #genKey(): id {
         if (this?.key_generator)
             return this.key_generator()
         else{
@@ -230,7 +231,7 @@ export class SocioClient extends LogHandler {
         }
     }
     //checks if the ID of a query exists (i.e. has been registered), otherwise rejects and logs
-    #FindID(kind:string, id:number | string) {
+    #FindID(kind: string, id: id) {
         if (!(id in this.#queries))
             throw new E(`${kind} message for unregistered SQL query! msg_id -`, id)
     }

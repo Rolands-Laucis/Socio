@@ -4,13 +4,13 @@
 
 import MagicString from 'magic-string'; //https://github.com/Rich-Harris/magic-string
 import { randomUUID, createCipheriv, createDecipheriv, getCiphers, CipherCCMTypes, BinaryLike } from 'crypto'
-import { sql_string_regex } from './utils.js'
-import { LogHandler, E } from './logging.js'
+import { sql_string_regex } from './utils'
+import { LogHandler, E } from './logging'
 
 try { //for my logger
-    var { info, log, error, soft_error, done, setPrefix, setShowTime } = await import('@rolands/log')
-    setPrefix('Socio Secure')
-    setShowTime(false)
+    var { info, log, error, soft_error, done, setPrefix, setShowTime } = await import('@rolands/log');
+    setPrefix('Socio Secure');
+    setShowTime(false);
 } catch (e) {
     console.log('[Socio Secure ERROR]', e)
     var info:any = (...objs) => console.log('[Socio Secure]', ...objs),

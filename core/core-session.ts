@@ -2,10 +2,11 @@
 import { WebSocket } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
 
 import { log, info, soft_error, setPrefix, setShowTime } from '@rolands/log'; setPrefix('SocioSession'); setShowTime(false); //for my logger
-import { LogHandler, E } from './logging.js'
+import { LogHandler, E } from './logging'
+import { id } from './utils'
 
 type HookObj = {
-    id: number | string, 
+    id: id, 
     sql: string, 
     params: object | null
 }
@@ -50,14 +51,14 @@ export class SocioSession extends LogHandler {
         this.HandleInfo('sent:', kind, data)
     }
 
-    RegisterHook(table = '', id: number | string = '', sql = '', params: object | null = null) { //TODO this is actually very bad
+    RegisterHook(table = '', id: id = '', sql = '', params: object | null = null) { //TODO this is actually very bad
         const hook_obj: HookObj = { id: id, sql: sql, params: params }
         if (table in this.#hooks && !this.#hooks[table].includes(hook_obj))
             this.#hooks[table].push(hook_obj);
         else
             this.#hooks[table] = [hook_obj];
     }
-    UnRegisterHook(id: number | string) {
+    UnRegisterHook(id: id) {
         if(!id) return false; //check if it exists
 
         const found_table = Object.entries(this.#hooks).find(entry => entry[1].find(hook => hook.id === id))
