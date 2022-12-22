@@ -6,7 +6,7 @@ import { IncomingMessage } from 'http'
 
 //mine
 import { log, soft_error, error, info, setPrefix, setShowTime } from '@rolands/log'; setPrefix('Socio'); setShowTime(false); //for my logger
-import { id, QueryIsSelect, ParseQueryTables, SocioArgsParse, SocioArgHas, ParseQueryVerb, sleep } from './utils'
+import { QueryIsSelect, ParseQueryTables, SocioArgsParse, SocioArgHas, ParseQueryVerb, sleep } from './utils'
 import { E, LogHandler, err } from './logging'
 import { UUID, SocioSecurity } from './secure'
 import {SocioSession} from './core-session'
@@ -15,17 +15,18 @@ import {SocioSession} from './core-session'
 //whereas public variables are free for you to alter freely at any time during runtime.
 
 //types
-type MessageDataObj = { id?: id, sql?: string, params?: object | null, verb?: string, table?: string, unreg_id?: string | number };
+import { id, PropKey, PropValue, PropValidator, CoreMessageKind} from './types'
+type MessageDataObj = { id?: id, sql?: string, params?: object | null, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue };
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
-export type QueryFunction = (obj: QueryFuncParams | MessageDataObj) => Promise<any>;
+export type QueryFunction = (obj: QueryFuncParams | MessageDataObj) => Promise<object>;
 type QueryObject = { id: id, params: object | null, session: SocioSession }; //for grouping hooks
 
 export class SocioServer extends LogHandler {
     // private:
     #wss: WebSocketServer;
-    #sessions = {} as { [key: string]: SocioSession }; //client_id:SocioSession
+    #sessions: { [key: string]: SocioSession } = {}; //client_id:SocioSession
     #secure: SocioSecurity | null;  //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages
-    #props = {}
+    #props: { [key: PropKey]: { val: PropValue, validator: PropValidator, updates:{[client_id:string]: id} } } = {}; //backend props, e.g. strings for colors, that clients can subscribe to and alter
 
     #lifecycle_hooks: { [key: string]: Function | null; } = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null } //call the register function to hook on these. They will be called if they exist
     //msg hook receives all incomming msgs to the server. If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
@@ -35,11 +36,12 @@ export class SocioServer extends LogHandler {
 
     //public:
     Query: QueryFunction; //you can change this at any time
-    hard_crash:boolean; //will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
-    verbose: boolean; //print stuff to the console using my lib. Doesnt affect the log handlers
 
     constructor(opts: ServerOptions | undefined = {}, DB_query_function: QueryFunction, { secure = null, verbose = true, hard_crash=false }: {secure?:SocioSecurity|null, verbose?:boolean, hard_crash?:boolean} = {}){
-        super(info, error);
+        super(info, error, {verbose, hard_crash});
+        //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
+        //hard_crash will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
+        //both are public and settable at runtime
 
         //private:
         this.#wss = new WebSocketServer(opts); //take a look at the WebSocketServer docs - the opts can have a server param, that can be your http server
@@ -47,8 +49,6 @@ export class SocioServer extends LogHandler {
 
         //public:
         this.Query = DB_query_function
-        this.verbose = verbose
-        this.hard_crash = hard_crash
 
         this.#wss.on('connection', this.#Connect.bind(this)); //https://thenewstack.io/mastering-javascript-callbacks-bind-apply-call/ have to bind 'this' to the function, otherwise it will use the .on()'s 'this', so that this.[prop] are not undefined
         this.#wss.on('close', (...stuff) => { this.HandleInfo('WebSocketServer close event', ...stuff) });
@@ -87,10 +87,12 @@ export class SocioServer extends LogHandler {
 
     async #Message(req: Buffer | ArrayBuffer | Buffer[], isBinary: Boolean){
         try{
-            const { client_id, kind, data }: { client_id: string | number; kind: string; data: MessageDataObj } = JSON.parse(req.toString())
+            const { client_id, kind, data }: { client_id: string; kind: CoreMessageKind; data: MessageDataObj } = JSON.parse(req.toString())
             if (this.#secure && data?.sql) {//if this is supposed to be secure and sql was received, then decrypt it before continuing
+                log(data.sql)
                 data.sql = this.#secure.DecryptString(data.sql)
                 const socio_args = SocioArgsParse(data.sql) //speed optimization
+                log(data.sql, socio_args)
 
                 if (!SocioArgHas('socio', { parsed: socio_args })) //secured sql queries must end with the marker, to validate that they havent been tampered with and are not giberish.
                     throw new E('Decrypted sql string does not end with the --socio marker, therefor is invalid. [#marker-issue]', client_id, kind, data, socio_args);
@@ -112,8 +114,10 @@ export class SocioServer extends LogHandler {
                         throw new E (`Client ${client_id} tried to execute a perms query without having the required permissions. [#perm-issue]`, verb, tables);
                 }
             }
-            this.HandleInfo(`received [${kind}] from [${client_id}]`, data);
+            this.HandleInfo(`received ${kind} from ${client_id}`, data);
             // await sleep(2);
+
+            this.#CheckClientID(client_id, kind); //check if the session is valid before processing the message. Only continues, if checks out.
 
             //let the developer handle the msg
             if (this.#lifecycle_hooks.msg)
@@ -121,27 +125,38 @@ export class SocioServer extends LogHandler {
                     return;
 
             switch (kind) {
-                case 'REG':
-                    this.#CheckClientID(client_id, kind)
-                    this.#sessions[client_id].Send('UPD', {
-                        id: data.id,
-                        result: await this.Query(data),
-                        status:'success'
-                    })
+                case 'REG':                    
+                    if (QueryIsSelect(data.sql)) {
+                        //set up hook
+                        const tables = ParseQueryTables(data.sql)
+                        if (tables)
+                            this.#sessions[client_id].RegisterHook(tables, data.id as id, data.sql, data.params || null);
 
-                    //set up hook
-                    if (QueryIsSelect(data.sql))
-                        ParseQueryTables(data.sql).forEach(t => this.#sessions[client_id].RegisterHook(t, data.id, data.sql, data.params));
+                        //send response
+                        this.#sessions[client_id].Send('UPD', {
+                            id: data.id,
+                            result: await this.Query(data),
+                            status: 'success'
+                        })
+                    } else
+                        //send response
+                        this.#sessions[client_id].Send('ERR', {
+                            id: data.id,
+                            result: 'Only SELECT queries may be subscribed to! [#reg-not-select]'
+                        })
 
                     break;
+                case 'UNREG':
+                    const res_1 = this.#sessions[client_id].UnRegisterHook(data.unreg_id || '');
+                    this.#sessions[client_id].Send('RES', { id: data.id, result: res_1 === true })
+                    break;
                 case 'SQL':
-                    this.#CheckClientID(client_id, kind)
                     const is_select = QueryIsSelect(data.sql)
 
                     //have to do the query in every case
                     const res = this.Query(data)
                     if (is_select) //wait for result, if a result is expected, and send it back
-                        this.#sessions[client_id].Send('SQL', { id: data.id, result: await res })
+                        this.#sessions[client_id].Send('RES', { id: data.id, result: await res })
 
                     //if the sql wasnt a SELECT, but altered some resource, then need to propogate that to other connection hooks
                     if (!is_select)
@@ -149,11 +164,9 @@ export class SocioServer extends LogHandler {
                     
                     break;
                 case 'PING': 
-                    this.#CheckClientID(client_id, kind); 
                     this.#sessions[client_id].Send('PONG', { id: data?.id }); 
                     break;
                 case 'AUTH'://client requests to authenticate itself with the server
-                    this.#CheckClientID(client_id, kind)
                     if (this.#lifecycle_hooks.auth){
                         await this.#sessions[client_id].Authenticate(this.#lifecycle_hooks.auth, this.#sessions[client_id], data.params) //bcs its a private class field, give this function the hook to call and params to it. It will set its field and we can just read that off and send it back as the result
                         this.#sessions[client_id].Send('AUTH', { id: data.id, result: this.#sessions[client_id].authenticated == true }) //authenticated can be any truthy or falsy value, but the client will only receive a boolean, so its safe to set this to like an ID or token or smth for your own use
@@ -163,7 +176,6 @@ export class SocioServer extends LogHandler {
                     }
                     break;
                 case 'PERM':
-                    this.#CheckClientID(client_id, kind)
                     if(this.#lifecycle_hooks?.grant_perm){
                         const granted:boolean = await this.#lifecycle_hooks?.grant_perm(client_id, data)
                         this.#sessions[client_id].Send('PERM', { id: data.id, result: granted === true, verb: data.verb, table: data.table }) //the client will only receive a boolean, but still make sure to only return bools as well
@@ -173,11 +185,56 @@ export class SocioServer extends LogHandler {
                         this.#sessions[client_id].Send('PERM', { id: data.id, result: false })
                     }
                     break;
-                case 'UNREG':
-                    this.#CheckClientID(client_id, kind);
-                    const res_1 = this.#sessions[client_id].UnRegisterHook(data.unreg_id || '');
-                    this.#sessions[client_id].Send('UNREG', { id: data.id, result: res_1 === true }) 
+                case 'PROP_REG':
+                    this.#CheckPropExists(data?.prop, client_id, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
+                    //set up hook
+                    this.#props[data.prop as string].updates[client_id] = data.id as id
 
+                    //send response
+                    this.#sessions[client_id].Send('PROP_UPD', {
+                        id: data.id,
+                        result: this.GetPropVal(data.prop as string)
+                    })
+                    break;
+                case 'PROP_UNREG':
+                    this.#CheckPropExists(data?.prop, client_id, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
+                    //remove hook
+                    delete this.#props[data.prop as string].updates[client_id]
+
+                    //send response
+                    this.#sessions[client_id].Send('RES', {
+                        id: data.id,
+                        result: true
+                    })
+                    break;
+                case 'PROP_GET':
+                    this.#CheckPropExists(data?.prop, client_id, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
+                    this.#sessions[client_id].Send('RES', {
+                        id: data.id,
+                        result: this.GetPropVal(data.prop as string)
+                    })
+                    break;
+                case 'PROP_SET':
+                    this.#CheckPropExists(data?.prop, client_id, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
+                    try {
+                        if (this.SetPropVal(data.prop as string, data?.prop_val, client_id)) //if the prop was passed and the value was set successfully, then update all the subscriptions
+                            Object.entries(this.#props[data.prop as string].updates).forEach(([cl_id, sub_id]) => {
+                                if (cl_id in this.#sessions) //check if it still exists
+                                    this.#sessions[cl_id].Send('PROP_UPD', { //send out the result
+                                        id: sub_id,
+                                        result: this.#props[data.prop as string].val
+                                    })
+                                else //the client_id doesnt exist anymore for some reason, so unsubscribe
+                                    delete this.#props[data.prop as string].updates[cl_id]
+                            })
+                    } catch (e: err) {
+                        //send response
+                        this.#sessions[client_id].Send('ERR', {
+                            id: data.id,
+                            result: e?.msg
+                        });
+                        throw e; //report on the server as well
+                    }
                     break;
                 // case '': break;
                 default: throw new E(`Unrecognized message kind! [#msg-kind-issue]`, kind, data);
@@ -233,20 +290,29 @@ export class SocioServer extends LogHandler {
         } catch (e:err) { this.HandleError(e) }
     }
 
-    #CheckClientID(client_id: string|number, kind:string){
+    #CheckClientID(client_id: string, kind:string){
         if (!(client_id in this.#sessions)) 
             throw new E('Message arrived, but client_id not in sessions. [#client_id-issue]', client_id, kind)
         this.#sessions[client_id].last_seen_now()
     }
+    #CheckPropExists(prop:PropKey | undefined, client_id: string, msg_id:id, error_msg: string){
+        if (!prop || !(prop in this.#props)){
+            this.#sessions[client_id].Send('ERR', {
+                id: msg_id,
+                result: error_msg
+            });
+            throw new E(error_msg, prop, client_id)
+        }
+    }
 
     //when the server wants to send some data to a specific session client - can be any raw data
-    SendTo(client_id='', data={}){
-        try{
-            if (client_id in this.#sessions)
-                this.#sessions[client_id].Send('PUSH', data)
-            else throw new E(`The provided session ID [${client_id}] was not found in the tracked web socket connections!`)
-        } catch (e:err) { this.HandleError(e) }
-    }
+    // SendTo(client_id='', data={}){
+    //     try{
+    //         if (client_id in this.#sessions)
+    //             this.#sessions[client_id].Send('PUSH', data)
+    //         else throw new E(`The provided session ID [${client_id}] was not found in the tracked web socket connections!`)
+    //     } catch (e:err) { this.HandleError(e) }
+    // }
     // Emit(data={}){
     //     switch(true){
     //         case data instanceof Blob: this.#wss.emit(data); break;
@@ -276,6 +342,28 @@ export class SocioServer extends LogHandler {
 
     GetClientSession(client_id=''): SocioSession | null{
         return this.#sessions[client_id] || null
+    }
+
+    RegisterProp(key:string, val: PropValue, validator: PropValidator){
+        try{
+            if (key in this.#props)
+                throw new E(`Prop key [${key}] has already been registered and for client continuity is forbiden to over-write at runtime. [#prop-key-exists]`)
+            else
+                this.#props[key] = { val, validator, updates: {} }
+        } catch (e: err) { this.HandleError(e) }
+    }
+    GetPropVal(key: string){
+        return this.#props[key].val || null
+    }
+    SetPropVal(key:string, val:PropValue, client_id:id):true{
+        if(key in this.#props){
+            if(this.#props[key].validator(val))
+                this.#props[key].val = val;
+            else
+                throw new E(`Prop key [${key}] tried to set an invalid value! [#prop-set-not-valid]. Key, val, client_id`, key, val, client_id)
+        }else
+            throw new E(`Prop key [${key}] not registered! [#prop-set-not-found]`)
+        return true;
     }
 }
 

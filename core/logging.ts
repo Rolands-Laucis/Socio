@@ -1,4 +1,4 @@
-export type err = E | any;
+export type err = E | string | any;
 
 //for my own error throwing, bcs i want to throw a msg + some objects maybe to log the current state of the program
 export class E extends Error {
@@ -19,18 +19,23 @@ export class LogHandler {
     hard_crash:boolean;
     verbose: boolean;
 
-    constructor(info_handler: Function, error_handler: Function, {verbose = false, hard_crash=false} = {}){
+    constructor(info_handler: Function, error_handler: Function, { verbose = false, hard_crash = false} = {}){
         this.info = info_handler;
         this.error = error_handler;
         this.verbose = verbose;
-        this.hard_crash = hard_crash
+        this.hard_crash = hard_crash;
     }
 
     HandleError(e: E | Error | undefined | string) { //e is of type class E ^
         if (this.hard_crash) throw e
 
         if (this.log_handlers.error) this.log_handlers.error(e)
-        else if (this.verbose) this.error(e)
+        else if (this.verbose) {
+            if(typeof e == 'string')
+                this.error(e)
+            else if (typeof e == 'object')
+                this.error(e, ...("logs" in e ? e.logs : []))
+        }
     }
     HandleInfo(...args) {
         if (this.log_handlers.info) this.log_handlers.info(...args)

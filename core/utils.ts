@@ -1,8 +1,5 @@
 //I ask not for a lighter burden, but for broader shoulders. -Atlas, when asking Zeus for sympathy.
 
-//types
-export type id = string | number;
-
 //regex
 export const sql_string_regex = /(?<sql>.+?)(?<marker>--socio(?:-\w+?)*)?;?$/mi //markers currently support - auth, perm, \d+
 

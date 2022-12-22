@@ -10,27 +10,30 @@ try { //for my logger
 }
 
 //libs
-import { WebSocket, ClientOptions } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
+import { ClientOptions } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
 
 import { LogHandler, E, err } from './logging'
-import { id } from './utils';
 
 //types
+import { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind } from './types'
 type MessageDataObj = { id: id, verb?: string, table?: string, status?:string, result?:string|object|boolean };
-type QueryObjectFunctionSuccess = ((res: object) => void) | null;
-type QueryObjectFunction = { success: QueryObjectFunctionSuccess, error?: Function};
-type QueryObject = { sql: string, params?: object | null, f: QueryObjectFunction[] }
+type SubscribeCallbackObjectSuccess = ((res: object) => void) | null;
+type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?: Function};
+type QueryObject = { sql: string, params?: object | null, onUpdate: SubscribeCallbackObject }
 
-//"Because he not only wants to perform well, he wants to be well received — and the latter lies outside his control." /Epictetus/
+type PropUpdateCallback = ((val: PropValue) => void) | null;
+
+//"Because he not only wants to perform well, he wants to be well received  —  and the latter lies outside his control." /Epictetus/
 export class SocioClient extends LogHandler {
     // private:
     #ws: WebSocket | null = null;
     #client_id:id = '';
-    #is_ready: Function | boolean = false
+    #is_ready: Function | boolean = false;
     #authenticated=false
 
-    #queries: { [key: string]: QueryObject | Function } = {} //id:QueryObject
-    #perms: { [key: string]: string[]} = {} //verb:[tables strings] keeps a dict of access permissions of verb type and to which tables this session has been granted. This is not safe, the backend does its own checks anyway.
+    #queries: { [id: id]: QueryObject | Function } = {} //keeps a dict of all subscribed queries
+    #props: { [prop_key: PropKey]: { [id: id]: PropUpdateCallback } } = {};
+    #perms: { [verb: string]: string[]} = {}; //verb:[tables strings] keeps a dict of access permissions of verb type and to which tables this session has been granted. This is not safe, the backend does its own checks anyway.
 
     static #key = 0 //all instances will share this number, such that they are always kept unique. Tho each of these clients would make a different session on the backend, but still
 
@@ -53,7 +56,7 @@ export class SocioClient extends LogHandler {
     }
 
     #connect(url: string, ws_opts: ClientOptions, keep_alive: boolean, verbose: boolean, reconnect_tries:number){
-        this.#ws = new WebSocket(url, ws_opts)
+        this.#ws = new WebSocket(url)
         if (keep_alive && reconnect_tries)
             this.#ws.addEventListener("close", () => { 
                 this.HandleError(new E(`WebSocket closed. Retrying...`, this.name)); 
@@ -64,27 +67,26 @@ export class SocioClient extends LogHandler {
         this.#ws.addEventListener('message', this.#message.bind(this));
     }
 
-    #message(req: Buffer | ArrayBuffer | Buffer[], isBinary: Boolean) {
+    #message(event: MessageEvent) {
         try{
-            const { kind, data }: { kind: string; data: MessageDataObj } = JSON.parse(req.toString())
+            const { kind, data }: { kind: ClientMessageKind; data: MessageDataObj } = JSON.parse(event.data)
             this.HandleInfo('recv:', kind, data)
 
             switch (kind) {
                 case 'CON':
                     //@ts-ignore
-                    this.#client_id = data;
-                    //@ts-ignore
-                    this.#is_ready(true); //resolve promise to true
+                    this.#client_id = data;//should just be a string
+                    if (this.#is_ready !== false && typeof this.#is_ready === "function")
+                        this.#is_ready(true); //resolve promise to true
+                    else
+                        this.#is_ready = true;
                     if (this.verbose) done(`Socio WebSocket connected.`, this.name);
 
                     this.#is_ready = true;
                     break;
                 case 'UPD':
                     this.#FindID(kind, data?.id);
-                    (this.#queries[data.id] as QueryObject).f.forEach(f => f[data.status as string](data.result)); //status might be success or error, and error might not be defined
-                    break;
-                case 'SQL':
-                    this.#HandleBasicPromiseMessage(kind, data)
+                    (this.#queries[data.id] as QueryObject).onUpdate[data.status as string](data.result); //status might be success or error, and error might not be defined
                     break;
                 case 'PONG': 
                     this.#FindID(kind, data?.id)    
@@ -114,12 +116,16 @@ export class SocioClient extends LogHandler {
                     (this.#queries[data.id] as Function)(data?.result === true); //result should be either True or False to indicate success status
                     delete this.#queries[data.id] //clear memory
                     break;
-                case 'UNREG':
+                case 'RES':
                     this.#HandleBasicPromiseMessage(kind, data)
                     break;
-                case 'ERR': 
-                    this.HandleError(`Request to DB returned ERROR response for MSG ID ${data.id}`)
+                case 'PROP_UPD':
+                    this.#HandleBasicPromiseMessage(kind, data)
                     break;
+                case 'ERR'://when using this, make sure that the setup query is a promise func. The result field is used as a cause of error msg on the backend
+                    this.#FindID(kind, data?.id);
+                    (this.#queries[data.id] as Function)(null);
+                    throw new E(`Request to DB returned ERROR response for query id, reason #[err-msg]`, data.id, data?.result);
                 // case '': break;
                 default: throw new E(`Unrecognized message kind!`, kind, data);
             }
@@ -127,7 +133,7 @@ export class SocioClient extends LogHandler {
     }
 
     //private method - accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
-    #send(kind='', ...data){ //data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
+    #send(kind: CoreMessageKind, ...data){ //data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
         if(data.length < 1) soft_error('Not enough arguments to send data! kind;data:', kind, ...data) //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
         this.#ws?.send(JSON.stringify(Object.assign({}, { client_id: this.#client_id, kind: kind, data:data[0] }, ...data.slice(1))))
         this.HandleInfo('sent:', kind, data)
@@ -135,24 +141,34 @@ export class SocioClient extends LogHandler {
 
     //subscribe to an sql query. Can add multiple callbacks where ever in your code, if their sql queries are identical
     //returns the created ID for that query, to use to unsubscribe all callbacks to the query
-    subscribe({ sql = '', params = null } : {sql?:string, params?:object| null} = {}, callback: QueryObjectFunctionSuccess = null, status_callbacks: {error?: (e:string) => void}){
-        //callback is the success standard function, that gets called, when the DB sends an update of its data
-        //status_callbacks is an optional object, that expects 1 optional key - "error", and it must be a callable function, that receives 1 arg - the error msg.
-        try{
-            //@ts-ignore
-            const found = Object.entries(this.#queries).find(q => q[1].sql === sql && q[1].params === params);
-            const callbacks: QueryObjectFunction = { success: callback, ...status_callbacks };
+    subscribe({ sql = '', params = null }: { sql?: string, params?: object | null } = {}, onUpdate: SubscribeCallbackObjectSuccess = null, status_callbacks: { error?: (e: string) => void } = {}): id | null{
+        //params for sql is the object that will be passed as params to your query func
 
-            if (found){
-                (this.#queries[found[0]] as QueryObject).f.push(callbacks);
-                return found[0] //the ID of the query
+        //onUpdate is the success standard function, that gets called, when the DB sends an update of its data
+        //status_callbacks is an optional object, that expects 1 optional key - "error", and it must be a callable function, that receives 1 arg - the error msg.
+        try {
+            const id = this.#genKey
+            const callbacks: SubscribeCallbackObject = { success: onUpdate, ...status_callbacks };
+
+            this.#queries[id] = { sql: sql, params: params, onUpdate: callbacks }
+            this.#send('REG', { id: id, sql: sql, params: params })
+
+            return id //the ID of the query
+        } catch (e: err) { this.HandleError(e); return null; }
+    }
+    subscribeProp(prop_name = '', onUpdate: PropUpdateCallback):id|null{
+        //the prop name on the backend that is a key in the object
+        try {
+            const id = this.#genKey
+
+            if (prop_name in this.#props)//add the callback
+                this.#props[prop_name][id] = onUpdate;
+            else {//init the prop object
+                this.#props[prop_name] = { [id]: onUpdate };
+                this.#send('PROP_REG', { id: id, prop: prop_name })
             }
-            else {
-                const id = this.#genKey
-                this.#queries[id] = { sql: sql, params: params, f: [callbacks] }
-                this.#send('REG', { id: id, sql: sql, params: params })
-                return id //the ID of the query
-            }
+
+            return id //the ID of the query
         } catch (e: err) { this.HandleError(e); return null; }
     }
     async unsubscribe(id: id, force=false) {
@@ -176,6 +192,28 @@ export class SocioClient extends LogHandler {
             else
                 throw new E('Cannot unsubscribe query, because provided ID is not currently tracked.', id);
         } catch (e:err) { this.HandleError(e) }
+    }
+    async unsubscribeProp(id: id, force = false) {
+        try {
+            if (id in this.#props) {
+                if (force)//will first delete from here, to not wait for server response
+                    delete this.#props[id];
+
+                //set up new msg to the backend informing a wish to unregister query.
+                const msg_id = this.#genKey;
+                const prom = new Promise((res) => {
+                    this.#queries[msg_id] = res
+                })
+                this.#send('PROP_UNREG', { id: msg_id, unreg_id: id })
+
+                const res = await prom; //await the response from backend
+                if (res)//if successful, then remove the subscribe from the client
+                    delete this.#queries[id];
+                return res;//forward the success status to the developer
+            }
+            else
+                throw new E('Cannot unsubscribe query, because provided ID is not currently tracked.', id);
+        } catch (e: err) { this.HandleError(e) }
     }
     query(sql='', params=null){
         try{
