@@ -5,6 +5,7 @@
 ./db
 tests
 dev
+d
 *.ps1
 *.bat
 *.sh

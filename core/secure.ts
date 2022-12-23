@@ -7,16 +7,18 @@ import { randomUUID, createCipheriv, createDecipheriv, getCiphers, CipherCCMType
 import { sql_string_regex } from './utils'
 import { LogHandler, E } from './logging'
 
-try { //for my logger
-    var { info, log, error, soft_error, done, setPrefix, setShowTime } = await import('@rolands/log');
-    setPrefix('Socio Secure');
-    setShowTime(false);
-} catch (e) {
-    console.log('[Socio Secure ERROR]', e)
-    var info:any = (...objs) => console.log('[Socio Secure]', ...objs),
-        done: any = (...objs) => console.log('[Socio Secure]', ...objs),
-        log: any = (...objs) => console.log('[Socio Secure]', ...objs)
-}
+import { info, log, error, soft_error, done, setPrefix, setShowTime } from '@rolands/log'; setPrefix('Socio Secure'); setShowTime(false);
+
+// try { //for my logger
+//     var { info, log, error, soft_error, done, setPrefix, setShowTime } = import('@rolands/log');
+//     setPrefix('Socio Secure');
+//     setShowTime(false);
+// } catch (e) {
+//     console.log('[Socio Secure ERROR]', e)
+//     var info:any = (...objs) => console.log('[Socio Secure]', ...objs),
+//         done: any = (...objs) => console.log('[Socio Secure]', ...objs),
+//         log: any = (...objs) => console.log('[Socio Secure]', ...objs)
+// }
 
 //https://vitejs.dev/guide/api-plugin.html
 //THE VITE PLUGIN - import into vite config and add into the plugins array with your params.

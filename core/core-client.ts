@@ -1,13 +1,16 @@
 //https://stackoverflow.com/questions/38946112/es6-import-error-handling
-try { //for my logger
-    var { info, log, error, done, soft_error, setPrefix, setShowTime } = await import('@rolands/log'); setPrefix('Socio Client'); setShowTime(false);
-} catch (e) {
-    console.log('[Socio Client ERROR] IMPORT:', e)
-    var info:any = (...objs: any[]) => console.log('[Socio Client]', ...objs),
-        done: any = (...objs: any[]) => console.log('[Socio Client]', ...objs),
-        log: any = (...objs: any[]) => console.log('[Socio Client]', ...objs),
-        soft_error: any = (...objs: any[]) => console.log('[Socio Client]', ...objs);
-}
+
+import { info, log, error, soft_error, done, setPrefix, setShowTime } from '@rolands/log'; setPrefix('Socio Client'); setShowTime(false);
+
+// try { //for my logger
+//     var { info, log, error, done, soft_error, setPrefix, setShowTime } = await import('@rolands/log'); setPrefix('Socio Client'); setShowTime(false);
+// } catch (e) {
+//     console.log('[Socio Client ERROR] IMPORT:', e)
+//     var info:any = (...objs: any[]) => console.log('[Socio Client]', ...objs),
+//         done: any = (...objs: any[]) => console.log('[Socio Client]', ...objs),
+//         log: any = (...objs: any[]) => console.log('[Socio Client]', ...objs),
+//         soft_error: any = (...objs: any[]) => console.log('[Socio Client]', ...objs);
+// }
 
 //libs
 import { ClientOptions } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md

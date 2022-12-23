@@ -5,7 +5,9 @@
   "main": "core.ts",
   "type": "module",
   "scripts": {
-    "ws": "node core.js",
+    "clean": "shx rm -rf dist/*",
+    "build": "tsc",
+    "watch": "tsc --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "files": [
@@ -14,6 +16,7 @@
   "keywords": [
     "DB",
     "sync",
+    "realtime",
     "live",
     "SQL",
     "query",
@@ -32,6 +35,7 @@
   "homepage": "https://github.com/Rolands-Laucis/Socio.js/blob/master/README.md",
   "dependencies": {
     "@rolands/log": "^1.1.1",
+    "@types/node": "^18.11.17",
     "magic-string": "^0.26.7",
     "ws": "^8.9.0"
   },

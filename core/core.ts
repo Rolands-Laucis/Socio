@@ -38,7 +38,7 @@ export class SocioServer extends LogHandler {
     Query: QueryFunction; //you can change this at any time
 
     constructor(opts: ServerOptions | undefined = {}, DB_query_function: QueryFunction, { secure = null, verbose = true, hard_crash=false }: {secure?:SocioSecurity|null, verbose?:boolean, hard_crash?:boolean} = {}){
-        super(info, error, {verbose, hard_crash});
+        super(info, soft_error, {verbose, hard_crash});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
         //hard_crash will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
         //both are public and settable at runtime
