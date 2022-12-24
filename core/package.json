@@ -1,6 +1,6 @@
 {
   "name": "socio",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "A WebSocket based realtime/live duplex Front-End and Back-End syncing API paradigm.",
   "main": "core.ts",
   "type": "module",
