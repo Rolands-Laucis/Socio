@@ -2,7 +2,7 @@ export type id = string | number;
 
 export type PropKey = string;
 export type PropValue = object | string | number | null;
-export type PropValidator = (val: PropValue) => boolean;
+export type PropAssigner = (current_val: PropValue, new_val:PropValue) => boolean;
 
 //msg kinds
 export type CoreMessageKind = 'REG' | 'UNREG' | 'SQL' | 'PING' | 'AUTH' | 'PERM' | 'PROP_REG' | 'PROP_UNREG' | 'PROP_GET' | 'PROP_SET' | '';

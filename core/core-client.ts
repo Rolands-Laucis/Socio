@@ -19,12 +19,12 @@ import { LogHandler, E, err } from './logging'
 
 //types
 import { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind } from './types'
-type MessageDataObj = { id: id, verb?: string, table?: string, status?:string, result?:string|object|boolean };
-type SubscribeCallbackObjectSuccess = ((res: object) => void) | null;
+type MessageDataObj = { id: id, verb?: string, table?: string, status?:string, result?:string|object|boolean|PropValue, prop?:PropKey };
+type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
 type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?: Function};
 type QueryObject = { sql: string, params?: object | null, onUpdate: SubscribeCallbackObject }
 
-type PropUpdateCallback = ((val: PropValue) => void) | null;
+type PropUpdateCallback = ((new_val: PropValue) => void) | null;
 
 //"Because he not only wants to perform well, he wants to be well received  —  and the latter lies outside his control." /Epictetus/
 export class SocioClient extends LogHandler {
@@ -123,7 +123,12 @@ export class SocioClient extends LogHandler {
                     this.#HandleBasicPromiseMessage(kind, data)
                     break;
                 case 'PROP_UPD':
-                    this.#HandleBasicPromiseMessage(kind, data)
+                    if(data?.prop && data?.id && data?.result){
+                        if (this.#props[data.prop as string][data.id as id] != null)
+                            //@ts-ignore
+                            this.#props[data.prop as string][data.id as id](data.result as PropValue);
+                        else throw new E('Prop UPD called, but subscribed prop does not have a callback. data; callback', data, this.#props[data.prop as string][data.id as id])
+                    }else throw new E('Not enough prop info sent from server to perform prop update.', data)
                     break;
                 case 'ERR'://when using this, make sure that the setup query is a promise func. The result field is used as a cause of error msg on the backend
                     this.#FindID(kind, data?.id);
@@ -159,7 +164,7 @@ export class SocioClient extends LogHandler {
             return id //the ID of the query
         } catch (e: err) { this.HandleError(e); return null; }
     }
-    subscribeProp(prop_name = '', onUpdate: PropUpdateCallback):id|null{
+    subscribeProp(prop_name:PropKey, onUpdate: PropUpdateCallback):id|null{
         //the prop name on the backend that is a key in the object
         try {
             const id = this.#genKey
@@ -196,7 +201,9 @@ export class SocioClient extends LogHandler {
                 throw new E('Cannot unsubscribe query, because provided ID is not currently tracked.', id);
         } catch (e:err) { this.HandleError(e) }
     }
-    async unsubscribeProp(id: id, force = false) {
+    async unsubscribeProp(id: id, prop_name: PropKey, force = false) {
+        this.HandleError('not implemented!')
+        return
         try {
             if (id in this.#props) {
                 if (force)//will first delete from here, to not wait for server response
@@ -211,14 +218,15 @@ export class SocioClient extends LogHandler {
 
                 const res = await prom; //await the response from backend
                 if (res)//if successful, then remove the subscribe from the client
-                    delete this.#queries[id];
+                    delete this.#props[id];
                 return res;//forward the success status to the developer
             }
             else
                 throw new E('Cannot unsubscribe query, because provided ID is not currently tracked.', id);
         } catch (e: err) { this.HandleError(e) }
     }
-    query(sql='', params=null){
+
+    query(sql: string, params: object | null = null){
         try{
             //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
             const id = this.#genKey;
@@ -228,6 +236,23 @@ export class SocioClient extends LogHandler {
 
             //send off the request, which will be resolved in the message handler
             this.#send('SQL', { id: id, sql: sql, params: params })
+            return prom
+        } catch (e: err) { this.HandleError(e); return null; }
+    }
+    setProp(prop: PropKey, new_val:PropValue){
+        try {
+            //check that prop is subbed
+            if (!(prop in this.#props))
+                throw new E('Prop must be first subscribed to set its value!', prop)
+
+            //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
+            const id = this.#genKey;
+            const prom = new Promise((res) => {
+                this.#queries[id] = res
+            })
+
+            //send off the request, which will be resolved in the message handler
+            this.#send('PROP_SET', { id: id, prop: prop, prop_val:new_val })
             return prom
         } catch (e: err) { this.HandleError(e); return null; }
     }

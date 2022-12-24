@@ -15,7 +15,7 @@ import {SocioSession} from './core-session'
 //whereas public variables are free for you to alter freely at any time during runtime.
 
 //types
-import { id, PropKey, PropValue, PropValidator, CoreMessageKind} from './types'
+import { id, PropKey, PropValue, PropAssigner, CoreMessageKind} from './types'
 type MessageDataObj = { id?: id, sql?: string, params?: object | null, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue };
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
 export type QueryFunction = (obj: QueryFuncParams | MessageDataObj) => Promise<object>;
@@ -26,7 +26,7 @@ export class SocioServer extends LogHandler {
     #wss: WebSocketServer;
     #sessions: { [key: string]: SocioSession } = {}; //client_id:SocioSession
     #secure: SocioSecurity | null;  //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages
-    #props: { [key: PropKey]: { val: PropValue, validator: PropValidator, updates:{[client_id:string]: id} } } = {}; //backend props, e.g. strings for colors, that clients can subscribe to and alter
+    #props: { [key: PropKey]: { val: PropValue, assigner: PropAssigner, updates:{[client_id:string]: id} } } = {}; //backend props, e.g. strings for colors, that clients can subscribe to and alter
 
     #lifecycle_hooks: { [key: string]: Function | null; } = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null } //call the register function to hook on these. They will be called if they exist
     //msg hook receives all incomming msgs to the server. If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
@@ -188,12 +188,13 @@ export class SocioServer extends LogHandler {
                 case 'PROP_REG':
                     this.#CheckPropExists(data?.prop, client_id, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
                     //set up hook
-                    this.#props[data.prop as string].updates[client_id] = data.id as id
+                    this.#props[data.prop as PropKey].updates[client_id] = data.id as id
 
                     //send response
                     this.#sessions[client_id].Send('PROP_UPD', {
                         id: data.id,
-                        result: this.GetPropVal(data.prop as string)
+                        prop: data.prop,
+                        result: this.GetPropVal(data.prop as PropKey)
                     })
                     break;
                 case 'PROP_UNREG':
@@ -217,16 +218,7 @@ export class SocioServer extends LogHandler {
                 case 'PROP_SET':
                     this.#CheckPropExists(data?.prop, client_id, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
                     try {
-                        if (this.SetPropVal(data.prop as string, data?.prop_val, client_id)) //if the prop was passed and the value was set successfully, then update all the subscriptions
-                            Object.entries(this.#props[data.prop as string].updates).forEach(([cl_id, sub_id]) => {
-                                if (cl_id in this.#sessions) //check if it still exists
-                                    this.#sessions[cl_id].Send('PROP_UPD', { //send out the result
-                                        id: sub_id,
-                                        result: this.#props[data.prop as string].val
-                                    })
-                                else //the client_id doesnt exist anymore for some reason, so unsubscribe
-                                    delete this.#props[data.prop as string].updates[cl_id]
-                            })
+                        this.SetPropVal(data.prop as string, data?.prop_val, client_id)
                     } catch (e: err) {
                         //send response
                         this.#sessions[client_id].Send('ERR', {
@@ -344,26 +336,33 @@ export class SocioServer extends LogHandler {
         return this.#sessions[client_id] || null
     }
 
-    RegisterProp(key:string, val: PropValue, validator: PropValidator){
+    //assigner defaults to basic setter
+    RegisterProp(key: PropKey, val: PropValue, assigner: PropAssigner = (curr: PropValue, new_val: PropValue) => { curr = new_val; return true; }){
         try{
             if (key in this.#props)
                 throw new E(`Prop key [${key}] has already been registered and for client continuity is forbiden to over-write at runtime. [#prop-key-exists]`)
             else
-                this.#props[key] = { val, validator, updates: {} }
+                this.#props[key] = { val, assigner, updates: {} }
         } catch (e: err) { this.HandleError(e) }
     }
-    GetPropVal(key: string){
+    GetPropVal(key: PropKey){
+        // log('here',this.#props[key], this.#props[key].val)
         return this.#props[key].val || null
     }
-    SetPropVal(key:string, val:PropValue, client_id:id):true{
+    SetPropVal(key: PropKey, new_val:PropValue, client_id:id):void{
         if(key in this.#props){
-            if(this.#props[key].validator(val))
-                this.#props[key].val = val;
+            if (this.#props[key].assigner(this.#props[key].val, new_val)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
+                Object.entries(this.#props[key].updates).forEach(([client_id, id]) => {
+                    if (client_id in this.#sessions)
+                        this.#sessions[client_id].Send('PROP_UPD', { id: id, prop: key, result: new_val });
+                    else //the client_id doesnt exist anymore for some reason, so unsubscribe
+                        delete this.#props[key].updates[client_id];
+                });
+            } 
             else
-                throw new E(`Prop key [${key}] tried to set an invalid value! [#prop-set-not-valid]. Key, val, client_id`, key, val, client_id)
+                throw new E(`Prop key [${key}] tried to set an invalid value! [#prop-set-not-valid]. Key, val, client_id`, key, new_val, client_id);
         }else
-            throw new E(`Prop key [${key}] not registered! [#prop-set-not-found]`)
-        return true;
+            throw new E(`Prop key [${key}] not registered! [#prop-set-not-found]`);
     }
 }
 

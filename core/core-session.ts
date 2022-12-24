@@ -54,12 +54,14 @@ export class SocioSession extends LogHandler {
     RegisterHook(tables: string[], id: id, sql, params: object | null) { //TODO this is actually very bad
         if (!(id in this.#hooks))
             this.#hooks[id] = { tables, sql, params };
-        else throw new E('MSG ID already registered as hook!', tables, id, sql, params)
+        else throw new E('MSG ID already registered as hook!', tables, id, sql, params);
+        // this.HandleInfo('registered hook', id, sql);
     }
     UnRegisterHook(id: id) {
         if (!id || !(id in this.#hooks)) return false; //check if it exists
 
         delete this.#hooks[id];
+        // this.HandleInfo('unregistered hook', id);
         return true;
     }
     // get hook_tables() { return Object.values(this.#hooks).map(h => h.table) }
