@@ -130,7 +130,7 @@ export class SocioServer extends LogHandler {
                         //set up hook
                         const tables = ParseQueryTables(data.sql)
                         if (tables)
-                            this.#sessions[client_id].RegisterHook(tables, data.id as id, data.sql, data.params || null);
+                            this.#sessions[client_id].RegisterHook(tables, data.id as id, data.sql as string, data.params || null);
 
                         //send response
                         this.#sessions[client_id].Send('UPD', {
@@ -354,7 +354,7 @@ export class SocioServer extends LogHandler {
             if (this.#props[key].assigner(this.#props[key].val, new_val)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
                 Object.entries(this.#props[key].updates).forEach(([client_id, id]) => {
                     if (client_id in this.#sessions)
-                        this.#sessions[client_id].Send('PROP_UPD', { id: id, prop: key, result: new_val });
+                        this.#sessions[client_id].Send('PROP_UPD', { id: id, prop: key, result: this.GetPropVal(key) }); //should be GetPropVal, bcs i cant know how the assigner changed the val
                     else //the client_id doesnt exist anymore for some reason, so unsubscribe
                         delete this.#props[key].updates[client_id];
                 });
