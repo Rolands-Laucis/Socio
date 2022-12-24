@@ -51,7 +51,8 @@ export class SocioSession extends LogHandler {
         this.HandleInfo('sent:', kind, data)
     }
 
-    RegisterHook(tables: string[], id: id, sql, params: object | null) { //TODO this is actually very bad
+    //TODO this used to be well optimized datastructures back in 0.2.1, but had to simplify down, bcs it gets complicated
+    RegisterHook(tables: string[], id: id, sql:string, params: object | null) {
         if (!(id in this.#hooks))
             this.#hooks[id] = { tables, sql, params };
         else throw new E('MSG ID already registered as hook!', tables, id, sql, params);
