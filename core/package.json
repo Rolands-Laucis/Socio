@@ -4,8 +4,8 @@
   "description": "A WebSocket based realtime/live duplex Front-End and Back-End syncing API paradigm.",
   "main": "core.ts",
   "type": "module",
+  "module": "core.ts",
   "scripts": {
-    "clean": "shx rm -rf dist/*",
     "build": "tsc",
     "watch": "tsc --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -13,6 +13,7 @@
   "files": [
     "./dist"
   ],
+  "types": "./dist/*.d.ts",
   "keywords": [
     "DB",
     "sync",
