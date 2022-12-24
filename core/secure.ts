@@ -3,19 +3,22 @@
 "use strict";
 
 import MagicString from 'magic-string'; //https://github.com/Rich-Harris/magic-string
-import { randomUUID, createCipheriv, createDecipheriv, getCiphers } from 'crypto'
-import { SocioArgsParse, sql_string_regex } from './utils.js'
+import { randomUUID, createCipheriv, createDecipheriv, getCiphers, CipherCCMTypes, BinaryLike } from 'crypto'
+import { sql_string_regex } from './utils'
+import { LogHandler, E } from './logging'
 
-try { //for my logger
-    var { info, log, error, done, setPrefix, setShowTime } = await import('@rolands/log')
-    setPrefix('Socio Secure')
-    setShowTime(false)
-} catch (e) {
-    console.log('[Socio Secure ERROR]', e)
-    var info = (...objs) => console.log('[Socio Secure]', ...objs)
-    var done = (...objs) => console.log('[Socio Secure]', ...objs)
-    var log = (...objs) => console.log('[Socio Secure]', ...objs)
-}
+import { info, log, error, soft_error, done, setPrefix, setShowTime } from '@rolands/log'; setPrefix('Socio Secure'); setShowTime(false);
+
+// try { //for my logger
+//     var { info, log, error, soft_error, done, setPrefix, setShowTime } = import('@rolands/log');
+//     setPrefix('Socio Secure');
+//     setShowTime(false);
+// } catch (e) {
+//     console.log('[Socio Secure ERROR]', e)
+//     var info:any = (...objs) => console.log('[Socio Secure]', ...objs),
+//         done: any = (...objs) => console.log('[Socio Secure]', ...objs),
+//         log: any = (...objs) => console.log('[Socio Secure]', ...objs)
+// }
 
 //https://vitejs.dev/guide/api-plugin.html
 //THE VITE PLUGIN - import into vite config and add into the plugins array with your params.
@@ -25,7 +28,7 @@ export function SocioSecurityPlugin({ secure_private_key = '', cipther_algorithm
     return{
         name:'vite-socio-security',
         enforce: 'pre',
-        transform(code, id){
+        transform(code:string, id:string){
             const ext = id.split('.').slice(-1)[0]
             if (['js', 'svelte', 'vue', 'jsx', 'ts'].includes(ext) && !id.match(/\/(node_modules|socio\/(core|core-client|secure))\//)) { // , 'svelte' 
                 const s = ss.SecureSouceCode(code) //uses MagicString lib
@@ -33,7 +36,8 @@ export function SocioSecurityPlugin({ secure_private_key = '', cipther_algorithm
                     code: s.toString(),
                     map: s.generateMap({source:id, includeContent:true})
                 }
-            }                
+            }
+            else return undefined;
         }
     }
 }
@@ -42,22 +46,24 @@ export const string_regex = /(?<q>["'])(?<str>[^ ]+?.+?)\1/g // match all string
 
 
 //The aim of the wise is not to secure pleasure, but to avoid pain. /Aristotle/
-export class SocioSecurity{
+export class SocioSecurity extends LogHandler {
     //private:
-    #key=''
-    #algo=''
-    #iv=''
+    #key: WithImplicitCoercion<string | Uint8Array | readonly number[]>;
+    #algo: CipherCCMTypes | string;
+    #iv: BinaryLike;
 
     //public:
     verbose=false
-    rand_int_gen=null
+    rand_int_gen: ((min:number, max:number) => number) | null;
 
     constructor({ secure_private_key = '', cipther_algorithm = 'aes-256-ctr', cipher_iv ='', rand_int_gen=null, verbose=false} = {}){
+        super(info, soft_error);
+        
         if (!cipher_iv) cipher_iv = UUID()
-        if (!secure_private_key || !cipther_algorithm || !cipher_iv) throw `Missing constructor arguments!`
-        if (secure_private_key.length < 32) throw `secure_private_key has to be at least 32 characters! Got ${secure_private_key.length}`
-        if (cipher_iv.length < 16) throw `cipher_iv has to be at least 16 characters! Got ${cipher_iv.length}`
-        if (!(getCiphers().includes(cipther_algorithm))) throw `Unsupported algorithm [${cipther_algorithm}] by the Node.js Crypto module!`
+        if (!secure_private_key || !cipther_algorithm || !cipher_iv) throw new E(`Missing constructor arguments!`)
+        if (secure_private_key.length < 32) throw new E(`secure_private_key has to be at least 32 length! Got ${secure_private_key.length}`)
+        if (cipher_iv.length < 16) throw new E(`cipher_iv has to be at least 16 length! Got ${cipher_iv.length}`)
+        if (!(getCiphers().includes(cipther_algorithm))) throw new E(`Unsupported algorithm [${cipther_algorithm}] by the Node.js Crypto module!`)
 
         const te = new TextEncoder()
 
@@ -67,29 +73,30 @@ export class SocioSecurity{
 
         this.verbose = verbose
         this.rand_int_gen = rand_int_gen
-        if (this.verbose) done('Initialized SocioSecurity object succesfully')
+        if (this.verbose) done('Initialized SocioSecurity object succesfully!')
     }
     
     //sql strings must be in single or double quotes and have an sql single line comment at the end with the socio marker, e.g. "--socio" etc. See the sql_string_regex pattern in core/utils
     SecureSouceCode(source_code = '') {
+        //@ts-ignore
         const s = new MagicString(source_code);
 
         //loop over match iterator f
         for (const m of source_code.matchAll(string_regex)){ //loop over all strings in either '' or ""
             const found = m?.groups?.str?.match(sql_string_regex)?.groups || {}
-            if (found?.sql && found?.marker && m.groups?.q)
+            if (found?.sql && found?.marker && m.groups?.q && m.index)
                 s.update(m.index, m.index + m[0].length, this.EncryptSocioString(m.groups.q, found.sql, found.marker));
         }
 
         return s
     }
 
-    EncryptString(query = '') {
+    EncryptString(query = ''): string {
         const cipher = createCipheriv(this.#algo, Buffer.from(this.#key), this.#iv)
         return (cipher.update(query, 'utf-8', 'base64') + cipher.final('base64')) //Base64 only contains A–Z , a–z , 0–9 , + , / and =
     }
 
-    DecryptString(query = '') {
+    DecryptString(query = ''):string {
         const decipther = createDecipheriv(this.#algo, Buffer.from(this.#key), this.#iv)
         return decipther.update(query, 'base64', 'utf-8') + decipther.final('utf-8')
     }
@@ -100,7 +107,7 @@ export class SocioSecurity{
         return q + this.EncryptString(sql + (marker ? marker : '--socio') + '-' + this.GenRandInt()) + q //`--${this.GenRandInt()}\n` +
     }
 
-    GenRandInt(min = 100, max = 10_000){
+    GenRandInt(min = 1000, max = 100_000):number{
         return this.rand_int_gen ? this.rand_int_gen(min, max) : Math.floor((Math.random() * (max - min)) + min)
     }
 }

@@ -5,10 +5,13 @@
 ./db
 tests
 dev
+d
 *.ps1
 *.bat
 *.sh
 *.vscode
+core/dist
+core/dev_serv.ts
 
 ### Database ###
 *.accdb

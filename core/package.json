@@ -1,16 +1,23 @@
 {
   "name": "socio",
-  "version": "0.2.1",
-  "description": "a websocket based live and synced front and back end",
-  "main": "core.js",
+  "version": "0.3.0",
+  "description": "A WebSocket based realtime/live duplex Front-End and Back-End syncing API paradigm.",
+  "main": "core.ts",
   "type": "module",
+  "module": "core.ts",
   "scripts": {
-    "ws": "node core.js",
+    "build": "tsc",
+    "watch": "tsc --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "files": [
+    "./dist"
+  ],
+  "types": "./dist/*.d.ts",
   "keywords": [
     "DB",
     "sync",
+    "realtime",
     "live",
     "SQL",
     "query",
@@ -29,7 +36,11 @@
   "homepage": "https://github.com/Rolands-Laucis/Socio.js/blob/master/README.md",
   "dependencies": {
     "@rolands/log": "^1.1.1",
+    "@types/node": "^18.11.17",
     "magic-string": "^0.26.7",
     "ws": "^8.9.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.3"
   }
 }
