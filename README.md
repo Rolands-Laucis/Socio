@@ -61,7 +61,6 @@ sc.unsubscribe(id);
 * Keyed SQL queries
 * Better SQL dependency distinguisher on queries
 * Rate-limit decorators
-* Server Props
 * Threading paralization pipelines for async querry queues (perhaps offloading queries to another machine)
 * Caching and dedup UPD msg kind
 * File and blob sending and replacing on the client side
