@@ -225,7 +225,7 @@ export class SocioServer extends LogHandler {
                 case 'PROP_SET':
                     this.#CheckPropExists(data?.prop, client_id, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
                     try {
-                        this.SetPropVal(data.prop as string, data?.prop_val, client_id);
+                        this.UpdatePropVal(data.prop as string, data?.prop_val, client_id);
                         if(client_id in this.#sessions)
                             this.#sessions[client_id].Send('RES', { id: data.id, result:true}); //resolve this request to true, so the client knows everything went fine.
                     } catch (e: err) {
@@ -346,7 +346,7 @@ export class SocioServer extends LogHandler {
     }
 
     //assigner defaults to basic setter
-    RegisterProp(key: PropKey, val: PropValue, assigner: PropAssigner = (curr: PropValue, new_val: PropValue) => { curr = new_val; return true; }){
+    RegisterProp(key: PropKey, val: PropValue, assigner: PropAssigner = (key: PropKey, new_val: PropValue) => this.SetPropVal(key, new_val)){
         try{
             if (key in this.#props)
                 throw new E(`Prop key [${key}] has already been registered and for client continuity is forbiden to over-write at runtime. [#prop-key-exists]`)
@@ -357,9 +357,9 @@ export class SocioServer extends LogHandler {
     GetPropVal(key: PropKey){
         return this.#props[key].val || null
     }
-    SetPropVal(key: PropKey, new_val:PropValue, client_id:id):void{
+    UpdatePropVal(key: PropKey, new_val:PropValue, client_id:id):void{//this will propogate the change, if it is assigned, to all subscriptions
         if(key in this.#props){
-            if (this.#props[key].assigner(this.#props[key].val, new_val)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
+            if (this.#props[key].assigner(key, new_val)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
                 Object.entries(this.#props[key].updates).forEach(([client_id, id]) => {
                     if (client_id in this.#sessions)
                         this.#sessions[client_id].Send('PROP_UPD', { id: id, prop: key, result: this.GetPropVal(key) }); //should be GetPropVal, bcs i cant know how the assigner changed the val
@@ -371,6 +371,10 @@ export class SocioServer extends LogHandler {
                 throw new E(`Prop key [${key}] tried to set an invalid value! [#prop-set-not-valid]. Key, val, client_id`, key, new_val, client_id);
         }else
             throw new E(`Prop key [${key}] not registered! [#prop-set-not-found]`);
+    }
+    SetPropVal(key: PropKey, new_val: PropValue): true { //this hard sets the value without checks or updating clients
+        this.#props[key].val = new_val;
+        return true;
     }
 }
 
