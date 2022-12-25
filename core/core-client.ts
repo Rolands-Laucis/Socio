@@ -1,16 +1,6 @@
 //https://stackoverflow.com/questions/38946112/es6-import-error-handling
 
-import { info, log, error, soft_error, done, setPrefix, setShowTime } from '@rolands/log'; setPrefix('Socio Client'); setShowTime(false);
-
-// try { //for my logger
-//     var { info, log, error, done, soft_error, setPrefix, setShowTime } = await import('@rolands/log'); setPrefix('Socio Client'); setShowTime(false);
-// } catch (e) {
-//     console.log('[Socio Client ERROR] IMPORT:', e)
-//     var info:any = (...objs: any[]) => console.log('[Socio Client]', ...objs),
-//         done: any = (...objs: any[]) => console.log('[Socio Client]', ...objs),
-//         log: any = (...objs: any[]) => console.log('[Socio Client]', ...objs),
-//         soft_error: any = (...objs: any[]) => console.log('[Socio Client]', ...objs);
-// }
+import { info, log, error, soft_error, done, setPrefix, setShowTime } from '@rolands/log'; setPrefix('SocioClient'); setShowTime(false);
 
 //libs
 import { ClientOptions } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
@@ -124,10 +114,12 @@ export class SocioClient extends LogHandler {
                     break;
                 case 'PROP_UPD':
                     if(data?.prop && data?.id && data?.result){
-                        if (this.#props[data.prop as string][data.id as id] != null)
+                        if (this.#props[data.prop as string][data.id as id] != null){
                             //@ts-ignore
                             this.#props[data.prop as string][data.id as id](data.result as PropValue);
-                        else throw new E('Prop UPD called, but subscribed prop does not have a callback. data; callback', data, this.#props[data.prop as string][data.id as id])
+                        } else throw new E('Prop UPD called, but subscribed prop does not have a callback. data; callback', data, this.#props[data.prop as string][data.id as id]);
+                        if(data.id in this.#queries)
+                            (this.#queries[data.id] as Function)(data.result); //resolve the promise
                     }else throw new E('Not enough prop info sent from server to perform prop update.', data)
                     break;
                 case 'ERR'://when using this, make sure that the setup query is a promise func. The result field is used as a cause of error msg on the backend
@@ -164,7 +156,7 @@ export class SocioClient extends LogHandler {
             return id //the ID of the query
         } catch (e: err) { this.HandleError(e); return null; }
     }
-    subscribeProp(prop_name:PropKey, onUpdate: PropUpdateCallback):id|null{
+    subscribeProp(prop_name:PropKey, onUpdate: PropUpdateCallback):void{
         //the prop name on the backend that is a key in the object
         try {
             const id = this.#genKey
@@ -175,9 +167,7 @@ export class SocioClient extends LogHandler {
                 this.#props[prop_name] = { [id]: onUpdate };
                 this.#send('PROP_REG', { id: id, prop: prop_name })
             }
-
-            return id //the ID of the query
-        } catch (e: err) { this.HandleError(e); return null; }
+        } catch (e: err) { this.HandleError(e); }
     }
     async unsubscribe(id: id, force=false) {
         try {
@@ -193,7 +183,7 @@ export class SocioClient extends LogHandler {
                 this.#send('UNREG', { id: msg_id, unreg_id:id })
 
                 const res = await prom; //await the response from backend
-                if(res)//if successful, then remove the subscribe from the client
+                if(res === true)//if successful, then remove the subscribe from the client
                     delete this.#queries[id];
                 return res;//forward the success status to the developer
             }
@@ -201,28 +191,26 @@ export class SocioClient extends LogHandler {
                 throw new E('Cannot unsubscribe query, because provided ID is not currently tracked.', id);
         } catch (e:err) { this.HandleError(e) }
     }
-    async unsubscribeProp(id: id, prop_name: PropKey, force = false) {
-        this.HandleError('not implemented!')
-        return
+    async unsubscribeProp(prop_name: PropKey, force = false) {
         try {
-            if (id in this.#props) {
+            if (prop_name in this.#props) {
                 if (force)//will first delete from here, to not wait for server response
-                    delete this.#props[id];
+                    delete this.#props[prop_name];
 
                 //set up new msg to the backend informing a wish to unregister query.
                 const msg_id = this.#genKey;
                 const prom = new Promise((res) => {
                     this.#queries[msg_id] = res
                 })
-                this.#send('PROP_UNREG', { id: msg_id, unreg_id: id })
+                this.#send('PROP_UNREG', { id: msg_id, prop: prop_name })
 
                 const res = await prom; //await the response from backend
-                if (res)//if successful, then remove the subscribe from the client
-                    delete this.#props[id];
+                if (res === true)//if successful, then remove the subscribe from the client
+                    delete this.#props[prop_name];
                 return res;//forward the success status to the developer
             }
             else
-                throw new E('Cannot unsubscribe query, because provided ID is not currently tracked.', id);
+                throw new E('Cannot unsubscribe query, because provided prop_name is not currently tracked.', prop_name);
         } catch (e: err) { this.HandleError(e) }
     }
 

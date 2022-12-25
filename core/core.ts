@@ -5,7 +5,7 @@ import { WebSocketServer, ServerOptions, WebSocket } from 'ws'; //https://github
 import { IncomingMessage } from 'http'
 
 //mine
-import { log, soft_error, error, info, setPrefix, setShowTime } from '@rolands/log'; setPrefix('Socio'); setShowTime(false); //for my logger
+import { log, soft_error, error, info, setPrefix, setShowTime } from '@rolands/log'; setPrefix('SocioServer'); setShowTime(false); //for my logger
 import { QueryIsSelect, ParseQueryTables, SocioArgsParse, SocioArgHas, ParseQueryVerb, sleep } from './utils'
 import { E, LogHandler, err } from './logging'
 import { UUID, SocioSecurity } from './secure'
@@ -89,10 +89,8 @@ export class SocioServer extends LogHandler {
         try{
             const { client_id, kind, data }: { client_id: string; kind: CoreMessageKind; data: MessageDataObj } = JSON.parse(req.toString())
             if (this.#secure && data?.sql) {//if this is supposed to be secure and sql was received, then decrypt it before continuing
-                log(data.sql)
                 data.sql = this.#secure.DecryptString(data.sql)
                 const socio_args = SocioArgsParse(data.sql) //speed optimization
-                log(data.sql, socio_args)
 
                 if (!SocioArgHas('socio', { parsed: socio_args })) //secured sql queries must end with the marker, to validate that they havent been tampered with and are not giberish.
                     throw new E('Decrypted sql string does not end with the --socio marker, therefor is invalid. [#marker-issue]', client_id, kind, data, socio_args);
@@ -114,7 +112,7 @@ export class SocioServer extends LogHandler {
                         throw new E (`Client ${client_id} tried to execute a perms query without having the required permissions. [#perm-issue]`, verb, tables);
                 }
             }
-            this.HandleInfo(`received ${kind} from ${client_id}`, data);
+            this.HandleInfo(`recv ${kind} from ${client_id}`, data);
             // await sleep(2);
 
             this.#CheckClientID(client_id, kind); //check if the session is valid before processing the message. Only continues, if checks out.
@@ -200,13 +198,22 @@ export class SocioServer extends LogHandler {
                 case 'PROP_UNREG':
                     this.#CheckPropExists(data?.prop, client_id, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
                     //remove hook
-                    delete this.#props[data.prop as string].updates[client_id]
+                    try{
+                        delete this.#props[data.prop as string].updates[client_id]
 
-                    //send response
-                    this.#sessions[client_id].Send('RES', {
-                        id: data.id,
-                        result: true
-                    })
+                        //send response
+                        this.#sessions[client_id].Send('RES', {
+                            id: data.id,
+                            result: true
+                        });
+                    } catch (e: err) {
+                        //send response
+                        this.#sessions[client_id].Send('ERR', {
+                            id: data.id,
+                            result: e?.msg
+                        });
+                        throw e; //report on the server as well
+                    }
                     break;
                 case 'PROP_GET':
                     this.#CheckPropExists(data?.prop, client_id, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
@@ -218,7 +225,9 @@ export class SocioServer extends LogHandler {
                 case 'PROP_SET':
                     this.#CheckPropExists(data?.prop, client_id, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
                     try {
-                        this.SetPropVal(data.prop as string, data?.prop_val, client_id)
+                        this.SetPropVal(data.prop as string, data?.prop_val, client_id);
+                        if(client_id in this.#sessions)
+                            this.#sessions[client_id].Send('RES', { id: data.id, result:true}); //resolve this request to true, so the client knows everything went fine.
                     } catch (e: err) {
                         //send response
                         this.#sessions[client_id].Send('ERR', {
@@ -346,7 +355,6 @@ export class SocioServer extends LogHandler {
         } catch (e: err) { this.HandleError(e) }
     }
     GetPropVal(key: PropKey){
-        // log('here',this.#props[key], this.#props[key].val)
         return this.#props[key].val || null
     }
     SetPropVal(key: PropKey, new_val:PropValue, client_id:id):void{
