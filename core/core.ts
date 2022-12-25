@@ -354,8 +354,19 @@ export class SocioServer extends LogHandler {
                 this.#props[key] = { val, assigner, updates: {} }
         } catch (e: err) { this.HandleError(e) }
     }
+    UnRegisterProp(key: PropKey){
+        try {
+            //TODO more graceful unregister, bcs the clients dont know about this, and their queries will just fail, which is needless traffic.
+            if (key in this.#props)
+                delete this.#props[key];
+            else
+                throw new E(`Prop key [${key}] hasnt been registered. [#prop-key-not-exists]`);
+        } catch (e: err) { this.HandleError(e) }
+    }
     GetPropVal(key: PropKey){
-        return this.#props[key].val || null
+        if (key in this.#props)
+            return this.#props[key].val || null
+        else return null;
     }
     UpdatePropVal(key: PropKey, new_val:PropValue, client_id:id):void{//this will propogate the change, if it is assigned, to all subscriptions
         if(key in this.#props){
@@ -372,9 +383,11 @@ export class SocioServer extends LogHandler {
         }else
             throw new E(`Prop key [${key}] not registered! [#prop-set-not-found]`);
     }
-    SetPropVal(key: PropKey, new_val: PropValue): true { //this hard sets the value without checks or updating clients
-        this.#props[key].val = new_val;
-        return true;
+    SetPropVal(key: PropKey, new_val: PropValue): boolean { //this hard sets the value without checks or updating clients
+        try{
+            this.#props[key].val = new_val;
+            return true;
+        } catch (e: err) { this.HandleError(e); return false; }
     }
 }
 
