@@ -1,12 +1,13 @@
 {
   "name": "socio",
-  "version": "0.3.8",
+  "version": "0.3.11",
   "description": "A WebSocket based realtime/live duplex Front-End and Back-End syncing API paradigm.",
   "main": "core.ts",
   "type": "module",
   "module": "core.ts",
   "scripts": {
     "build": "tsc",
+    "pub": "npm run build && npm publish",
     "watch": "tsc --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
