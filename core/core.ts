@@ -124,9 +124,9 @@ export class SocioServer extends LogHandler {
 
             switch (kind) {
                 case 'REG':                    
-                    if (QueryIsSelect(data.sql)) {
+                    if (QueryIsSelect(data.sql || '')) {
                         //set up hook
-                        const tables = ParseQueryTables(data.sql)
+                        const tables = ParseQueryTables(data.sql || '')
                         if (tables)
                             this.#sessions[client_id].RegisterHook(tables, data.id as id, data.sql as string, data.params || null);
 
@@ -149,7 +149,7 @@ export class SocioServer extends LogHandler {
                     this.#sessions[client_id].Send('RES', { id: data.id, result: res_1 === true })
                     break;
                 case 'SQL':
-                    const is_select = QueryIsSelect(data.sql)
+                    const is_select = QueryIsSelect(data.sql || '')
 
                     //have to do the query in every case
                     const res = this.Query(data)
