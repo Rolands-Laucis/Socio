@@ -1,4 +1,4 @@
-# Socio.js - WebSocket live/reactive API paradigm with Client-Side SQL queries. (under active early development)
+# Socio.js - WebSocket realtime API paradigm framework with Client-Side SQL queries. (under active early development)
 
 ## Connecting your Front-End to Back-End DB reactively!
 
