@@ -1,4 +1,4 @@
-# Socio.js - WebSocket realtime API paradigm framework with Client-Side SQL queries. (under active early development)
+# Socio - A WebSocket based realtime duplex Front-End and Back-End syncing API paradigm framework (under active early development)
 
 ## Connecting your Front-End to Back-End DB reactively!
 
