@@ -3,34 +3,26 @@
 "use strict";
 
 import MagicString from 'magic-string'; //https://github.com/Rich-Harris/magic-string
-import { randomUUID, createCipheriv, createDecipheriv, getCiphers, CipherCCMTypes, BinaryLike } from 'crypto'
-import { sql_string_regex } from './utils'
-import { LogHandler, E } from './logging'
+import { randomUUID, createCipheriv, createDecipheriv, getCiphers, CipherCCMTypes, randomBytes, createHash } from 'crypto'
+import { sql_string_regex } from './utils.js'
+import { LogHandler, E } from './logging.js'
 
-import { info, log, error, soft_error, done, setPrefix, setShowTime } from '@rolands/log'; setPrefix('Socio Secure'); setShowTime(false);
+import { info, log, error, soft_error, done, setPrefix, setShowTime } from '@rolands/log'; setPrefix('SocioSecure'); setShowTime(false);
 
-// try { //for my logger
-//     var { info, log, error, soft_error, done, setPrefix, setShowTime } = import('@rolands/log');
-//     setPrefix('Socio Secure');
-//     setShowTime(false);
-// } catch (e) {
-//     console.log('[Socio Secure ERROR]', e)
-//     var info:any = (...objs) => console.log('[Socio Secure]', ...objs),
-//         done: any = (...objs) => console.log('[Socio Secure]', ...objs),
-//         log: any = (...objs) => console.log('[Socio Secure]', ...objs)
-// }
+const default_cipher_algorithm_bits = 256
+const default_cipher_algorithm = `aes-${default_cipher_algorithm_bits}-ctr`
 
 //https://vitejs.dev/guide/api-plugin.html
 //THE VITE PLUGIN - import into vite config and add into the plugins array with your params.
 //it will go over your source code and replace --socio strings with their encrypted versions, that will be sent to the server and there will be decrypted using the below class
-export function SocioSecurityPlugin({ secure_private_key = '', cipther_algorithm = 'aes-256-ctr', cipher_iv = '', verbose = false } = {}){
-    const ss = new SocioSecurity({secure_private_key:secure_private_key, cipther_algorithm:cipther_algorithm, cipher_iv:cipher_iv, verbose:verbose})
+export function SocioSecurityPlugin({ secure_private_key = '', cipher_algorithm = default_cipher_algorithm, verbose = false } = {}){
+    const ss = new SocioSecurity({secure_private_key, cipher_algorithm, verbose})
     return{
         name:'vite-socio-security',
         enforce: 'pre',
         transform(code:string, id:string){
             const ext = id.split('.').slice(-1)[0]
-            if (['js', 'svelte', 'vue', 'jsx', 'ts'].includes(ext) && !id.match(/\/(node_modules|socio\/(core|core-client|secure))\//)) { // , 'svelte' 
+            if (['js', 'svelte', 'vue', 'jsx', 'ts', 'tsx'].includes(ext) && !id.match(/\/(node_modules|socio\/(core|core-client|secure))\//)) { // , 'svelte' 
                 const s = ss.SecureSouceCode(code) //uses MagicString lib
                 return {
                     code: s.toString(),
@@ -48,31 +40,34 @@ export const string_regex = /(?<q>["'])(?<str>[^ ]+?.+?)\1/g // match all string
 //The aim of the wise is not to secure pleasure, but to avoid pain. /Aristotle/
 export class SocioSecurity extends LogHandler {
     //private:
-    #key: WithImplicitCoercion<string | Uint8Array | readonly number[]>;
+    #key: Buffer;
     #algo: CipherCCMTypes | string;
-    #iv: BinaryLike;
 
     //public:
     verbose=false
     rand_int_gen: ((min:number, max:number) => number) | null;
+    rand_iv_gen: (size: number) => Buffer;
 
-    constructor({ secure_private_key = '', cipther_algorithm = 'aes-256-ctr', cipher_iv ='', rand_int_gen=null, verbose=false} = {}){
+    //the default algorithm was chosen by me given these two videos of information:
+    //https://www.youtube.com/watch?v=Rk0NIQfEXBA&ab_channel=Computerphile
+    //https://www.youtube.com/watch?v=O4xNJsjtN6E&ab_channel=Computerphile
+    //And a brief discussion on Cryptography Stack Exchange.
+    //let me know if i am dumb.
+    constructor({ secure_private_key = '', cipher_algorithm = default_cipher_algorithm, rand_int_gen = null, rand_iv_gen = randomBytes, verbose = false }: { secure_private_key: Buffer | string, cipher_algorithm?: string, rand_int_gen?: ((min: number, max: number) => number) | null, rand_iv_gen?: ((size: number) => Buffer), verbose: boolean } = { secure_private_key: '', cipher_algorithm: 'aes-192-gcm', verbose: false }){
         super(info, soft_error);
         
-        if (!cipher_iv) cipher_iv = UUID()
-        if (!secure_private_key || !cipther_algorithm || !cipher_iv) throw new E(`Missing constructor arguments!`)
-        if (secure_private_key.length < 32) throw new E(`secure_private_key has to be at least 32 length! Got ${secure_private_key.length}`)
-        if (cipher_iv.length < 16) throw new E(`cipher_iv has to be at least 16 length! Got ${cipher_iv.length}`)
-        if (!(getCiphers().includes(cipther_algorithm))) throw new E(`Unsupported algorithm [${cipther_algorithm}] by the Node.js Crypto module!`)
+        if (!secure_private_key || !cipher_algorithm) throw new E(`Missing constructor arguments!`);
+        if (typeof secure_private_key == 'string') secure_private_key = StringToByteBuffer(secure_private_key); //cast to buffer, if string was passed
+        const default_cipher_algorithm_bytes = default_cipher_algorithm_bits / 8;
+        if (secure_private_key.byteLength < default_cipher_algorithm_bytes) throw new E(`secure_private_key has to be at least ${default_cipher_algorithm_bytes} bytes length! Got ${secure_private_key.byteLength}`);
+        if (!(getCiphers().includes(cipher_algorithm))) throw new E(`Unsupported algorithm [${cipher_algorithm}] by the Node.js Crypto module!`);
 
-        const te = new TextEncoder()
-
-        this.#key = te.encode(secure_private_key).slice(0,32) //has to be this length
-        this.#algo = cipther_algorithm
-        this.#iv = te.encode(cipher_iv).slice(0, 16) //has to be this length
+        this.#key = createHash('sha256').update(secure_private_key).digest().subarray(0, 32); //hash the key just to make sure to complicate the input key, if it is weak
+        this.#algo = cipher_algorithm
 
         this.verbose = verbose
         this.rand_int_gen = rand_int_gen
+        this.rand_iv_gen = rand_iv_gen;
         if (this.verbose) done('Initialized SocioSecurity object succesfully!')
     }
     
@@ -91,14 +86,17 @@ export class SocioSecurity extends LogHandler {
         return s
     }
 
-    EncryptString(query = ''): string {
-        const cipher = createCipheriv(this.#algo, Buffer.from(this.#key), this.#iv)
-        return (cipher.update(query, 'utf-8', 'base64') + cipher.final('base64')) //Base64 only contains A–Z , a–z , 0–9 , + , / and =
+    EncryptString(str = ''): string {
+        const iv = this.rand_iv_gen(16);
+        const cipher = createCipheriv(this.#algo, this.#key, iv)
+        const cipher_text = iv.toString('base64') + ' ' + cipher.update(str, 'utf-8', 'base64') + cipher.final('base64'); //Base64 only contains A–Z , a–z , 0–9 , + , / and =
+        return cipher_text
     }
 
-    DecryptString(query = ''):string {
-        const decipther = createDecipheriv(this.#algo, Buffer.from(this.#key), this.#iv)
-        return decipther.update(query, 'base64', 'utf-8') + decipther.final('utf-8')
+    DecryptString(cipher_text:string, iv_base64:string):string {
+        const iv = Buffer.from(iv_base64, 'base64')
+        const decipther = createDecipheriv(this.#algo, this.#key, iv)
+        return decipther.update(cipher_text, 'base64', 'utf-8') + decipther.final('utf-8')
     }
 
     //surrouded by the same quotes as original, the sql gets encrypted along with its marker, so neither can be altered on the front end. 
@@ -110,9 +108,11 @@ export class SocioSecurity extends LogHandler {
     GenRandInt(min = 1000, max = 100_000):number{
         return this.rand_int_gen ? this.rand_int_gen(min, max) : Math.floor((Math.random() * (max - min)) + min)
     }
+
+    get supportedCiphers() { return getCiphers() } //convenience
+    get defaultCipher() { return default_cipher_algorithm }//convenience
 }
 
-
-export function UUID() {
-    return randomUUID()
-}
+export function StringToByteBuffer(str: string) { return Buffer.from(str, 'utf8'); }
+export function GenRandomBytes(size: number) { return randomBytes(size); }
+export function UUID() {return randomUUID();}

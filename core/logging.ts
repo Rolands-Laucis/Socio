@@ -19,7 +19,7 @@ export class LogHandler {
     hard_crash:boolean;
     verbose: boolean;
 
-    constructor(info_handler: Function, error_handler: Function, { verbose = false, hard_crash = false} = {}){
+    constructor(info_handler: Function = console.log, error_handler: Function = console.error, { verbose = false, hard_crash = false} = {}){
         this.info = info_handler;
         this.error = error_handler;
         this.verbose = verbose;

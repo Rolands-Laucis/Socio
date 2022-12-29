@@ -2,8 +2,8 @@
 import { WebSocket } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
 
 import { log, info, soft_error, setPrefix, setShowTime } from '@rolands/log'; setPrefix('SocioSession'); setShowTime(false); //for my logger
-import { LogHandler, E } from './logging'
-import { id, ClientMessageKind } from './types';
+import { LogHandler, E } from './logging.js'
+import { id, ClientMessageKind } from './types.js';
 
 type HookObj = {
     tables: string[],

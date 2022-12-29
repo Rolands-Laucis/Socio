@@ -1,6 +1,6 @@
 //I ask not for a lighter burden, but for broader shoulders. -Atlas, when asking Zeus for sympathy.
 
-import { QueryMarker } from "./types"
+import { QueryMarker } from "./types.js"
 
 //regex
 export const sql_string_regex = /(?<sql>.+?)(?<marker>--socio(?:-\w+?)*)?;?$/mi //markers currently support - auth, perm, \d+

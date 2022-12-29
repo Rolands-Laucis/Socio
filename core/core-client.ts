@@ -5,10 +5,10 @@ import { info, log, error, soft_error, done, setPrefix, setShowTime } from '@rol
 //libs
 import { ClientOptions } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
 
-import { LogHandler, E, err } from './logging'
+import { LogHandler, E, err } from './logging.js'
 
 //types
-import { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind } from './types'
+import { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind } from './types.js'
 type MessageDataObj = { id: id, verb?: string, table?: string, status?:string, result?:string|object|boolean|PropValue, prop?:PropKey };
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
 type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?: Function};

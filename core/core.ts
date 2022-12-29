@@ -6,16 +6,16 @@ import { IncomingMessage } from 'http'
 
 //mine
 import { log, soft_error, error, info, setPrefix, setShowTime } from '@rolands/log'; setPrefix('SocioServer'); setShowTime(false); //for my logger
-import { QueryIsSelect, ParseQueryTables, SocioArgsParse, SocioArgHas, ParseQueryVerb, sleep } from './utils'
-import { E, LogHandler, err } from './logging'
-import { UUID, SocioSecurity } from './secure'
-import {SocioSession} from './core-session'
+import { QueryIsSelect, ParseQueryTables, SocioArgsParse, SocioArgHas, ParseQueryVerb, sleep } from './utils.js'
+import { E, LogHandler, err } from './logging.js'
+import { UUID, SocioSecurity } from './secure.js'
+import { SocioSession } from './core-session.js'
 
 //NB! some fields in these variables are private for safety reasons, but also bcs u shouldnt be altering them, only if through my defined ways. They are mostly expected to be constants.
 //whereas public variables are free for you to alter freely at any time during runtime.
 
 //types
-import { id, PropKey, PropValue, PropAssigner, CoreMessageKind} from './types'
+import { id, PropKey, PropValue, PropAssigner, CoreMessageKind } from './types.js'
 type MessageDataObj = { id?: id, sql?: string, params?: object | null, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue };
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
 export type QueryFunction = (obj: QueryFuncParams | MessageDataObj) => Promise<object>;
@@ -89,7 +89,11 @@ export class SocioServer extends LogHandler {
         try{
             const { client_id, kind, data }: { client_id: string; kind: CoreMessageKind; data: MessageDataObj } = JSON.parse(req.toString())
             if (this.#secure && data?.sql) {//if this is supposed to be secure and sql was received, then decrypt it before continuing
-                data.sql = this.#secure.DecryptString(data.sql)
+                if(!data.sql.includes(' ')) //format check
+                    throw new E('encrypted query string does not contain a space, therefor is not of format "iv_base64 original_query_base64" and cannot be processed. [#enc-wrong-format]', client_id, kind, data);
+
+                const parts = data.sql.split(' '); // format - "iv_base64 original_query_base64". IV is not secret, just to scramble the output
+                data.sql = this.#secure.DecryptString(parts[1], parts[0])
                 const socio_args = SocioArgsParse(data.sql) //speed optimization
 
                 if (!SocioArgHas('socio', { parsed: socio_args })) //secured sql queries must end with the marker, to validate that they havent been tampered with and are not giberish.
