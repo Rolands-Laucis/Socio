@@ -1,3 +1,5 @@
+/* Variables and mixins declared here will be available in all other SCSS files */
+
 //color theme
 $dark: #07070C;
 $dark_blue: #07071D;
@@ -6,21 +8,23 @@ $gray2: #303031;
 $light: #FFFFFF;
 
 $acc1: #FCF300;
-$acc2: #F300FC;
+$acc2: #FF1074;
 
 //color usages
 $radial_bg: radial-gradient(50% 50% at 50% 50%, $dark_blue 0%, $dark 100%);
-
-//text sizes
-$typing_text: 22px;
+$acc1_grad: linear-gradient(180deg, $acc1 0%, rgba(142, 137, 4, 0) 100%);
+$acc2_grad: linear-gradient(180deg, $acc2 0%, rgba(13, 11, 113, 0) 100%);
 
 //blooms
 $bloom_thin: 4px;
-$bloom:64px;
+$bloom: 64px;
 $text_shadow: 0px 0px 16px rgba(255, 255, 255, 0.16);
 
 //universal paddings, spaces, gaps, margins for consistent alignment
 $trans: 140ms ease-in-out;
+$pad: 24px;
+$pad_small:12px;
+$gap:6px;
 
 @mixin no_spacings {
     margin: 0px;
@@ -29,16 +33,3 @@ $trans: 140ms ease-in-out;
     width: auto;
     height: auto;
 }
-
-h1,h2,h3,h4,h5,a{
-    @include no_spacings;
-    font-weight: 300;
-    line-height: 110%;
-}
-h1 {font-size: 58.59px;
-    font-weight: bold;
-    text-shadow: $text_shadow;}
-h2 {font-size: 46.88px;}
-h3 {font-size: 37.50px;}
-h4 {font-size: 30.00px;}
-h5,a {font-size: 24.00px;}

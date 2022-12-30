@@ -1,1 +1,1 @@
-# Official hero web page for Socio made with Svelte + Vite
+# Official hero web page for Socio made with SvelteKit 1.0 + Vite

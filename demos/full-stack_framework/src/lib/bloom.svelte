@@ -9,15 +9,16 @@
     </div>
 </div>
 
-<style lang="scss">
+<style>
     :root{
-        --b: #{$bloom};
+        --b: var(--bloom);
     }
-    .tb{--b:#{$bloom_thin};}
+    .tb{--b:var(--bloom_thin);}
     .bloom_wrap{
         position: relative;
     }
     .bloom{
+        z-index: -1;
         width: 100%;
         height: 100%;
         position: absolute;
