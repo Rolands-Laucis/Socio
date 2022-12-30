@@ -8,7 +8,7 @@
     <Bloom tb><a href="https://www.npmjs.com/package/socio" target="_blank">npm</a></Bloom>
 </nav>
 
-<style>
+<style lang="scss">
     nav{
         display: flex;
         align-items:baseline;
@@ -16,6 +16,6 @@
     }
 
     a{
-        color: var(--acc2);
+        color: $acc2;
     }
 </style>

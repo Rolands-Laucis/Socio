@@ -14,13 +14,13 @@
     </h4>
 </main>
 
-<style>
+<style lang="scss">
     main{
         padding: 64px;
     }
 
-    .acc1{color: var(--acc1);}
-    .acc2{color: var(--acc2);}
+    .acc1{color: $acc1;}
+    .acc2{color: $acc2;}
 
     .horiz{
         display: flex;
