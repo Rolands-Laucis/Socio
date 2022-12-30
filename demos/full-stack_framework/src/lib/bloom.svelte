@@ -1,5 +1,5 @@
 <script>
-    export let style='', tb=false;
+    export let style='', tb=true;
 </script>
 
 <div {style} class="bloom_wrap" class:tb>
@@ -9,14 +9,12 @@
     </div>
 </div>
 
-<style>
-    :root{
-        --b: var(--bloom);
-    }
-    .tb{--b:var(--bloom_thin);}
+<style lang="scss">
     .bloom_wrap{
+        --b: #{$bloom};
         position: relative;
     }
+    .tb{--b:#{$bloom_thin};}
     .bloom{
         z-index: -1;
         width: 100%;

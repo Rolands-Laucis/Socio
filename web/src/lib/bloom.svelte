@@ -1,5 +1,5 @@
 <script>
-    export let style='', tb=false;
+    export let style='', tb=true;
 </script>
 
 <div {style} class="bloom_wrap" class:tb>
@@ -10,13 +10,11 @@
 </div>
 
 <style lang="scss">
-    :root{
-        --b: #{$bloom};
-    }
-    .tb{--b:#{$bloom_thin};}
     .bloom_wrap{
+        --b: #{$bloom};
         position: relative;
     }
+    .tb{--b:#{$bloom_thin};}
     .bloom{
         z-index: -1;
         width: 100%;
@@ -24,6 +22,6 @@
         position: absolute;
         left: 0;
         top: 0;
-        filter: brightness(0.5) blur(var(--b));
+        filter: brightness(0.6) blur(var(--b));
     }
 </style>

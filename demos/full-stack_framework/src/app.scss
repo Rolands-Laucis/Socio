@@ -2,7 +2,7 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Jost:wght@200;400;700&display=swap');
 
-html{
+html, body{
     width: 100vw;
     height: 100vh;
 
@@ -15,11 +15,13 @@ html{
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     -webkit-text-size-adjust: 100%;
+
+    overflow-x: hidden;
 }
 
-h1, h2, h3, h4,h5,h6,a, html, body{
+h1, .h1,  h2, .h2,  h3, .h3,  h4, .h4, h5, .h5, h6, .h6, a, html, body, button, input{
     font-family: 'Jost', 'Open Sans', sans-serif;
-    font-weight: 300;
+    font-weight: 200;
 
     padding: 0;
     margin: 0;
@@ -27,9 +29,9 @@ h1, h2, h3, h4,h5,h6,a, html, body{
     margin-block-end:0px;
 }
 
-h1{font-size: 73.24px; font-weight: bold;}
-h2{font-size: 46.88px;}
-h3{font-size: 30px;}
-h4,a{font-size: 24px;}
-h5{font-size: 19.2px;}
-h6{font-size: 15.36px; font-weight: 400;}
+h1,.h1{font-size: 73.24px; font-weight: 700;}
+h2,.h2{font-size: 46.88px;}
+h3,.h3{font-size: 30px;}
+h4, .h4,a{font-size: 24px;}
+h5,.h5{font-size: 19.2px;}
+h6,.h6{font-size: 15.36px; font-weight: 400;}

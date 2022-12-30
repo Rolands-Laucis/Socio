@@ -297,5 +297,5 @@ export class SocioClient extends LogHandler {
     }
 
     get client_id(){return this.#client_id}
-    ready() { return new Promise(res => this.#is_ready = res) }
+    ready(): Promise<boolean> { return this.#is_ready === true ? (new Promise(res => res(true))) : (new Promise(res => this.#is_ready = res)) }
 }
