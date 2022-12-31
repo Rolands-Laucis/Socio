@@ -1,12 +1,12 @@
 <script lang="ts">
     import Bloom from "./bloom.svelte";
 
-    export let name:string, num:number = 0, style:string;
+    export let style:string='';
 </script>
 
-<Bloom style="--b:6px;">
+<Bloom>
     <button on:click {style}>
-        INSERT INTO users (name, num) VALUES("<span class="acc1">{name}</span>", <span class="acc1">{num || 0}</span>);
+        <slot></slot>
     </button>
 </Bloom>
 

@@ -29,14 +29,14 @@ try{
     const socserv = new SocioServer({ port: ws_port }, QueryWrap as QueryFunction, { verbose: true, secure: socsec });
     done(`Created SocioServer on port`, ws_port);
 
-    // socserv.RegisterProp('color', '#ffffff', (curr_val: PropValue, new_val: PropValue):boolean => {
-    //     if(typeof new_val != 'string' || new_val.length != 7) return false;
-    //     if (!new_val.match(/^#[0-9a-f]{6}/mi)) return false;
-    //     //...more checks.
+    socserv.RegisterProp('color', '#ffffff', (curr_val: PropValue, new_val: PropValue):boolean => {
+        if(typeof new_val != 'string' || new_val.length != 7) return false;
+        if (!new_val.match(/^#[0-9a-f]{6}/mi)) return false;
+        //...more checks.
 
-    //     //success, so assign
-    //     return socserv.SetPropVal('color', new_val);
-    // })
+        //success, so assign
+        return socserv.SetPropVal('color', new_val);
+    })
 }catch(e){
     soft_error(e);
 }

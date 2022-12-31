@@ -13,6 +13,7 @@
     .bloom_wrap{
         --b: #{$bloom};
         position: relative;
+        z-index: 0;
     }
     .tb{--b:#{$bloom_thin};}
     .bloom{
@@ -22,6 +23,6 @@
         position: absolute;
         left: 0;
         top: 0;
-        filter: brightness(0.6) blur(var(--b));
+        filter: brightness(0.3) blur(var(--b));
     }
 </style>
