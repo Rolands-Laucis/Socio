@@ -36,3 +36,12 @@ h3,.h3{font-size: 30px;}
 h4, .h4,a{font-size: 24px;}
 h5,.h5{font-size: 19.2px;}
 h6,.h6{font-size: 15.36px; font-weight: 400;}
+
+a {
+    color: $acc2;
+    font-weight: 400;
+
+    &:hover {
+        text-underline-offset: 4px;
+    }
+}

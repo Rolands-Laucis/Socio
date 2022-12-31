@@ -36,7 +36,15 @@
     <Nav></Nav>
     <section>
         {#if ready}
-            <h6 class="darker_text">client ID: {sc.client_id}</h6>
+            <div class="horiz">
+                <h4 class="horiz" style="gap:6px;">
+                    <Bloom style="--b_h:6px; --s_h:0.6;"><a href="https://kit.svelte.dev/" target="_blank" class="acc2 norm">SvelteKit</a></Bloom>
+                     + 
+                    <Bloom style="--b_h:6px; --s_h:0.6;"><a href="https://vitejs.dev/" target="_blank" class="acc1 norm">Vite</a></Bloom>
+                    demo.
+                </h4>
+                <h6 class="darker_text">client ID: {sc.client_id}</h6>
+            </div>
             <div class="horiz">
                 <h6 class="darker_text bold">single sql query:</h6>
                 <h4>SELECT 42+69 AS RESULT; = </h4>
@@ -60,12 +68,14 @@
             </div>
             
             <div class="insert">
-                <Button style="width:100%;" on:click={async () => await sc.query("INSERT INTO users (name, num) VALUES(:name, :num);--socio", insert_fields)}>
-                    INSERT INTO users (name, num) VALUES("<span class="acc1 bold">{insert_fields.name}</span>", <span class="acc1 bold">{insert_fields.num || 0}</span>);
-                </Button>
+                <Bloom style="--s_h:0.8;--b_h:8px;--c_h:1;">
+                    <Button style="width:100%;" on:click={async () => await sc.query("INSERT INTO users (name, num) VALUES(:name, :num);--socio", insert_fields)}>
+                        INSERT INTO users (name, num) VALUES("<span class="acc1 norm">{insert_fields.name}</span>", <span class="acc1 norm">{insert_fields.num || 0}</span>);
+                    </Button>
+                </Bloom>
                 <div class="inputs">
-                    <input type="text" bind:value={insert_fields.name}>
-                    <input type="number" min="0" bind:value={insert_fields.num}>
+                    <Bloom style="--b:0px;--b_h:6px;--s:0;--s_h:0.4;"><input type="text" bind:value={insert_fields.name}></Bloom>
+                    <Bloom style="--b:0px;--b_h:6px;--s:0;--s_h:0.4;"><input type="number" min="0" bind:value={insert_fields.num}></Bloom>
                 </div>
             </div>
 
@@ -83,10 +93,10 @@
 
             <div class="color">
                 <h6 class="darker_text bold">subscribed server prop:</h6>
-                <Bloom>
+                <Bloom style="--s_h:0.8;--b_h:8px;--c_h:1;">
                     <Button on:click={async () => await sc.setProp('color',color_prop)}>SET</Button>
                 </Bloom>
-                <input type="text" maxlength="7" bind:value={color_prop}>
+                <Bloom style="--b:0px;--b_h:6px;--s:0;--s_h:0.4;"><input type="text" maxlength="7" bind:value={color_prop}></Bloom>
                 <Bloom>
                     <div class="color_box" style="--c:{color_prop};">
                         <h4>{color_prop}</h4>
@@ -109,6 +119,7 @@
     .darker_text{color: $gray3;}
     .darker_text{color: $gray2;}
     .bold{font-weight: 700;}
+    .norm{font-weight: 400;}
     .thin{font-weight: 300;}
 
     .horiz{
@@ -143,7 +154,7 @@
         min-width: 0px;
 
         font-size: 24px;
-        font-weight: 700;
+        font-weight: 200;
         background: transparent;
         color: $acc1;
         border: 1px solid $acc1;

@@ -1,14 +1,10 @@
 <script lang="ts">
-    import Bloom from "./bloom.svelte";
-
     export let style:string='';
 </script>
 
-<Bloom>
-    <button on:click {style}>
-        <slot></slot>
-    </button>
-</Bloom>
+<button on:click {style}>
+    <slot></slot>
+</button>
 
 <style lang="scss">
     button{

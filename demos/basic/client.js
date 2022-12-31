@@ -1,11 +1,4 @@
-//Errare humanum est, perseverare diabolicum. - To err is human; to persist in it - diabolial. /Lucius Annaeus Seneca/
-
-//import the socio lib. NB! here i am doing it as a dynamic import, bcs i also develop the lib here and its automatic this way and demo always works. You should do a regular import at the top level like other imports.
-try {
-    const { SocioClient } = await import("../../core/core-client")
-} catch (e) {
-    const { SocioClient } = await import('/core-client.js')
-}
+import { SocioClient } from './core-client.js'
 
 //instantiate the Socio Client from lib on the expected websocket port and wait for it to connect
 //NB! use wss secure socket protocol and use the ./core/Secure class to encrypt these queries in PROD!

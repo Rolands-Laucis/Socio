@@ -1,9 +1,9 @@
 // import {SocioServer} from '../../core/core.js' //i use this locally
-import { SocioServer } from 'socio/core.js' //for using the lib as a download from npm
+import { SocioServer } from 'socio/dist/core.js' //for using the lib as a download from npm
 
 import express from 'express'
 import { Sequelize } from 'sequelize';
-import { log, done, setPrefix, setShowTime } from '@rolands/log'; setPrefix('EXPRESS'); setShowTime(false);
+import { log, done, setPrefix, setShowTime } from '@rolands/log'; setPrefix('Express'); setShowTime(false);
 
 //constants
 const server_port = 5000, ws_port = 3000 //can be set up that the websockets run on the same port as the http server
@@ -33,7 +33,7 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express()
 app.use("", express.static(__dirname));
-app.use("/", express.static(__dirname + "\\..\\..\\core"));
+app.use("/", express.static(__dirname + "\\..\\..\\core\\dist"));
 
 app.listen(server_port, () => {
     done(`Express webserver listening on port`, server_port, `http://localhost:${server_port}/`)
