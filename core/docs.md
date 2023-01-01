@@ -32,7 +32,7 @@ const QueryWrap = async ({ id = 0, sql = '', params = {} } = {}) => (await seque
 const socserv = new SocioServer({ port: 3000 }, QueryWrap as QueryFunction, {verbose:true} )
 
 //This class has a few public fields that you can alter, as well as useful functions to call later in your program at any time. E.g. set up lifecycle hooks:
-console.log(manager.LifecycleHookNames) //get an array of the hooks currently recognized in Socio. Or look them up yourself in the core lib :)
+manager.LifecycleHookNames //get an array of the hooks currently recognized in Socio. Or look them up yourself in the core lib :)
 socserv.RegisterLifecycleHookHandler("con", (ses, req) => {
     //woohoo a new client connection!
     //ses is the already created instance of Session class, that has useful properties and methods.
@@ -53,7 +53,7 @@ import {SocioClient} from 'socio/core-client.js'
 const sc = new SocioClient(`ws://localhost:3000`, { verbose: true }) //each instance is going to be its own "session" on the server, but you can spawn and destroy these where ever in your code
 await sc.ready() //wait until it has connected as confimed by the server
 
-console.log(sc.client_id) //can take a look at its ID, if that interests you idk
+sc.client_id //can take a look at its ID, if that interests you idk
 
 console.log((await sc.query("SELECT 42+69 AS RESULT;"))[0].RESULT)//will imediately send a one-time query to the DB and print the response result
 
@@ -84,20 +84,18 @@ const success = sc.authenticate({username:'Bob', password:'pass123'}) //success 
 ### Setup of ``SocioSecurityPlugin``
 
 ```ts
-//vite.config.js
+//vite.config.ts in a SvelteKit project
 
-import { defineConfig } from 'vite'
-import { svelte } from '@sveltejs/vite-plugin-svelte'
+import { sveltekit } from '@sveltejs/kit/vite';
+import { viteCommonjs } from '@originjs/vite-plugin-commonjs'
+import { SocioSecurityPlugin } from 'socio/dist/secure';
 
-import { SocioSecurityPlugin } from 'socio/secure.js'
+/** @type {import('vite').UserConfig} */
+const config = {
+	plugins: [SocioSecurityPlugin({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', verbose: true }), viteCommonjs(), sveltekit()],
+};
 
-export default defineConfig({
-  plugins: [
-    svelte(),
-    //note that these key and iv are here for demonstration purposes and you should always generate your own. You may also supply any cipher algorithm supported by node's crypto module
-    SocioSecurityPlugin({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', cipher_iv: 'dsjkfh45h4lu45ilULIY$%IUfdjg', verbose: true })
-  ]
-})
+export default config;
 ```
 
 ### Server Props
@@ -118,3 +116,5 @@ socserv.RegisterProp('color', '#ffffff', (curr_val:PropValue, new_val:PropValue)
   return true; //tell socio that everything went well
 })
 ```
+
+Though usable for realtime web chat applications, i advise against that, because props data traffic is not yet optimized. It sends the entire prop data structure both ways. Instead you should use the Emit() function on clients and store the chat messages yourself.
