@@ -66,6 +66,7 @@ sc.unsubscribe(id);
 * File and blob sending and replacing on the client side
 * Redo the update dependency mechanism to serious data structures - dependency graph or tree or smth
 * Different solution for sql parsing. Perhaps the 40MB js lib... (but that seems insane to me)
+* Switch to AES-256-GCM-SIV crypt algorithm for future proof security
 * plenty more
 
 #### Dont be shy to try this out on your small project. Feedback from real world use cases is much appreciated 🥰
