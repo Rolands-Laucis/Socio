@@ -94,7 +94,7 @@ export class SocioClient extends LogHandler {
                     (this.#queries[data.id] as Function)(this.#authenticated); //result should be either True or False to indicate success status
                     delete this.#queries[data.id] //clear memory
                     break;
-                case 'PERM':
+                case 'GET_PERM':
                     this.#FindID(kind, data?.id)
                     if (data?.result !== true) {
                         this.HandleInfo(`PERM returned FALSE, which means websocket has not been granted perm for ${data?.verb} on ${data?.table}.`);
@@ -133,7 +133,7 @@ export class SocioClient extends LogHandler {
     }
 
     //private method - accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
-    #send(kind: CoreMessageKind, ...data){ //data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
+    #Send(kind: CoreMessageKind, ...data){ //data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
         if(data.length < 1) soft_error('Not enough arguments to send data! kind;data:', kind, ...data) //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
         this.#ws?.send(JSON.stringify(Object.assign({}, { client_id: this.#client_id, kind: kind, data:data[0] }, ...data.slice(1))))
         this.HandleInfo('sent:', kind, data)
@@ -147,11 +147,11 @@ export class SocioClient extends LogHandler {
         //onUpdate is the success standard function, that gets called, when the DB sends an update of its data
         //status_callbacks is an optional object, that expects 1 optional key - "error", and it must be a callable function, that receives 1 arg - the error msg.
         try {
-            const id = this.#genKey
+            const id = this.#GenKey
             const callbacks: SubscribeCallbackObject = { success: onUpdate, ...status_callbacks };
 
             this.#queries[id] = { sql: sql, params: params, onUpdate: callbacks }
-            this.#send('REG', { id: id, sql: sql, params: params })
+            this.#Send('REG', { id: id, sql: sql, params: params })
 
             return id //the ID of the query
         } catch (e: err) { this.HandleError(e); return null; }
@@ -159,13 +159,13 @@ export class SocioClient extends LogHandler {
     subscribeProp(prop_name:PropKey, onUpdate: PropUpdateCallback):void{
         //the prop name on the backend that is a key in the object
         try {
-            const id = this.#genKey
+            const id = this.#GenKey
 
             if (prop_name in this.#props)//add the callback
                 this.#props[prop_name][id] = onUpdate;
             else {//init the prop object
                 this.#props[prop_name] = { [id]: onUpdate };
-                this.#send('PROP_REG', { id: id, prop: prop_name })
+                this.#Send('PROP_REG', { id: id, prop: prop_name })
             }
         } catch (e: err) { this.HandleError(e); }
     }
@@ -176,11 +176,11 @@ export class SocioClient extends LogHandler {
                     delete this.#queries[id];
                 
                 //set up new msg to the backend informing a wish to unregister query.
-                const msg_id = this.#genKey;
+                const msg_id = this.#GenKey;
                 const prom = new Promise((res) => {
                     this.#queries[msg_id] = res
                 })
-                this.#send('UNREG', { id: msg_id, unreg_id:id })
+                this.#Send('UNREG', { id: msg_id, unreg_id:id })
 
                 const res = await prom; //await the response from backend
                 if(res === true)//if successful, then remove the subscribe from the client
@@ -198,11 +198,11 @@ export class SocioClient extends LogHandler {
                     delete this.#props[prop_name];
 
                 //set up new msg to the backend informing a wish to unregister query.
-                const msg_id = this.#genKey;
+                const msg_id = this.#GenKey;
                 const prom = new Promise((res) => {
                     this.#queries[msg_id] = res
                 })
-                this.#send('PROP_UNREG', { id: msg_id, prop: prop_name })
+                this.#Send('PROP_UNREG', { id: msg_id, prop: prop_name })
 
                 const res = await prom; //await the response from backend
                 if (res === true)//if successful, then remove the subscribe from the client
@@ -217,13 +217,13 @@ export class SocioClient extends LogHandler {
     query(sql: string, params: object | null = null){
         try{
             //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
-            const id = this.#genKey;
+            const id = this.#GenKey;
             const prom = new Promise((res) => {
                 this.#queries[id] = res
             })
 
             //send off the request, which will be resolved in the message handler
-            this.#send('SQL', { id: id, sql: sql, params: params })
+            this.#Send('SQL', { id: id, sql: sql, params: params })
             return prom
         } catch (e: err) { this.HandleError(e); return null; }
     }
@@ -234,28 +234,41 @@ export class SocioClient extends LogHandler {
                 throw new E('Prop must be first subscribed to set its value!', prop)
 
             //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
-            const id = this.#genKey;
+            const id = this.#GenKey;
             const prom = new Promise((res) => {
                 this.#queries[id] = res
             })
 
             //send off the request, which will be resolved in the message handler
-            this.#send('PROP_SET', { id: id, prop: prop, prop_val:new_val })
+            this.#Send('PROP_SET', { id: id, prop: prop, prop_val:new_val })
+            return prom
+        } catch (e: err) { this.HandleError(e); return null; }
+    }
+    serv(data:object){
+        try {
+            //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
+            const id = this.#GenKey;
+            const prom = new Promise((res) => {
+                this.#queries[id] = res
+            })
+
+            //send off the request, which will be resolved in the message handler
+            this.#Send('SERV', { id: id, data })
             return prom
         } catch (e: err) { this.HandleError(e); return null; }
     }
     //sends a ping with either the user provided number or an auto generated number, for keeping track of packets and debugging
     ping(num=0){
-        this.#send('PING', { id: num || this.#genKey })
+        this.#Send('PING', { id: num || this.#GenKey })
     }
 
     authenticate(params:object={}){ //params here can be anything, like username and password stuff etc. The backend server auth function callback will receive this entire object
         //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
-        const id = this.#genKey;
+        const id = this.#GenKey;
         const prom = new Promise((res) => {
             this.#queries[id] = res
         })
-        this.#send('AUTH', { id: id, params: params })
+        this.#Send('AUTH', { id: id, params: params })
         return prom
     }
     get authenticated() { return this.#authenticated === true }
@@ -265,18 +278,17 @@ export class SocioClient extends LogHandler {
             return true
 
         //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
-        const id = this.#genKey;
+        const id = this.#GenKey;
         const prom = new Promise((res) => {
             this.#queries[id] = res
         })
-        this.#send('PERM', { id: id, verb:verb, table:table })
+        this.#Send('GET_PERM', { id: id, verb:verb, table:table })
         return prom
     }
     hasPermFor(verb = '', table = ''){ return verb in this.#perms && this.#perms[verb].includes(table)}
     
-
     //generates a unique key either via static counter or user provided key gen func
-    get #genKey(): id {
+    get #GenKey(): id {
         if (this?.key_generator)
             return this.key_generator()
         else{
@@ -292,7 +304,7 @@ export class SocioClient extends LogHandler {
     #HandleBasicPromiseMessage(kind:string, data:MessageDataObj){
         this.#FindID(kind, data?.id)
         //@ts-ignore
-        this.#queries[data.id](data.result);
+        this.#queries[data.id](data?.result);
         delete this.#queries[data.id] //clear memory
     }
 

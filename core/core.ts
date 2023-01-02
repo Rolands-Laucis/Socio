@@ -16,7 +16,7 @@ import { SocioSession } from './core-session.js'
 
 //types
 import { id, PropKey, PropValue, PropAssigner, CoreMessageKind } from './types.js'
-type MessageDataObj = { id?: id, sql?: string, params?: object | null, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue };
+export type MessageDataObj = { id?: id, sql?: string, params?: object | null, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue, data?:any };
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
 export type QueryFunction = (obj: QueryFuncParams | MessageDataObj) => Promise<object>;
 type QueryObject = { id: id, params: object | null, session: SocioSession }; //for grouping hooks
@@ -28,7 +28,7 @@ export class SocioServer extends LogHandler {
     #secure: SocioSecurity | null;  //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages
     #props: { [key: PropKey]: { val: PropValue, assigner: PropAssigner, updates:{[client_id:string]: id} } } = {}; //backend props, e.g. strings for colors, that clients can subscribe to and alter
 
-    #lifecycle_hooks: { [key: string]: Function | null; } = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null } //call the register function to hook on these. They will be called if they exist
+    #lifecycle_hooks: { [key: string]: Function | null; } = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null, serv:null } //call the register function to hook on these. They will be called if they exist
     //msg hook receives all incomming msgs to the server. If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //upd works the same as msg, but for everytime updates need to be propogated to all the sockets.
     //auth func can return any truthy or falsy value, the client will only receive a boolean, so its safe to set it to some credential or id or smth, as this would be accessible and useful to you when checking the session access to tables.
@@ -177,14 +177,14 @@ export class SocioServer extends LogHandler {
                         this.#sessions[client_id].Send('AUTH', { id: data.id, result: false })
                     }
                     break;
-                case 'PERM':
+                case 'GET_PERM':
                     if(this.#lifecycle_hooks?.grant_perm){
                         const granted:boolean = await this.#lifecycle_hooks?.grant_perm(client_id, data)
-                        this.#sessions[client_id].Send('PERM', { id: data.id, result: granted === true, verb: data.verb, table: data.table }) //the client will only receive a boolean, but still make sure to only return bools as well
+                        this.#sessions[client_id].Send('GET_PERM', { id: data.id, result: granted === true, verb: data.verb, table: data.table }) //the client will only receive a boolean, but still make sure to only return bools as well
                     }
                     else {
                         this.HandleError('grant_perm function hook not registered, so client not granted perm. [#no-grant_perm-func]')
-                        this.#sessions[client_id].Send('PERM', { id: data.id, result: false })
+                        this.#sessions[client_id].Send('GET_PERM', { id: data.id, result: false })
                     }
                     break;
                 case 'PROP_REG':
@@ -241,8 +241,13 @@ export class SocioServer extends LogHandler {
                         throw e; //report on the server as well
                     }
                     break;
+                case 'SERV': 
+                    if (this.#lifecycle_hooks?.serv)
+                        this.#lifecycle_hooks.serv(this.#sessions[client_id], data);
+                    else throw new E('Client sent generic data to the server, but the hook for it is not registed. [#no-serv-hook]', client_id);
+                    break;
                 // case '': break;
-                default: throw new E(`Unrecognized message kind! [#msg-kind-issue]`, kind, data);
+                default: throw new E(`Unrecognized message kind! [#unknown-msg-kind]`, kind, data);
             }
         } catch (e: err) { this.HandleError(e); }
     }

@@ -22,6 +22,8 @@ In the future i may support more of the NoSQL ecosystem.
 ```ts
 //server code - can be in express or SvelteKit's hooks.server.ts/js file or whatever way you have of running server side code once.
 import { SocioServer } from 'socio/core.js'
+import type { SocioSession } from 'socio/core-session.js'
+import type { IncomingMessage } from 'http'
 import type { QueryFunction } from 'socio/core';
 
 //SocioServer needs a "query" function that it can call to fetch data. This would usually be your preffered ORM lib interface raw query function, but really this function is as simple as input and output, so it can do whatever you want. Like read from a txt file or whatever. It should be async and Socio will always await its response to send back to the client.
@@ -33,7 +35,7 @@ const socserv = new SocioServer({ port: 3000 }, QueryWrap as QueryFunction, {ver
 
 //This class has a few public fields that you can alter, as well as useful functions to call later in your program at any time. E.g. set up lifecycle hooks:
 manager.LifecycleHookNames //get an array of the hooks currently recognized in Socio. Or look them up yourself in the core lib :)
-socserv.RegisterLifecycleHookHandler("con", (ses, req) => {
+socserv.RegisterLifecycleHookHandler("con", (ses:SocioSession, req:IncomingMessage) => {
     //woohoo a new client connection!
     //ses is the already created instance of Session class, that has useful properties and methods.
 })
@@ -102,6 +104,7 @@ export default config;
 
 ```ts
 //server code
+import { SocioServer } from 'socio/core.js'
 import type { PropValue } from 'socio/types';
 const socserv = new SocioServer(...)
 
@@ -118,3 +121,34 @@ socserv.RegisterProp('color', '#ffffff', (curr_val:PropValue, new_val:PropValue)
 ```
 
 Though usable for realtime web chat applications, i advise against that, because props data traffic is not yet optimized. It sends the entire prop data structure both ways. Instead you should use the Emit() function on clients and store the chat messages yourself.
+
+### Generic communication
+
+To ensure extendability, i have created a simple generic communication mechanism. Clients can send any generic serializable object to the server, where Socio will just pass it to a special hook and not do anything else with it. It is then the servers responsibility to answer to the client.
+
+```ts
+//browser code - can be inside just a js script that gets loaded with a script tag or in components of whatever framework.
+import {SocioClient} from 'socio/core-client.js'
+const sc = new SocioClient(`ws://localhost:3000`, { verbose: true })
+await sc.ready()
+
+await sc.serv({some:'data'} || 'string' || ['anthing']) //use the serv() function to serve anything to the backend
+```
+
+```ts
+//server code
+import { SocioServer } from 'socio/core.js'
+import type { MessageDataObj } from 'socio/core.js'
+import type { SocioSession } from 'socio/core-session.js'
+const socserv = new SocioServer(...)
+
+socserv.LifecycleHookNames; //all the hook names for convenience
+socserv.RegisterLifecycleHookHandler('serv', (ses:SocioSession, data:MessageDataObj) => {
+  //data has field "id" and "data" that is the literal param to the client-side serv() function
+
+  //respond, bcs the client always awaits some answer
+  ses.Send('RES', {id:data.id, result:1}) //result is optional
+})
+```
+
+Though the server can also intercept any msg that comes in from all clients via the 'msg' hook.
