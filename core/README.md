@@ -6,7 +6,7 @@ Say goodbye to REST APIs 👋. No more API middleware and DB interfacing functio
 
 Check [Basic Demo](https://github.com/Rolands-Laucis/Socio/blob/master/demos/basic/readme.md) to try an interactive bare-bones demonstration.
 
-Check [Secure Framework Demo](https://github.com/Rolands-Laucis/Socio/blob/master/demos/framework/README.md) to try an interactive demonstration on a Svelte-Vite app!
+Check [Secure Full-Stack Framework Demo](https://github.com/Rolands-Laucis/Socio/tree/master/demos/full-stack_framework#readme) to try an interactive demonstration on a Svelte-Vite app!
 
 Check the [Simple Documentation](https://github.com/Rolands-Laucis/Socio/blob/master/core/docs.md) page to see direct examples and explinations of how to use various parts of the lib. Might be out of date, but the lib core files arent that big, and they are full of comments, so u can read up on those.
 
