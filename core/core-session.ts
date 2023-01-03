@@ -17,7 +17,6 @@ type HookObj = {
 //Homo vitae commodatus non donatus est. - Man's life is lent, not given. /Syrus/
 export class SocioSession extends LogHandler {
     //private:
-    #client_id:string; //unique ID for this session for my own purposes
     #ws: WebSocket;
     #hooks: { [id: id]: HookObj ; } = {}//msg_id:[{table_name, sql, params}]
     #authenticated = false //usually boolean, but can be any truthy or falsy value to show the state of the session. Can be a token or smth for your own use, bcs the client will only receive a boolean
@@ -31,8 +30,8 @@ export class SocioSession extends LogHandler {
         super(info, soft_error);
         
         //private:
-        this.#client_id = client_id //unique ID for this session for my own purposes
         this.#ws = browser_ws_conn
+        this.#ws['client_id'] = client_id //set the client id (uuid) in the actual WebSocket class, so that the client doesnt have to send his ID, but instead the server tracks all the sockets and this way will have its ID. Preventing impersonation.
         this.#perms = default_perms
 
         //public:
@@ -42,7 +41,7 @@ export class SocioSession extends LogHandler {
         // this.HandleInfo('New session created', client_id)
     }
 
-    get client_id() { return this.#client_id }
+    get id():string { return this.#ws['client_id'] }
 
     //accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
     Send(kind: ClientMessageKind, ...data) {//data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
