@@ -41,7 +41,67 @@ a {
     color: $acc2;
     font-weight: 400;
 
-    &:hover {
-        text-underline-offset: 4px;
+    background:
+            linear-gradient(to right, $acc2, $acc2),
+            $acc1_to_acc2;
+    
+        background-size: 100% 1px, 0 1px;
+        background-position: 100% 100%, 0 100%;
+        background-repeat: no-repeat;
+        transition: background-size 400ms;
+
+    &.acc1{
+        background:
+                linear-gradient(to right, $acc1, $acc1),
+                $acc2_to_acc1;
+            background-size: 100% 1px, 0 1px;
+            background-position: 100% 100%, 0 100%;
+            background-repeat: no-repeat;
+            transition: background-size 400ms;
     }
+
+    text-decoration: none;
+    &:hover, &:focus {
+        background-size: 0 1px, 100% 1px;
+    }
+
+    // text-underline-offset: 3px;
+    // text-decoration-thickness: 1px;
+    // transition: $trans;
+
+    // &:hover {
+    //     text-underline-offset: 4px;
+    //     // text-decoration-thickness: 2px;
+    // }
+}
+
+.horiz {
+    display: flex;
+    align-items: baseline;
+    gap: $pad;
+}
+.light{color: $light;}
+.acc1 {
+    color: $acc1;
+}
+
+.acc2 {
+    color: $acc2;
+}
+
+// .darker_text{color: $gray3;}
+.darker_text {
+    color: $gray2;
+}
+
+.bold {
+    font-weight: 700;
+}
+
+.norm {
+    font-weight: 400;
+}
+
+.thin {
+    font-weight: 300;
 }

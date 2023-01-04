@@ -13,8 +13,11 @@ $acc2: #FF1074;
 
 //color usages
 $radial_bg: radial-gradient(50% 50% at 50% 50%, $dark_blue 0%, $dark 100%);
-$acc1_grad: linear-gradient(180deg, $acc1 0%, rgba(142, 137, 4, 0) 100%);
-$acc2_grad: linear-gradient(180deg, $acc2 0%, rgba(13, 11, 113, 0) 100%);
+$acc1_grad: linear-gradient(to right, $acc1 0%, rgba(142, 137, 4, 0) 100%);
+$acc2_grad: linear-gradient(to right, $acc2 0%, rgba(13, 11, 113, 0) 100%);
+
+$acc1_to_acc2: linear-gradient(to right, $acc1, $acc2);
+$acc2_to_acc1: linear-gradient(to right, $acc2, $acc1);
 
 //blooms
 $bloom_thin: 4px;
