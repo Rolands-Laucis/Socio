@@ -1,8 +1,8 @@
 {
   "name": "socio",
-  "version": "0.3.17",
+  "version": "0.3.18",
   "description": "A WebSocket based realtime duplex Front-End and Back-End syncing API paradigm framework.",
-  "main": "core.ts",
+  "main": "./dist/core.js",
   "type": "module",
   "module": "core.ts",
   "scripts": {
@@ -12,8 +12,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "files": [
-    "./dist",
-    "./*.ts"
+    "./dist"
   ],
   "types": "./dist/*.d.ts",
   "keywords": [
