@@ -47,7 +47,7 @@ export class SocioSecurity extends LogHandler {
     //private:
     #key: Buffer;
     #rand_int_gen: ((min: number, max: number) => number) | null;
-    static iv_counter = 1;
+    static iv_counter: number = 1; //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures The Number type is a double-precision 64-bit binary format IEEE 754 value.
 
     //public:
     verbose=false
@@ -119,9 +119,10 @@ export class SocioSecurity extends LogHandler {
     get supportedCiphers() { return getCiphers() } //convenience
     get defaultCipher() { return cipher_algorithm }//convenience
     get_next_iv(){
-        return randomBytes(16);
-        // SocioSecurity.iv_counter += 1;
-        // return SocioSecurity.iv_counter;
+        const iv = Buffer.alloc(8); //create 8 byte buffer
+        SocioSecurity.iv_counter += 1; //increment global iv counter
+        iv.writeUInt32LE(SocioSecurity.iv_counter); //write the iv counter number as bytes to buffer
+        return Buffer.concat([iv, randomBytes(8)]); //create a required 16 byte buffer from the iv 8 byte + another 8 random bytes
     }
 }
 
