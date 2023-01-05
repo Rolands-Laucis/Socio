@@ -74,6 +74,9 @@ sc.unsubscribe(id);
 * [https://github.com/ghostebony/sse](https://github.com/ghostebony/sse)
 * [Server-sent events API](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events)
 * [The WebSocket API](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API) *Socio uses on the browser*
+* [Firebase Realtime Database](https://firebase.google.com/docs/database) Google backed.
+* [PocketBase](https://pocketbase.io/) Firebase alternative written in GO.
+* [RethinkDB](https://rethinkdb.com/) Distributed architecture.
 
 ## Name:
 "Socio.js" comes from the latin verb "socio", which means to link or associate. Since this lib syncs your frontend and backend. Its also a play on words for "WebSockets" and "IO".
