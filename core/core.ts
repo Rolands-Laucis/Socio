@@ -98,7 +98,10 @@ export class SocioServer extends LogHandler {
                     throw new E('encrypted query string does not contain a space, therefor is not of format "iv_base64 original_query_base64" and cannot be processed. [#enc-wrong-format]', client_id, kind, data);
 
                 const parts = data.sql.split(' '); // format - "iv_base64 original_query_base64". IV is not secret, just to scramble the output
-                data.sql = this.#secure.DecryptString(parts[1], parts[0])
+                if(parts.length != 3)
+                    throw new E('the cipher text does not contain exactly 3 space seperated parts, therefor is invalid. [#cipher-text-invalid-format]', parts)
+                
+                data.sql = this.#secure.DecryptString(parts[0], parts[1], parts[2])
                 const socio_args = SocioArgsParse(data.sql) //speed optimization
 
                 if (!SocioArgHas('socio', { parsed: socio_args })) //secured sql queries must end with the marker, to validate that they havent been tampered with and are not giberish.

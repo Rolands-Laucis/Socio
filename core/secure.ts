@@ -3,20 +3,25 @@
 "use strict";
 
 import MagicString from 'magic-string'; //https://github.com/Rich-Harris/magic-string
-import { randomUUID, createCipheriv, createDecipheriv, getCiphers, CipherCCMTypes, randomBytes, createHash } from 'crypto'
+import { randomUUID, createCipheriv, createDecipheriv, getCiphers, randomBytes, createHash } from 'crypto'
+import type { CipherGCMTypes } from 'crypto'
 import { sql_string_regex } from './utils.js'
 import { LogHandler, E } from './logging.js'
 
-import { info, log, error, soft_error, done, setPrefix, setShowTime } from '@rolands/log'; setPrefix('SocioSecure'); setShowTime(false);
+import { info, log, error, soft_error, done, setPrefix, setShowTime } from '@rolands/log';
+ setPrefix('SocioSecure'); setShowTime(false);
 
-const default_cipher_algorithm_bits = 256
-const default_cipher_algorithm = `aes-${default_cipher_algorithm_bits}-ctr`
+//it was recommended on a forum to use 256 bits, even though 128 is still perfectly safe
+const cipher_algorithm_bits = 256
+//GCM mode insures these properties of the cipher text - Confidentiality: cant read the msg, Integrity: cant alter the msg, Authenticity: the originator of the msg can be verified
+//https://nvlpubs.nist.gov/nistpubs/legacy/sp/nistspecialpublication800-38d.pdf
+const cipher_algorithm: CipherGCMTypes = `aes-${cipher_algorithm_bits}-gcm` //called "default", bcs i used to allow the user to choose the algo, but not anymore.
 
 //https://vitejs.dev/guide/api-plugin.html
 //THE VITE PLUGIN - import into vite config and add into the plugins array with your params.
 //it will go over your source code and replace --socio strings with their encrypted versions, that will be sent to the server and there will be decrypted using the below class
-export function SocioSecurityPlugin({ secure_private_key = '', cipher_algorithm = default_cipher_algorithm, verbose = false } = {}){
-    const ss = new SocioSecurity({secure_private_key, cipher_algorithm, verbose})
+export function SocioSecurityPlugin({ secure_private_key = '', verbose = false } = {}){
+    const ss = new SocioSecurity({ secure_private_key, verbose})
     return{
         name:'vite-socio-security',
         enforce: 'pre',
@@ -41,33 +46,30 @@ export const string_regex = /(?<q>["'])(?<str>[^ ]+?.+?)\1/g // match all string
 export class SocioSecurity extends LogHandler {
     //private:
     #key: Buffer;
-    #algo: CipherCCMTypes | string;
+    #rand_int_gen: ((min: number, max: number) => number) | null;
+    static iv_counter = 1;
 
     //public:
     verbose=false
-    rand_int_gen: ((min:number, max:number) => number) | null;
-    rand_iv_gen: (size: number) => Buffer;
 
     //the default algorithm was chosen by me given these two videos of information:
     //https://www.youtube.com/watch?v=Rk0NIQfEXBA&ab_channel=Computerphile
     //https://www.youtube.com/watch?v=O4xNJsjtN6E&ab_channel=Computerphile
     //And a brief discussion on Cryptography Stack Exchange.
     //let me know if i am dumb.
-    constructor({ secure_private_key = '', cipher_algorithm = default_cipher_algorithm, rand_int_gen = null, rand_iv_gen = randomBytes, verbose = false }: { secure_private_key: Buffer | string, cipher_algorithm?: string, rand_int_gen?: ((min: number, max: number) => number) | null, rand_iv_gen?: ((size: number) => Buffer), verbose: boolean } = { secure_private_key: '', cipher_algorithm: 'aes-192-gcm', verbose: false }){
+    constructor({ secure_private_key = '', rand_int_gen = null, verbose = false }: { secure_private_key: Buffer | string, rand_int_gen?: ((min: number, max: number) => number) | null, verbose: boolean } = { secure_private_key: '', verbose: false }){
         super(info, soft_error);
         
-        if (!secure_private_key || !cipher_algorithm) throw new E(`Missing constructor arguments!`);
+        if (!secure_private_key) throw new E(`Missing constructor arguments!`);
         if (typeof secure_private_key == 'string') secure_private_key = StringToByteBuffer(secure_private_key); //cast to buffer, if string was passed
-        const default_cipher_algorithm_bytes = default_cipher_algorithm_bits / 8;
-        if (secure_private_key.byteLength < default_cipher_algorithm_bytes) throw new E(`secure_private_key has to be at least ${default_cipher_algorithm_bytes} bytes length! Got ${secure_private_key.byteLength}`);
-        if (!(getCiphers().includes(cipher_algorithm))) throw new E(`Unsupported algorithm [${cipher_algorithm}] by the Node.js Crypto module!`);
+        const cipher_algorithm_bytes = cipher_algorithm_bits / 8;
+        if (secure_private_key.byteLength < cipher_algorithm_bytes) throw new E(`secure_private_key has to be at least ${cipher_algorithm_bytes} bytes length! Got ${secure_private_key.byteLength}`);
+        // if (!(getCiphers().includes(cipher_algorithm))) throw new E(`Unsupported algorithm [${cipher_algorithm}] by the Node.js Crypto module!`);
 
         this.#key = createHash('sha256').update(secure_private_key).digest().subarray(0, 32); //hash the key just to make sure to complicate the input key, if it is weak
-        this.#algo = cipher_algorithm
 
         this.verbose = verbose
-        this.rand_int_gen = rand_int_gen
-        this.rand_iv_gen = rand_iv_gen;
+        this.#rand_int_gen = rand_int_gen
         if (this.verbose) done('Initialized SocioSecurity object succesfully!')
     }
     
@@ -86,31 +88,41 @@ export class SocioSecurity extends LogHandler {
         return s
     }
 
+    //returns a string in the format "[iv] [encrypted_text] [auth_tag]" where each part is base64 encoded
     EncryptString(str = ''): string {
-        const iv = this.rand_iv_gen(16);
-        const cipher = createCipheriv(this.#algo, this.#key, iv)
-        const cipher_text = iv.toString('base64') + ' ' + cipher.update(str, 'utf-8', 'base64') + cipher.final('base64'); //Base64 only contains A–Z , a–z , 0–9 , + , / and =
-        return cipher_text
+        const iv = this.get_next_iv();
+        const cipher = createCipheriv(cipher_algorithm, this.#key, iv);
+        const cipher_text = cipher.update(str, 'utf-8', 'base64') + cipher.final('base64');
+        //Base64 only contains A–Z , a–z , 0–9 , + , / and =
+        const auth_tag = cipher.getAuthTag().toString('base64');
+        return [iv.toString('base64'), cipher_text, auth_tag].join(' ');
     }
 
-    DecryptString(cipher_text:string, iv_base64:string):string {
-        const iv = Buffer.from(iv_base64, 'base64')
-        const decipther = createDecipheriv(this.#algo, this.#key, iv)
-        return decipther.update(cipher_text, 'base64', 'utf-8') + decipther.final('utf-8')
+    DecryptString(iv_base64: string, cipher_text: string, auth_tag_base64:string):string {
+        const iv = Buffer.from(iv_base64, 'base64');
+        const auth_tag = Buffer.from(auth_tag_base64, 'base64');
+        const decipher = createDecipheriv(cipher_algorithm, this.#key, iv);
+        decipher.setAuthTag(auth_tag) //set the tag for verification.
+        return decipher.update(cipher_text, 'base64', 'utf-8') + decipher.final('utf-8')
     }
 
     //surrouded by the same quotes as original, the sql gets encrypted along with its marker, so neither can be altered on the front end. 
     //+ a random int to scramble and randomize the encrypted string for every build.
     EncryptSocioString(q='', sql='', marker=''){
-        return q + this.EncryptString(sql + (marker ? marker : '--socio') + '-' + this.GenRandInt()) + q //`--${this.GenRandInt()}\n` +
+        return q + this.EncryptString(sql + (marker || '--socio') + '-' + this.GenRandInt()) + q //`--${this.GenRandInt()}\n` +
     }
 
-    GenRandInt(min = 1000, max = 100_000):number{
-        return this.rand_int_gen ? this.rand_int_gen(min, max) : Math.floor((Math.random() * (max - min)) + min)
+    GenRandInt(min = 10_000, max = 100_000_000):number{
+        return this.#rand_int_gen ? this.#rand_int_gen(min, max) : Math.floor((Math.random() * (max - min)) + min)
     }
 
     get supportedCiphers() { return getCiphers() } //convenience
-    get defaultCipher() { return default_cipher_algorithm }//convenience
+    get defaultCipher() { return cipher_algorithm }//convenience
+    get_next_iv(){
+        return randomBytes(16);
+        // SocioSecurity.iv_counter += 1;
+        // return SocioSecurity.iv_counter;
+    }
 }
 
 export function StringToByteBuffer(str: string) { return Buffer.from(str, 'utf8'); }
