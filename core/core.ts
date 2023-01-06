@@ -82,9 +82,17 @@ export class SocioServer extends LogHandler {
                 if (this.#lifecycle_hooks.discon)
                     this.#lifecycle_hooks.discon(client)
 
-                //delete the connection object
-                delete this.#sessions[client_id] //cant delete private properties, even if this is a key in an obj. IDK js, wtf... Could assign to new dup object without this key, but ehhh
-                
+                //delete the connection object and the subscriptions of this client
+                delete this.#sessions[client_id]
+                //for each prop itereate its update obj and delete the keys with this client_id
+                Object.values(this.#props).forEach(p => { 
+                    Object.keys(p.updates).forEach(c_id => { 
+                        if (c_id == client_id) 
+                            delete p.updates[c_id];
+                    })
+                })
+                //Update() only works on session objects, and if we delete this one, then its query subscriptions should also be gone.
+
                 this.HandleInfo('DISCON', client_id)
             });
         } catch (e: err) { this.HandleError(e); }
