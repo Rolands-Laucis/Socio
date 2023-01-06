@@ -28,12 +28,14 @@ export class SocioClient extends LogHandler {
     #props: { [prop_key: PropKey]: { [id: id]: PropUpdateCallback } } = {};
     #perms: { [verb: string]: string[]} = {}; //verb:[tables strings] keeps a dict of access permissions of verb type and to which tables this session has been granted. This is not safe, the backend does its own checks anyway.
 
-    static #key = 0 //all instances will share this number, such that they are always kept unique. Tho each of these clients would make a different session on the backend, but still
+    static #key = 1 //all instances will share this number, such that they are always kept unique. Tho each of these clients would make a different session on the backend, but still
 
     //public:
     name:string;
     verbose:boolean;
     key_generator: (() => number | string) | undefined;
+    lifecycle_hooks: { [key: string]: Function | null; } = { discon:null, msg:null}
+    //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
 
     constructor(url: string, { ws_opts = {}, name = '', verbose = false, keep_alive = true, reconnect_tries = 1 }: { ws_opts?: ClientOptions, name?: string, verbose?: boolean, keep_alive?: boolean, reconnect_tries?:number} = {}) {
         super(info, soft_error);
@@ -51,12 +53,18 @@ export class SocioClient extends LogHandler {
     #connect(url: string, ws_opts: ClientOptions, keep_alive: boolean, verbose: boolean, reconnect_tries:number){
         this.#ws = new WebSocket(url)
         if (keep_alive && reconnect_tries)
-            this.#ws.addEventListener("close", () => { 
-                this.HandleError(new E(`WebSocket closed. Retrying...`, this.name)); 
-                this.#connect(url, ws_opts, keep_alive, verbose, reconnect_tries - 1)
-            }); // <- rise from your grave!
+            this.#ws.addEventListener("close", () => {
+                this.HandleError(new E(`WebSocket closed. Retrying...`, this.name));
 
-        //@ts-ignore
+                //pass the object to the discon hook, if it exists
+                if (this.lifecycle_hooks.discon)
+                    if (this.lifecycle_hooks.discon(this.name, this.#client_id, keep_alive, reconnect_tries))
+                        return;
+
+                //otherwise reconnect
+                this.#connect(url, ws_opts, keep_alive, verbose, reconnect_tries - 1);
+            }); // <- rise from your grave!
+        
         this.#ws.addEventListener('message', this.#message.bind(this));
     }
 
@@ -64,6 +72,11 @@ export class SocioClient extends LogHandler {
         try{
             const { kind, data }: { kind: ClientMessageKind; data: MessageDataObj } = JSON.parse(event.data)
             this.HandleInfo('recv:', kind, data)
+
+            //let the developer handle the msg
+            if (this.lifecycle_hooks.msg)
+                if (this.lifecycle_hooks.msg(this.name,this.#client_id, kind, data))
+                    return;
 
             switch (kind) {
                 case 'CON':
