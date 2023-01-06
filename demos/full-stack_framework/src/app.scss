@@ -5,9 +5,8 @@
 html, body{
     width: 100vw;
     height: 100vh;
-
-    // background-color: black;
-    background: radial-gradient(50% 50% at 50% 50%, #07071D 0%, #07070C 100%);
+    
+    background-color: black;
     color: $light;
     color-scheme: dark;
 
@@ -28,6 +27,13 @@ h1, .h1,  h2, .h2,  h3, .h3,  h4, .h4, h5, .h5, h6, .h6, a, html, body, button, 
     margin: 0;
     margin-block-start:0px;
     margin-block-end:0px;
+}
+body{
+    background: radial-gradient(50% 50% at 50% 50%, #07071D 0%, #07070C 100%);
+    padding: 24px;
+    width: calc(100% - 48px);
+    height: calc(100% - 48px);
+    position: relative;
 }
 
 h1,.h1{font-size: 73.24px; font-weight: 700;}
