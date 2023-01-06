@@ -1,9 +1,12 @@
 <script lang="ts">
     //imports
     import { SocioClient } from "socio/core-client";
-    import { onMount } from "svelte";
+    import type {id} from 'socio/types'
+    import { onMount, onDestroy } from "svelte";
+    //@ts-ignore
     import { log } from "@rolands/log"; //for my debugging
     import { slide } from "svelte/transition";
+    import toast from 'svelte-french-toast';
 
     //comps
     import Bloom from "$lib/bloom.svelte";
@@ -14,34 +17,45 @@
         verbose: true,
         name: "Main",
     });
+    sc.lifecycle_hooks.msg = (name:string, client_id:string, kind:string, data:any) => {
+        if(['UPD', 'PROP_UPD'].includes(kind))
+            toast('An update came in from the Socio Server.', {style:'background: #0D0D0E; color: #fff;',position: "bottom-center"});
+        else if(kind == 'ERR')
+            toast.error(`An error arrived for a query or prop. MSG ID:${data.id}`,{position: "bottom-center"})
+    }
+
     let ready = false,
         user_count = 0;
     let users: { userid: number; name: string; num: number }[] = [];
     let insert_fields = { name: "Bob", num: 42 };
     let color_prop = "#ffffff";
+
+    //ids
+    let id1:id=0, id2:id=0;
     onMount(async () => {
         ready = await sc.ready();
-        const user_count_id = sc.subscribe(
-            {
-                sql: "SELECT COUNT(*) AS RES FROM users WHERE name = :name;--socio",
-                params: { name: "John" },
-            },
-            (res) => {
-                // log(res);
+        toast.success('Socio Client connected!', {icon:'🥳',position: "bottom-center"});
+        id1 = sc.subscribe({sql: "SELECT COUNT(*) AS RES FROM users WHERE name = :name;--socio",params: { name: "John" }}, (res) => {
+                //@ts-ignore
                 user_count = res[0].RES as number; //res is whatever object your particular DB interface lib returns from a raw query
             }
-        );
+        ) as id;
 
-        const users_id = sc.subscribe(
-            { sql: "SELECT * FROM users;--socio" },
-            (res) => {
-                // log(res)
+        id2 = sc.subscribe({ sql: "SELECT * FROM users;--socio" },(res) => {
                 users = res as { userid: number; name: string; num: number }[]; //res is whatever object your particular DB interface lib returns from a raw query
             }
-        );
+        ) as id;
 
         sc.subscribeProp("color", (c) => (color_prop = c as string));
     });
+
+    onDestroy(async () => {
+        if(id1)
+            await sc.unsubscribe(id1);
+        if(id2)
+            await sc.unsubscribe(id2);
+        sc.unsubscribeProp('color')
+    })
 </script>
 
 <section>

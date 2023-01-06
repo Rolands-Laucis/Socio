@@ -27,6 +27,7 @@
     "@rolands/log": "^1.1.1",
     "sequelize": "^6.28.0",
     "sqlite3": "^5.1.4",
+    "svelte-french-toast": "^1.0.3",
     "ws": "^8.11.0"
   }
 }
