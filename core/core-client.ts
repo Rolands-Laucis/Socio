@@ -226,6 +226,12 @@ export class SocioClient extends LogHandler {
                 throw new E('Cannot unsubscribe query, because provided prop_name is not currently tracked.', prop_name);
         } catch (e: err) { this.HandleError(e) }
     }
+    unsubscribeAll({props=true, queries=true} = {}){
+        if(props)
+            Object.keys(this.#props).forEach(p => this.unsubscribeProp(p, true));
+        if(queries)
+            Object.keys(this.#queries).forEach(q => this.unsubscribe(q, true));
+    }
 
     query(sql: string, params: object | null = null){
         try{

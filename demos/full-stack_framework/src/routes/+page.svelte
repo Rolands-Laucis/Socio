@@ -30,31 +30,27 @@
     let insert_fields = { name: "Bob", num: 42 };
     let color_prop = "#ffffff";
 
-    //ids
-    let id1:id=0, id2:id=0;
     onMount(async () => {
         ready = await sc.ready();
         toast.success('Socio Client connected!', {icon:'🥳',position: "bottom-center"});
-        id1 = sc.subscribe({sql: "SELECT COUNT(*) AS RES FROM users WHERE name = :name;--socio",params: { name: "John" }}, (res) => {
+        
+        sc.subscribe({sql: "SELECT COUNT(*) AS RES FROM users WHERE name = :name;--socio",params: { name: "John" }}, (res) => {
                 //@ts-ignore
                 user_count = res[0].RES as number; //res is whatever object your particular DB interface lib returns from a raw query
             }
-        ) as id;
+        );
 
-        id2 = sc.subscribe({ sql: "SELECT * FROM users;--socio" },(res) => {
+        sc.subscribe({ sql: "SELECT * FROM users;--socio" },(res) => {
                 users = res as { userid: number; name: string; num: number }[]; //res is whatever object your particular DB interface lib returns from a raw query
             }
-        ) as id;
+        );
 
         sc.subscribeProp("color", (c) => (color_prop = c as string));
     });
 
-    onDestroy(async () => {
-        if(id1)
-            await sc.unsubscribe(id1);
-        if(id2)
-            await sc.unsubscribe(id2);
-        sc.unsubscribeProp('color')
+    //cleanup for dev server reloads.
+    onDestroy(() => {
+        sc.unsubscribeAll({props:true, queries:true}); //NB! this wipes the subscriptions on the SocioClient instance, not just the ones registered here. Subscriptions return id's to use for unsubscribing.
     })
 </script>
 
