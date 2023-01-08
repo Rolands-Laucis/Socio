@@ -5,7 +5,7 @@
 import MagicString from 'magic-string'; //https://github.com/Rich-Harris/magic-string
 import { randomUUID, createCipheriv, createDecipheriv, getCiphers, randomBytes, createHash } from 'crypto'
 import type { CipherGCMTypes } from 'crypto'
-import { sql_string_regex } from './utils.js'
+import { socio_string_regex } from './utils.js'
 import { LogHandler, E } from './logging.js'
 
 import { info, log, error, soft_error, done, setPrefix, setShowTime } from '@rolands/log';
@@ -27,6 +27,8 @@ export function SocioSecurityPlugin({ secure_private_key = '', verbose = false }
         enforce: 'pre',
         transform(code:string, id:string){
             const ext = id.split('.').slice(-1)[0]
+            if (/.*\.server\.(js|ts)$/.test(id)) return undefined; //skip *.server.ts files
+
             if (['js', 'svelte', 'vue', 'jsx', 'ts', 'tsx'].includes(ext) && !id.match(/\/(node_modules|socio\/(core|core-client|secure))\//)) { // , 'svelte' 
                 const s = ss.SecureSouceCode(code) //uses MagicString lib
                 return {
@@ -73,22 +75,22 @@ export class SocioSecurity extends LogHandler {
         if (this.verbose) done('Initialized SocioSecurity object succesfully!')
     }
     
-    //sql strings must be in single or double quotes and have an sql single line comment at the end with the socio marker, e.g. "--socio" etc. See the sql_string_regex pattern in core/utils
+    //sql strings must be in single or double quotes and have an sql single line comment at the end with the socio marker, e.g. "--socio" etc. See the socio_string_regex pattern in core/utils
     SecureSouceCode(source_code = '') {
         //@ts-ignore
         const s = new MagicString(source_code);
 
         //loop over match iterator f
         for (const m of source_code.matchAll(string_regex)){ //loop over all strings in either '' or ""
-            const found = m?.groups?.str?.match(sql_string_regex)?.groups || {}
-            if (found?.sql && found?.marker && m.groups?.q && m.index)
-                s.update(m.index, m.index + m[0].length, this.EncryptSocioString(m.groups.q, found.sql, found.marker));
+            const found = m?.groups?.str?.match(socio_string_regex)?.groups || {}
+            if (found?.str && found?.marker && m.groups?.q && m.index)
+                s.update(m.index, m.index + m[0].length, this.EncryptSocioString(m.groups.q, found.str, found.marker));
         }
 
         return s
     }
 
-    //returns a string in the format "[iv] [encrypted_text] [auth_tag]" where each part is base64 encoded
+    //returns a string in the format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where each part is base64 encoded
     EncryptString(str = ''): string {
         const iv = this.get_next_iv();
         const cipher = createCipheriv(cipher_algorithm, this.#key, iv);

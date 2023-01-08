@@ -13,10 +13,13 @@
     import Spinner from "$lib/spinner.svelte";
     import Button from "$lib/button.svelte";
 
+    //init SocioClient
     const sc = new SocioClient("ws://localhost:3000", {
         verbose: true,
         name: "Main",
     });
+
+    //setup toasts
     sc.lifecycle_hooks.msg = (name:string, client_id:string, kind:string, data:any) => {
         if(['UPD', 'PROP_UPD'].includes(kind))
             toast('An update came in from the Socio Server.', {style:'background: #0D0D0E; color: #fff;',position: "bottom-center"});
@@ -24,6 +27,7 @@
             toast.error(`An error arrived for a query or prop. MSG ID:${data.id}`,{position: "bottom-center"})
     }
 
+    //variables
     let ready = false,
         user_count = 0;
     let users: { userid: number; name: string; num: number }[] = [];

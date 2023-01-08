@@ -3,11 +3,14 @@ import { SocioServer } from 'socio/core';
 import { SocioSecurity } from 'socio/secure';
 import type { QueryFunction, QueryFuncParams } from 'socio/core';
 import type { PropValue } from 'socio/types';
-// import { ParseQueryTables } from 'socio/utils'
+// import { SocioStringParse } from 'socio/utils'
 
 import { Sequelize } from 'sequelize';
 //@ts-ignore
 import { log, info, soft_error, done, setPrefix, setShowTime } from '@rolands/log'; setPrefix('Socio'); setShowTime(false);
+
+// log(SocioStringParse('SELECT * FROM users;--socio-32946486'))
+// process.exit(0)
 
 try{
     info('Starting SocioServer...');
@@ -26,7 +29,7 @@ try{
     }
 
     const socsec = new SocioSecurity({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', verbose: true })
-    const socserv = new SocioServer({ port: ws_port }, QueryWrap as QueryFunction, { verbose: true, secure: socsec });
+    const socserv = new SocioServer({ port: ws_port }, QueryWrap as QueryFunction, { verbose: true, socio_security: socsec });
     done(`Created SocioServer on port`, ws_port);
 
     socserv.RegisterProp('color', '#ffffff', (curr_val: PropValue, new_val: PropValue):boolean => {

@@ -2,8 +2,10 @@
 
 import { QueryMarker } from "./types.js"
 
+export type SocioStringObj = { str: string, markers: string[] };
+
 //regex
-export const sql_string_regex = /(?<sql>.+?)(?<marker>--socio(?:-\w+?)*)?;?$/mi //markers currently support - auth, perm, \d+
+export const socio_string_regex = /(?<str>.+?)(?<marker>--socio(?:-\w+?)*)?;?$/mi //markers currently support - auth, perm, \d+
 
 //query helper functions
 export function QueryIsSelect(sql: string):boolean {
@@ -24,14 +26,13 @@ export function ParseQueryVerb(q:string): string | null{
 }
 
 //socio string marker utils
-export function SocioArgsParse(str:string): string[] {
-    const marker = str.match(sql_string_regex)?.groups?.marker
-    if (marker) return marker.slice(2).split('-')
-    else return []
+export function SocioStringParse(str:string): SocioStringObj {
+    const m = str.match(socio_string_regex)?.groups
+    return { str: m?.str || '', markers: m?.marker ? m.marker.slice(2).split('-') : [] } //the slice(2) is to remove the starting --
 }
 
-export function SocioArgHas(marker: QueryMarker, { parsed = null, str = '' }: { parsed?: string[] | null, str?: string }) {
-    return marker ? (parsed ? parsed.includes(marker) : (str ? SocioArgsParse(str).includes(marker) : false)) : false
+export function SocioMarkerHas(marker: QueryMarker, { parsed = null, str = '' }: { parsed?: string[] | null, str?: string }) {
+    return marker ? (parsed ? parsed.includes(marker) : (str ? SocioStringParse(str).markers.includes(marker) : false)) : false
 }
 
 //random
