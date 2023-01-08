@@ -83,7 +83,19 @@ const success = sc.authenticate({username:'Bob', password:'pass123'}) //success 
 
 ```
 
-### Setup of ``SocioSecurityPlugin``
+### Setup of ``SocioSecurity`` and ``SocioSecurityPlugin``
+
+```ts
+//server code - can be in express or SvelteKit's hooks.server.ts/js file or whatever way you have of running server side code once.
+import { SocioServer } from 'socio/core.js'
+import type { SocioSession } from 'socio/core-session.js'
+import { SocioSecurity } from 'socio/secure';
+
+//vite plugin and this instance must share the same private secret key, so perhaps use .env mechanism
+const socsec = new SocioSecurity({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', verbose: true });
+const socserv = new SocioServer({ port: ws_port }, QueryWrap as QueryFunction, { verbose: true, socio_security: socsec });
+//by default ecrypts all strings that end with the socio marker, but decryption can be individually turned off for either sql or prop key strings.
+```
 
 ```ts
 //vite.config.ts in a SvelteKit project

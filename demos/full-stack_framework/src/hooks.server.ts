@@ -28,7 +28,7 @@ try{
         return (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))[0];
     }
 
-    const socsec = new SocioSecurity({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', verbose: true })
+    const socsec = new SocioSecurity({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', verbose: true });
     const socserv = new SocioServer({ port: ws_port }, QueryWrap as QueryFunction, { verbose: true, socio_security: socsec });
     done(`Created SocioServer on port`, ws_port);
 

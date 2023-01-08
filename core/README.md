@@ -38,8 +38,8 @@ function QueryWrap({ id = undefined, sql = '', params = undefined }:QueryFuncPar
     //do whatever u need to run the sql on your DB and return its result
 }
 
-const socsec = new SocioSecurity({ secure_private_key: '...', cipher_iv: '...', verbose:true }) //for decrypting incoming queries
-const socserv = new SocioServer({ port: 3000 }, QueryWrap as QueryFunction, { verbose: true, secure: socsec }); //creates localhost:3000 web socket server
+const socsec = new SocioSecurity({ secure_private_key: '...', verbose:true }); //for decrypting incoming queries
+const socserv = new SocioServer({ port: 3000 }, QueryWrap as QueryFunction, { verbose: true, socio_security: socsec }); //creates localhost:3000 web socket server
 ```
 
 ```ts
