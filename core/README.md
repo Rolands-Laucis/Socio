@@ -2,6 +2,8 @@
 
 ## Connecting your Front-End to Back-End DB reactively!
 
+[Youtube video Demo](https://www.youtube.com/watch?v=5MxAg-h38VA "Youtube video Demo")
+
 Say goodbye to REST APIs 👋. No more API middleware and DB interfacing functions and wrappers and handlers. Write your SQL queries on the frontend and have their results be automagically refreshed on all clients when a resource is changed on the server DB.
 
 Check [Basic Demo](https://github.com/Rolands-Laucis/Socio/blob/master/demos/basic/readme.md) to try an interactive bare-bones demonstration.
@@ -78,6 +80,8 @@ sc.unsubscribe(id);
 * [Firebase Realtime Database](https://firebase.google.com/docs/database) Google backed.
 * [PocketBase](https://pocketbase.io/) Firebase alternative written in GO.
 * [RethinkDB](https://rethinkdb.com/) Distributed architecture.
+* [WebRTC standard](https://webrtc.org/) another web protocol, but aimed at realtime binary data transmission like audio and video.
+* [gRPC](https://grpc.io/) Google's Remote Procedure Call (RPC, another web protocol) framework, for interconnecting computers over a standardized data format between and inside data center machines and devices.
 
 ## Name:
 "Socio.js" comes from the latin verb "socio", which means to link or associate. Since this lib syncs your frontend and backend. Its also a play on words for "WebSockets" and "IO".

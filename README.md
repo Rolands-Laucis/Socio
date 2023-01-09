@@ -79,6 +79,8 @@ sc.unsubscribe(id);
 * [Firebase Realtime Database](https://firebase.google.com/docs/database) Google backed.
 * [PocketBase](https://pocketbase.io/) Firebase alternative written in GO.
 * [RethinkDB](https://rethinkdb.com/) Distributed architecture.
+* [WebRTC standard](https://webrtc.org/) another web protocol, but aimed at realtime binary data transmission like audio and video.
+* [gRPC](https://grpc.io/) Google's Remote Procedure Call (RPC, another web protocol) framework, for interconnecting computers over a standardized data format between and inside data center machines and devices.
 
 ## Name:
 "Socio.js" comes from the latin verb "socio", which means to link or associate. Since this lib syncs your frontend and backend. Its also a play on words for "WebSockets" and "IO".
