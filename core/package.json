@@ -1,6 +1,6 @@
 {
   "name": "socio",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "A WebSocket based realtime duplex Front-End and Back-End syncing API paradigm framework.",
   "main": "./dist/core.js",
   "type": "module",
@@ -32,9 +32,9 @@
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Rolands-Laucis/Socio.js.git"
+    "url": "https://github.com/Rolands-Laucis/Socio.git"
   },
-  "homepage": "https://github.com/Rolands-Laucis/Socio.js#readme",
+  "homepage": "https://github.com/Rolands-Laucis/Socio#readme",
   "dependencies": {
     "@rolands/log": "^1.1.1",
     "@types/node": "^18.11.17",
