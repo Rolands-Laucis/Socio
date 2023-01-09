@@ -2,6 +2,8 @@
 
 ## Connecting your Front-End to Back-End DB reactively!
 
+[Youtube video Demo](https://www.youtube.com/watch?v=5MxAg-h38VA "Youtube video Demo")
+
 Say goodbye to REST APIs 👋. No more API middleware and DB interfacing functions and wrappers and handlers. Write your SQL queries on the frontend and have their results be automagically refreshed on all clients when a resource is changed on the server DB.
 
 Check [Basic Demo](https://github.com/Rolands-Laucis/Socio/blob/master/demos/basic/readme.md) to try an interactive bare-bones demonstration.
