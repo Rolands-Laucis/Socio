@@ -1,10 +1,9 @@
 <script lang="ts">
     //imports
     import { SocioClient } from "socio/core-client";
-    import type {id} from 'socio/types'
+    // import type {id} from 'socio/types'
     import { onMount, onDestroy } from "svelte";
     //@ts-ignore
-    import { log } from "@rolands/log"; //for my debugging
     import { slide } from "svelte/transition";
     import toast from 'svelte-french-toast';
 
