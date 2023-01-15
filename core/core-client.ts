@@ -1,14 +1,12 @@
 //https://stackoverflow.com/questions/38946112/es6-import-error-handling
 
 import { info, log, error, soft_error, done, setPrefix, setShowTime } from '@rolands/log'; setPrefix('SocioClient'); setShowTime(false);
-
-//libs
-import { ClientOptions } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
-
 import { LogHandler, E, err } from './logging.js'
 
 //types
-import { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind } from './types.js'
+import type { ClientOptions } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
+import type { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind } from './types.js'
+import type { RateLimit } from './ratelimit.js'
 type MessageDataObj = { id: id, verb?: string, table?: string, status?:string, result?:string|object|boolean|PropValue, prop?:PropKey };
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
 type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?: Function};
@@ -21,6 +19,7 @@ export class SocioClient extends LogHandler {
     // private:
     #ws: WebSocket | null = null;
     #client_id:id = '';
+    #latency:number;
     #is_ready: Function | boolean = false;
     #authenticated=false
 
@@ -47,6 +46,7 @@ export class SocioClient extends LogHandler {
         this.name = name
         this.verbose = verbose //It is recommended to turn off verbose in prod.
         
+        this.#latency = (new Date()).getTime();
         this.#connect(url, ws_opts, keep_alive, verbose, reconnect_tries)
     }
 
@@ -89,6 +89,7 @@ export class SocioClient extends LogHandler {
                     if (this.verbose) done(`Socio WebSocket connected.`, this.name);
 
                     this.#is_ready = true;
+                    this.#latency = (new Date()).getTime() - this.#latency;
                     break;
                 case 'UPD':
                     this.#FindID(kind, data?.id);
@@ -154,7 +155,7 @@ export class SocioClient extends LogHandler {
 
     //subscribe to an sql query. Can add multiple callbacks where ever in your code, if their sql queries are identical
     //returns the created ID for that query, to use to unsubscribe all callbacks to the query
-    subscribe({ sql = '', params = null }: { sql?: string, params?: object | null } = {}, onUpdate: SubscribeCallbackObjectSuccess = null, status_callbacks: { error?: (e: string) => void } = {}): id | null{
+    subscribe({ sql = '', params = null }: { sql?: string, params?: object | null } = {}, onUpdate: SubscribeCallbackObjectSuccess = null, status_callbacks: { error?: (e: string) => void } = {}, rate_limit: RateLimit | null = null): id | null{
         //params for sql is the object that will be passed as params to your query func
 
         //onUpdate is the success standard function, that gets called, when the DB sends an update of its data
@@ -169,7 +170,7 @@ export class SocioClient extends LogHandler {
             return id //the ID of the query
         } catch (e: err) { this.HandleError(e); return null; }
     }
-    subscribeProp(prop_name:PropKey, onUpdate: PropUpdateCallback):void{
+    subscribeProp(prop_name: PropKey, onUpdate: PropUpdateCallback, status_callbacks: { error?: (e: string) => void } = {}, rate_limit: RateLimit | null = null):void{
         //the prop name on the backend that is a key in the object
         try {
             const id = this.#GenKey
@@ -250,18 +251,29 @@ export class SocioClient extends LogHandler {
         try {
             //check that prop is subbed
             if (!(prop in this.#props))
-                throw new E('Prop must be first subscribed to set its value!', prop)
+                throw new E('Prop must be first subscribed to set its value!', prop);
 
             //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
             const id = this.#GenKey;
             const prom = new Promise((res) => {
                 this.#queries[id] = res
-            })
+            });
 
             //send off the request, which will be resolved in the message handler
-            this.#Send('PROP_SET', { id: id, prop: prop, prop_val:new_val })
-            return prom
+            this.#Send('PROP_SET', { id: id, prop: prop, prop_val:new_val });
+            return prom;
         } catch (e: err) { this.HandleError(e); return null; }
+    }
+    getProp(prop: PropKey) {
+        //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
+        const id = this.#GenKey;
+        const prom = new Promise((res) => {
+            this.#queries[id] = res
+        });
+
+        //send off the request, which will be resolved in the message handler
+        this.#Send('PROP_GET', { id: id, prop: prop });
+        return prom;
     }
     serv(data:object){
         try {
@@ -328,5 +340,6 @@ export class SocioClient extends LogHandler {
     }
 
     get client_id(){return this.#client_id}
+    get latency() { return this.#latency } //shows the latency in ms of the initial connection handshake to determine network speed for this session. Might be useful to inform the user, if its slow.
     ready(): Promise<boolean> { return this.#is_ready === true ? (new Promise(res => res(true))) : (new Promise(res => this.#is_ready = res)) }
 }

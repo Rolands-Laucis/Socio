@@ -1,14 +1,17 @@
-//libs
-import { WebSocket } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
-
 import { log, info, soft_error, setPrefix, setShowTime } from '@rolands/log'; setPrefix('SocioSession'); setShowTime(false); //for my logger
 import { LogHandler, E } from './logging.js'
-import { id, ClientMessageKind } from './types.js';
+import { RateLimiter } from './ratelimit.js'
+
+//types
+import type { WebSocket } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
+import type { id, ClientMessageKind } from './types.js';
+import type { RateLimit } from './ratelimit.js'
 
 type HookObj = {
     tables: string[],
     sql: string, 
-    params: object | null
+    params: object | null,
+    rate_limiter: RateLimiter | null
 }
 
 //NB! some fields in these variables are private for safety reasons, but also bcs u shouldnt be altering them, only if through my defined ways. They are mostly expected to be constants.
@@ -51,9 +54,9 @@ export class SocioSession extends LogHandler {
     }
 
     //TODO this used to be well optimized datastructures back in 0.2.1, but had to simplify down, bcs it gets complicated
-    RegisterHook(tables: string[], id: id, sql:string, params: object | null) {
+    RegisterHook(tables: string[], id: id, sql:string, params: object | null, rate_limit:RateLimit | null) {
         if (!(id in this.#hooks))
-            this.#hooks[id] = { tables, sql, params };
+            this.#hooks[id] = { tables, sql, params, rate_limiter: rate_limit ? new RateLimiter(rate_limit) : null };
         else throw new E('MSG ID already registered as hook!', tables, id, sql, params);
         // this.HandleInfo('registered hook', id, sql);
     }

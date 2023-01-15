@@ -1,8 +1,7 @@
 //Nullum magnum ingenium sine mixture dementia fuit. - There has been no great wisdom without an element of madness.
 
 //libs
-import { WebSocketServer, ServerOptions, WebSocket } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
-import { IncomingMessage } from 'http'
+import { WebSocketServer } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
 
 //mine
 import { log, soft_error, error, info, setPrefix, setShowTime } from '@rolands/log'; setPrefix('SocioServer'); setShowTime(false); //for my logger
@@ -10,13 +9,17 @@ import { QueryIsSelect, ParseQueryTables, SocioStringParse, ParseQueryVerb, slee
 import { E, LogHandler, err } from './logging.js'
 import { UUID, SocioSecurity } from './secure.js'
 import { SocioSession } from './core-session.js'
+import { RateLimiter } from './ratelimit.js'
 
 //NB! some fields in these variables are private for safety reasons, but also bcs u shouldnt be altering them, only if through my defined ways. They are mostly expected to be constants.
 //whereas public variables are free for you to alter freely at any time during runtime.
 
 //types
-import { id, PropKey, PropValue, PropAssigner, CoreMessageKind } from './types.js'
-export type MessageDataObj = { id?: id, sql?: string, params?: object | null, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue, data?:any };
+import type { ServerOptions, WebSocket } from 'ws';
+import type { IncomingMessage } from 'http'
+import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind } from './types.js'
+import type { RateLimit } from './ratelimit.js'
+export type MessageDataObj = { id?: id, sql?: string, params?: object | null, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue, data?:any, rate_limit?:RateLimit };
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
 export type QueryFunction = (obj: QueryFuncParams | MessageDataObj) => Promise<object>;
 type QueryObject = { id: id, params: object | null, session: SocioSession }; //for grouping hooks
@@ -25,8 +28,15 @@ export class SocioServer extends LogHandler {
     // private:
     #wss: WebSocketServer;
     #sessions: { [key: string]: SocioSession } = {}; //client_id:SocioSession
-    #secure: { socio_security: SocioSecurity | null, decrypt_sql: boolean, decrypt_prop:boolean};  //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages
-    #props: { [key: PropKey]: { val: PropValue, assigner: PropAssigner, updates:{[client_id:string]: id} } } = {}; //backend props, e.g. strings for colors, that clients can subscribe to and alter
+
+    //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages, if the msg flag is set
+    #secure: { socio_security: SocioSecurity | null, decrypt_sql: boolean, decrypt_prop:boolean};
+
+    //backend props, e.g. strings for colors, that clients can subscribe to and alter
+    #props: { [key: PropKey]: { val: PropValue, assigner: PropAssigner, updates: { [client_id: string]: { id: id, rate_limiter?: RateLimiter | null }} } } = {};
+
+    //rate limits server functions globally
+    #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
 
     #lifecycle_hooks: { [key: string]: Function | null; } = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null, serv:null } //call the register function to hook on these. They will be called if they exist
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
@@ -67,7 +77,7 @@ export class SocioServer extends LogHandler {
             const client = new SocioSession(client_id, conn, { verbose: this.verbose })
             this.#sessions[client_id] = client
 
-            //pass the object to the connection hook, if it exists
+            //pass the object to the connection hook, if it exists. It cant take over
             if (this.#lifecycle_hooks.con)
                 this.#lifecycle_hooks.con(client, client_id, req)
 
@@ -147,7 +157,7 @@ export class SocioServer extends LogHandler {
                     }else if (data?.prop) throw new E('Perm checking for server props is currently unsupported! #[unsupported-feature]', data, markers)
                 }
             }
-            this.HandleInfo(`recv ${kind} from ${client_id}`, data);
+            this.HandleInfo(`recv: ${kind} from ${client_id}`, data);
             // await sleep(2);
 
             //let the developer handle the msg
@@ -161,7 +171,7 @@ export class SocioServer extends LogHandler {
                         //set up hook
                         const tables = ParseQueryTables(data.sql || '')
                         if (tables)
-                            client.RegisterHook(tables, data.id as id, data.sql as string, data.params || null);
+                            client.RegisterHook(tables, data.id as id, data.sql as string, data.params || null, data?.rate_limit || null);
 
                         //send response
                         client.Send('UPD', {
@@ -219,7 +229,7 @@ export class SocioServer extends LogHandler {
                 case 'PROP_REG':
                     this.#CheckPropExists(data?.prop, client, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
                     //set up hook
-                    this.#props[data.prop as PropKey].updates[client_id] = data.id as id
+                    this.#props[data.prop as PropKey].updates[client_id] = { id: data.id as id, rate_limiter: data?.rate_limit ? new RateLimiter(data.rate_limit) : null}
 
                     //send response
                     client.Send('PROP_UPD', {
@@ -285,10 +295,17 @@ export class SocioServer extends LogHandler {
     }
 
     Update(tables:string[]=[]){
+        //rate limit check
+        if(this.#ratelimits.upd)
+            if(this.#ratelimits.upd.CheckLimit())
+                return;
+
+        //hand off to hook
         if (this.#lifecycle_hooks.upd)
             if (this.#lifecycle_hooks.upd(this.#sessions, tables))
                 return;
 
+        //try the logic myself
         try{
             //gather all sessions hooks sql queries that involve the altered tables
             const queries: { [key: string]: QueryObject[]} = {}
@@ -342,11 +359,11 @@ export class SocioServer extends LogHandler {
         }
     }
 
-    RegisterLifecycleHookHandler(name='', handler:Function|null=null){
+    RegisterLifecycleHookHandler(f_name:string, handler:Function|null=null){
         try{
-            if (name in this.#lifecycle_hooks)
-                this.#lifecycle_hooks[name] = handler
-            else throw new E(`Lifecycle hook [${name}] does not exist!`)
+            if (f_name in this.#lifecycle_hooks)
+                this.#lifecycle_hooks[f_name] = handler;
+            else throw new E(`Lifecycle hook [${f_name}] does not exist! Settable: ${this.LifecycleHookNames}`)
         } catch (e:err) { this.HandleError(e) }
     }
     UnRegisterLifecycleHookHandler(name = '') {
@@ -356,9 +373,27 @@ export class SocioServer extends LogHandler {
             else throw new E(`Lifecycle hook [${name}] does not exist!`)
         } catch (e:err) { this.HandleError(e) }
     }
-    get LifecycleHookNames(){
-        return Object.keys(this.#lifecycle_hooks)
+    get LifecycleHookNames(){return Object.keys(this.#lifecycle_hooks)}
+
+    RegisterRateLimit(f_name: string, ratelimit: RateLimit | null = null){
+        try {
+            if (f_name in this.#ratelimits){
+                if (ratelimit) {
+                    this.#ratelimits[f_name] = new RateLimiter(ratelimit);
+                    log('registered')
+                }
+            }
+            else throw new E(`Rate Limits hook [${f_name}] is not settable! Settable: ${this.RateLimitNames}`)
+        } catch (e: err) { this.HandleError(e) }
     }
+    UnRegisterRateLimit(f_name: string) {
+        try {
+            if (f_name in this.#ratelimits)
+                this.#ratelimits[f_name] = null;
+            else throw new E(`Rate Limits hook [${f_name}] is not settable! Settable: ${this.RateLimitNames}`)
+        } catch (e: err) { this.HandleError(e) }
+    }
+    get RateLimitNames() { return Object.keys(this.#ratelimits) }
 
     GetClientSession(client_id=''): SocioSession | null{
         return client_id in this.#sessions ? this.#sessions[client_id] : null
