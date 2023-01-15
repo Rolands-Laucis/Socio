@@ -1,5 +1,4 @@
-import { log, info, soft_error, setPrefix, setShowTime } from '@rolands/log'; setPrefix('SocioSession'); setShowTime(false); //for my logger
-import { LogHandler, E } from './logging.js'
+import { LogHandler, E, log, info, done } from './logging.js'
 import { RateLimiter } from './ratelimit.js'
 
 //types
@@ -30,7 +29,7 @@ export class SocioSession extends LogHandler {
     last_seen: string | null = null //date and time of last seen active session
 
     constructor(client_id: string, browser_ws_conn: WebSocket, { verbose = true, default_perms = {} } = {}) {
-        super(info, soft_error);
+        super({ verbose, prefix: 'SocioSession' });
         
         //private:
         this.#ws = browser_ws_conn

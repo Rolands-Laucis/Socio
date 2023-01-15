@@ -1,9 +1,11 @@
 // import {SocioServer} from '../../core/core.js' //i use this locally
 import { SocioServer } from 'socio/dist/core.js' //for using the lib as a download from npm
+import { log, info, done } from 'socio/logging';
 
 import express from 'express'
 import { Sequelize } from 'sequelize';
-import { log, done, setPrefix, setShowTime } from '@rolands/log'; setPrefix('Express'); setShowTime(false);
+
+info('Starting SocioServer...');
 
 //constants
 const server_port = 5000, ws_port = 3000 //can be set up that the websockets run on the same port as the http server

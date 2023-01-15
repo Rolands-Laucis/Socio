@@ -6,8 +6,7 @@ import type { PropValue } from 'socio/types';
 // import { SocioStringParse } from 'socio/utils'
 
 import { Sequelize } from 'sequelize';
-//@ts-ignore
-import { log, info, soft_error, done, setPrefix, setShowTime } from '@rolands/log'; setPrefix('Socio'); setShowTime(false);
+import { log, info, done, soft_error } from 'socio/logging';
 
 // log(SocioStringParse('SELECT * FROM users;--socio-32946486'))
 // process.exit(0)
@@ -32,15 +31,15 @@ try{
     const socserv = new SocioServer({ port: ws_port }, QueryWrap as QueryFunction, { verbose: true, socio_security: socsec });
     done(`Created SocioServer on port`, ws_port);
 
-    socserv.RegisterProp('color', '#ffffff', (curr_val: PropValue, new_val: PropValue):boolean => {
-        if(typeof new_val != 'string' || new_val.length != 7) return false;
+    socserv.RegisterProp('color', '#ffffff', (curr_val: PropValue, new_val: PropValue): boolean => {
+        if (typeof new_val != 'string' || new_val.length != 7) return false;
         if (!new_val.match(/^#[0-9a-f]{6}/mi)) return false;
         //...more checks.
 
         //success, so assign
         return socserv.SetPropVal('color', new_val);
     })
-}catch(e){
+} catch (e:any) {
     soft_error(e);
 }
 

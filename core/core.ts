@@ -4,9 +4,8 @@
 import { WebSocketServer } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
 
 //mine
-import { log, soft_error, error, info, setPrefix, setShowTime } from '@rolands/log'; setPrefix('SocioServer'); setShowTime(false); //for my logger
 import { QueryIsSelect, ParseQueryTables, SocioStringParse, ParseQueryVerb, sleep } from './utils.js'
-import { E, LogHandler, err } from './logging.js'
+import { E, LogHandler, err, log, info, done } from './logging.js'
 import { UUID, SocioSecurity } from './secure.js'
 import { SocioSession } from './core-session.js'
 import { RateLimiter } from './ratelimit.js'
@@ -49,7 +48,7 @@ export class SocioServer extends LogHandler {
     Query: QueryFunction; //you can change this at any time
 
     constructor(opts: ServerOptions | undefined = {}, DB_query_function: QueryFunction, { socio_security = null, decrypt_sql = true, decrypt_prop = false, verbose = true, hard_crash = false }: { socio_security?: SocioSecurity | null, verbose?: boolean, decrypt_sql?: boolean, decrypt_prop?: boolean, hard_crash?:boolean} = {}){
-        super(info, soft_error, {verbose, hard_crash});
+        super({ verbose, hard_crash, prefix:'SocioServer'});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
         //hard_crash will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
         //both are public and settable at runtime
@@ -64,6 +63,8 @@ export class SocioServer extends LogHandler {
         this.#wss.on('connection', this.#Connect.bind(this)); //https://thenewstack.io/mastering-javascript-callbacks-bind-apply-call/ have to bind 'this' to the function, otherwise it will use the .on()'s 'this', so that this.[prop] are not undefined
         this.#wss.on('close', (...stuff) => { this.HandleInfo('WebSocketServer close event', ...stuff) });
         this.#wss.on('error', (...stuff) => { this.HandleError(new E('WebSocketServer error event', ...stuff))});
+
+        this.done(`Created SocioServer on port`, opts?.port);
     }
 
     #Connect(conn: WebSocket, req: IncomingMessage){

@@ -6,10 +6,7 @@ import MagicString from 'magic-string'; //https://github.com/Rich-Harris/magic-s
 import { randomUUID, createCipheriv, createDecipheriv, getCiphers, randomBytes, createHash } from 'crypto'
 import type { CipherGCMTypes } from 'crypto'
 import { socio_string_regex } from './utils.js'
-import { LogHandler, E } from './logging.js'
-
-import { info, log, error, soft_error, done, setPrefix, setShowTime } from '@rolands/log';
- setPrefix('SocioSecure'); setShowTime(false);
+import { LogHandler, E, log, info, done } from './logging.js'
 
 //it was recommended on a forum to use 256 bits, even though 128 is still perfectly safe
 const cipher_algorithm_bits = 256
@@ -60,7 +57,7 @@ export class SocioSecurity extends LogHandler {
     //And a brief discussion on Cryptography Stack Exchange.
     //let me know if i am dumb.
     constructor({ secure_private_key = '', rand_int_gen = null, verbose = false }: { secure_private_key: Buffer | string, rand_int_gen?: ((min: number, max: number) => number) | null, verbose: boolean } = { secure_private_key: '', verbose: false }){
-        super(info, soft_error);
+        super({ verbose, prefix: 'SocioSecurity' });
         
         if (!secure_private_key) throw new E(`Missing constructor arguments!`);
         if (typeof secure_private_key == 'string') secure_private_key = StringToByteBuffer(secure_private_key); //cast to buffer, if string was passed
@@ -70,9 +67,9 @@ export class SocioSecurity extends LogHandler {
 
         this.#key = createHash('sha256').update(secure_private_key).digest().subarray(0, 32); //hash the key just to make sure to complicate the input key, if it is weak
 
-        this.verbose = verbose
-        this.#rand_int_gen = rand_int_gen
-        if (this.verbose) done('Initialized SocioSecurity object succesfully!')
+        this.verbose = verbose;
+        this.#rand_int_gen = rand_int_gen;
+        if (this.verbose) this.done('Initialized SocioSecurity object succesfully!')
     }
     
     //sql strings must be in single or double quotes and have an sql single line comment at the end with the socio marker, e.g. "--socio" etc. See the socio_string_regex pattern in core/utils

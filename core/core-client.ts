@@ -1,7 +1,6 @@
 //https://stackoverflow.com/questions/38946112/es6-import-error-handling
 
-import { info, log, error, soft_error, done, setPrefix, setShowTime } from '@rolands/log'; setPrefix('SocioClient'); setShowTime(false);
-import { LogHandler, E, err } from './logging.js'
+import { LogHandler, E, err, log, info, done } from './logging.js'
 
 //types
 import type { ClientOptions } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
@@ -37,7 +36,7 @@ export class SocioClient extends LogHandler {
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
 
     constructor(url: string, { ws_opts = {}, name = '', verbose = false, keep_alive = true, reconnect_tries = 1 }: { ws_opts?: ClientOptions, name?: string, verbose?: boolean, keep_alive?: boolean, reconnect_tries?:number} = {}) {
-        super(info, soft_error);
+        super({ verbose, prefix: 'SocioClient' });
 
         if (window || undefined && url.startsWith('ws://'))
             info('UNSECURE WEBSOCKET URL CONNECTION! Please use wss:// and https:// protocols in production to protect against man-in-the-middle attacks.')
@@ -148,7 +147,7 @@ export class SocioClient extends LogHandler {
 
     //private method - accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
     #Send(kind: CoreMessageKind, ...data){ //data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
-        if(data.length < 1) soft_error('Not enough arguments to send data! kind;data:', kind, ...data) //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
+        if(data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, ...data) //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
         this.#ws?.send(JSON.stringify(Object.assign({}, { kind, data:data[0] }, ...data.slice(1))))
         this.HandleInfo('sent:', kind, data)
     }

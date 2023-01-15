@@ -1,4 +1,3 @@
-// import { log, soft_error, error, info, setPrefix, setShowTime } from '@rolands/log'; setShowTime(false); //for my logger
 import { LogHandler } from "./logging.js";
 
 type RateLimitTimeUnit = { ms?: number, seconds?: number, minutes?: number }
@@ -13,7 +12,8 @@ export class RateLimiter extends LogHandler {
     last_time_ms:number = 0;
 
     constructor(rl:RateLimit){
-        super();
+        super({ verbose:false, prefix: 'RateLimiter' });
+        
         if(!rl) throw 'No RateLimit object provided';
 
         //convert formats to ms, since that will be way more performance efficient for functions
