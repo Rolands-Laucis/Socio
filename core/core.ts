@@ -1,4 +1,5 @@
-//Nullum magnum ingenium sine mixture dementia fuit. - There has been no great wisdom without an element of madness.
+//There has been no great wisdom without an element of madness. /Aristotle/
+//And thus i present - Socio.
 
 //libs
 import { WebSocketServer } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md

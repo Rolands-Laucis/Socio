@@ -113,6 +113,7 @@ export class LogHandler {
     }
 }
 
+//static f wrappers for quick log writing
 export function log(...args){LogHandler.log(...args)}
 export function info(msg:string, ...args) { LogHandler.info(msg,...args) }
 export function done(msg: string, ...args) { LogHandler.done(msg, ...args) }

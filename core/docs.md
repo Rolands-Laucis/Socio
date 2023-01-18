@@ -1,4 +1,5 @@
 # Simple Documentation for Socio usage.
+##### Those that know, do. Those that understand, teach. /Aristotle/
 
 ## Overview
 
@@ -164,3 +165,23 @@ socserv.RegisterLifecycleHookHandler('serv', (ses:SocioSession, data:MessageData
 ```
 
 Though the server can also intercept any msg that comes in from all clients via the 'msg' hook.
+
+### Rate-limiting
+
+Sometimes you might expect a lot of connections and each to have a lot of different queries firing often. To save the server from bombardment, HTTP webservers have well established rate-limiting mechanisms. Unfortunately, i am not aware of similar solutions for WebSockets, so i invent my own, which have a lot of downsides. However, they are super efficient and performant currently.
+
+```ts
+//server code
+import { SocioServer } from 'socio/core.js'
+import type { MessageDataObj } from 'socio/core.js'
+import type { SocioSession } from 'socio/core-session.js'
+const socserv = new SocioServer(...)
+
+socserv.RateLimitNames; //all the hook names for convenience
+
+//register a global rate-limit for the server instance for the internal Update() function, that notifies all cliends of new data.
+//allows 10 calls per 1 second. Overflowing the limit will simply dead-stop the Update() function execution at the start. Clients dont get notified, since that would go against the point of limiting traffic.
+socserv.RegisterRateLimit('upd', {n:10, seconds:1}) //either ms, seconds, minutes
+```
+
+Caution! This approach will inevitably lead to bad UX for your application. Rate-limiting by nature desyncs state between client and server. This leads to seeing and acting on outdated data, slow action feedback times and other problems. Rate-limiting should only be used when your server performance is more valuable than UX or the rate-limits are set so high, that only malicious users would run into them.
