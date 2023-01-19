@@ -270,7 +270,7 @@ export class SocioServer extends LogHandler {
                 case 'PROP_SET':
                     this.#CheckPropExists(data?.prop, client, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
                     try {
-                        this.UpdatePropVal(data.prop as string, data?.prop_val, client);
+                        this.UpdatePropVal(data.prop as string, data?.prop_val, client.id);
                         if(client_id in this.#sessions)
                             client.Send('RES', { id: data.id, result:true}); //resolve this request to true, so the client knows everything went fine.
                     } catch (e: err) {
@@ -309,10 +309,13 @@ export class SocioServer extends LogHandler {
 
         //try the logic myself
         try{
-            //gather all sessions hooks sql queries that involve the altered tables
+            //gather all sessions hooks sql queries that involve the altered tables, and who's ratelimit has not been exceeded
             const queries: { [key: string]: QueryObject[]} = {}
             Object.values(this.#sessions).forEach(s => {
                 s.GetHooksForTables(tables).forEach(h => { //GetHooksQueriesForTables always returns array. If empty, then the foreach wont run, so each sql guaranteed to have hooks array
+                    //rate limit check
+                    if (h?.rate_limiter && h?.rate_limiter.CheckLimit()) return;
+
                     const obj: QueryObject = { id: h.id, params: h.params, session: s }
                     if(h.sql in queries)
                         queries[h.sql].push(obj)
@@ -424,12 +427,12 @@ export class SocioServer extends LogHandler {
             return this.#props[key].val || null
         else return null;
     }
-    UpdatePropVal(key: PropKey, new_val: PropValue, client: SocioSession):void{//this will propogate the change, if it is assigned, to all subscriptions
+    UpdatePropVal(key: PropKey, new_val: PropValue, client_id: id | null):void{//this will propogate the change, if it is assigned, to all subscriptions
         if(key in this.#props){
             if (this.#props[key].assigner(key, new_val)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
                 Object.entries(this.#props[key].updates).forEach(([client_id, args]) => {
                     //ratelimit check
-                    if (args.rate_limiter?.CheckLimit())
+                    if (args?.rate_limiter && args?.rate_limiter?.CheckLimit())
                         return;
                     
                     //do the thing
@@ -442,7 +445,7 @@ export class SocioServer extends LogHandler {
                 });
             } 
             else
-                throw new E(`Prop key [${key}] tried to set an invalid value! [#prop-set-not-valid]. Key, val, client_id`, key, new_val, client.id);
+                throw new E(`Prop key [${key}] tried to set an invalid value! [#prop-set-not-valid]. Key, val, client_id`, key, new_val, client_id);
         }else
             throw new E(`Prop key [${key}] not registered! [#prop-set-not-found]`);
     }

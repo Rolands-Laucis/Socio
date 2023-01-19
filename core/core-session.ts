@@ -66,12 +66,10 @@ export class SocioSession extends LogHandler {
         // this.HandleInfo('unregistered hook', id);
         return true;
     }
-    // get hook_tables() { return Object.values(this.#hooks).map(h => h.table) }
     GetHooksForTables(tables: string[]=[]){
         return Object.entries(this.#hooks)
-            .filter(h => h[1].tables.some(t => tables.includes(t)))
-            .map(h => { return { id: h[0], sql: h[1].sql, params: h[1].params }})
-            // .flat() //flatten because all hooks are actually arrays of hooks, since a single table can have many sql queries involving it. But for simplicity of iteration, we dont care for it here. We just want to iter all of these objs of a table
+            .filter(([key, h]) => h.tables.some(t => tables.includes(t)))
+            .map(([key, h]) => { return {...h, id:key}})
     }
 
     get authenticated() { return this.#authenticated }
