@@ -185,3 +185,18 @@ socserv.RegisterRateLimit('upd', {n:10, seconds:1}) //either ms, seconds, minute
 ```
 
 Caution! This approach will inevitably lead to bad UX for your application. Rate-limiting by nature desyncs state between client and server. This leads to seeing and acting on outdated data, slow action feedback times and other problems. Rate-limiting should only be used when your server performance is more valuable than UX or the rate-limits are set so high, that only malicious users would run into them.
+
+You may also add ratelimits to individual subscriptions on the front-end.
+```ts
+//browser code - can be inside just a js script that gets loaded with a script tag or in components of whatever framework.
+import {SocioClient} from 'socio/core-client.js'
+const sc = new SocioClient(`ws://localhost:3000`, { verbose: true })
+await sc.ready()
+
+sc.subscribe({ sql: "SELECT COUNT(*) AS RESULT FROM users;"}, (res) => {
+    let ans = res[0].RESULT //res is whatever object your particular DB interface lib returns from a raw query
+}, {}, {n:5, minutes:1}) //rate limit of 5 per 1 minute UPD receivable. Server wont send upd, if exceedes.
+
+sc.subscribeProp('color', (c) => {let ans = c}, {n:5, minutes:1}) //rate limit of 5 per 1 minute UPD receivable. Server wont send upd, if exceedes.
+```
+This again leads to similar problems, but per query.
