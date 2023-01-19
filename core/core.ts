@@ -427,14 +427,18 @@ export class SocioServer extends LogHandler {
     UpdatePropVal(key: PropKey, new_val: PropValue, client: SocioSession):void{//this will propogate the change, if it is assigned, to all subscriptions
         if(key in this.#props){
             if (this.#props[key].assigner(key, new_val)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
-                Object.entries(this.#props[key].updates).forEach(([client_id, id]) => {
+                Object.entries(this.#props[key].updates).forEach(([client_id, args]) => {
+                    //ratelimit check
+                    if (args.rate_limiter?.CheckLimit())
+                        return;
+                    
+                    //do the thing
                     if (client_id in this.#sessions)
-                        this.#sessions[client_id].Send('PROP_UPD', { id: id, prop: key, result: this.GetPropVal(key) }); //should be GetPropVal, bcs i cant know how the assigner changed the val
+                        this.#sessions[client_id].Send('PROP_UPD', { id: args.id, prop: key, result: this.GetPropVal(key) }); //should be GetPropVal, bcs i cant know how the assigner changed the val
                     else {//the client_id doesnt exist anymore for some reason, so unsubscribe
                         delete this.#props[key].updates[client_id];
                         delete this.#sessions[client_id];
-                    } 
-                        
+                    }
                 });
             } 
             else

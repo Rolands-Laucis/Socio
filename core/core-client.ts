@@ -127,7 +127,7 @@ export class SocioClient extends LogHandler {
                     break;
                 case 'PROP_UPD':
                     if(data?.prop && data?.id && data?.result){
-                        if (this.#props[data.prop as string][data.id as id] != null){
+                        if (this.#props[data.prop as string] && this.#props[data.prop as string][data.id as id] && typeof this.#props[data.prop as string][data.id as id] === 'function'){
                             //@ts-ignore
                             this.#props[data.prop as string][data.id as id](data.result as PropValue);
                         } else throw new E('Prop UPD called, but subscribed prop does not have a callback. data; callback', data, this.#props[data.prop as string][data.id as id]);
@@ -159,6 +159,9 @@ export class SocioClient extends LogHandler {
 
         //onUpdate is the success standard function, that gets called, when the DB sends an update of its data
         //status_callbacks is an optional object, that expects 1 optional key - "error", and it must be a callable function, that receives 1 arg - the error msg.
+        
+        if (typeof onUpdate !== "function") throw new E('Subscription onUpdate is not function, but has to be.');
+        if (status_callbacks?.error && typeof status_callbacks.error !== "function") throw new E('Subscription error is not function, but has to be.');
         try {
             const id = this.#GenKey
             const callbacks: SubscribeCallbackObject = { success: onUpdate, ...status_callbacks };
@@ -171,6 +174,8 @@ export class SocioClient extends LogHandler {
     }
     subscribeProp(prop_name: PropKey, onUpdate: PropUpdateCallback, status_callbacks: { error?: (e: string) => void } = {}, rate_limit: RateLimit | null = null):void{
         //the prop name on the backend that is a key in the object
+
+        if (typeof onUpdate !== "function") throw new E('Subscription onUpdate is not function, but has to be.');
         try {
             const id = this.#GenKey
 
@@ -180,6 +185,9 @@ export class SocioClient extends LogHandler {
                 this.#props[prop_name] = { [id]: onUpdate };
                 this.#Send('PROP_REG', { id: id, prop: prop_name })
             }
+            this.info('reg prop', prop_name,id, this.#props[prop_name][id])
+            //@ts-ignore
+            this.#props[prop_name][id]('#111111')
         } catch (e: err) { this.HandleError(e); }
     }
     async unsubscribe(id: id, force=false) {
