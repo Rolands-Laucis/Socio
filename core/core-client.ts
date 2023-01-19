@@ -166,13 +166,13 @@ export class SocioClient extends LogHandler {
             const id = this.#GenKey
             const callbacks: SubscribeCallbackObject = { success: onUpdate, ...status_callbacks };
 
-            this.#queries[id] = { sql: sql, params: params, onUpdate: callbacks }
-            this.#Send('REG', { id: id, sql: sql, params: params })
+            this.#queries[id] = { sql, params, onUpdate: callbacks }
+            this.#Send('REG', { id, sql, params, rate_limit })
 
             return id //the ID of the query
         } catch (e: err) { this.HandleError(e); return null; }
     }
-    subscribeProp(prop_name: PropKey, onUpdate: PropUpdateCallback, status_callbacks: { error?: (e: string) => void } = {}, rate_limit: RateLimit | null = null):void{
+    subscribeProp(prop_name: PropKey, onUpdate: PropUpdateCallback, rate_limit: RateLimit | null = null):void{
         //the prop name on the backend that is a key in the object
 
         if (typeof onUpdate !== "function") throw new E('Subscription onUpdate is not function, but has to be.');
@@ -183,11 +183,8 @@ export class SocioClient extends LogHandler {
                 this.#props[prop_name][id] = onUpdate;
             else {//init the prop object
                 this.#props[prop_name] = { [id]: onUpdate };
-                this.#Send('PROP_REG', { id: id, prop: prop_name })
+                this.#Send('PROP_REG', { id, prop: prop_name, rate_limit })
             }
-            this.info('reg prop', prop_name,id, this.#props[prop_name][id])
-            //@ts-ignore
-            this.#props[prop_name][id]('#111111')
         } catch (e: err) { this.HandleError(e); }
     }
     async unsubscribe(id: id, force=false) {
