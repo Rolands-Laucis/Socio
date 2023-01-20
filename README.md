@@ -18,7 +18,7 @@ On the backend instantiate the ``SocioServer`` class and provide it a single DB 
 
 ## What about SQL injections and overall data safety?
 
-Included is a class for auto securing the SQL via server-side string symetric encryption run at build time.
+Included is a class for auto securing the SQL via server-side string symetric encryption run at build time using the AES-256-GCM algorithm.
 Preventing the client seeing or altering the query string. Dynamic data inserted as query parameters should be sanitized by your DB interface function, since Socio passes the SQL and params to you seperately. Or you can wrap the DB interface function and sanatize them yourself.
 In addition, all queries have opt-in flags for authentification and table permissions requirements, that are managed on the backend.
 And even a simple Vite plugin that wraps it this functionality for all of your front-end souce code 🥳
@@ -54,10 +54,18 @@ const id = sc.subscribe({sql:'SELECT * FROM Users;--socio'}, (res) => {
     console.log(res);
 })
 
-console.log(await sc.query('INSERT INTO Users (name, num) VALUES(:name, :num);--socio', {name:'bob', num:42}));
+console.log(await sc.query('INSERT INTO Users (name, num) VALUES(:name, :num);--socio', {name:'bob', num:42})); //sanatize dynamic data yourself!
 sc.unsubscribe(id);
 ```
 
+# Caveats
+For SQL queries the automagic happens because i regex parse the strings myself with simple patterns. The most basic usecases should be covered, but more complex SQL queries are not. Situations like: nested queries; multiple queries in a single string. Only table names are extracted, so sometimes subscriptions would receive an update, even though for its specific WHERE clauses it would logically not have changed data. E.g. if you alter a specific users info on a Users table, all subscribed users would get an update. I am planning to fix these, but there are no great solutions.
+
+Currently everything is single threaded, but i do make good use of async Promise patterns to not block the event loop. If you are mad enough like me to use Socio in production, you should use a load balancer. Otherwise one good multi-core CPU should be fine for small projects.
+
+HTTP has well established session patterns using cookies. WebSockets do not. They are identified only by the TCP pipes id's, which i keep track of. You can quite easily mimic cookie sessions on whatever backend by using SocioServer hooks.
+
+I cannot guarantee perfect safety of the query encryption and thus that clients could not destroy your data. Neither can anyone, though. And neither can traditional HTTP backends. Every year new scientific papers come out breaking previously thought "unbreakable, future-proof" cryptographic algorithms. You may use SocioServer hooks to double check the incoming data yourself for your peace of mind.
 
 ## TODOs 📝
 * Keyed SQL queries
@@ -67,6 +75,7 @@ sc.unsubscribe(id);
 * File and blob sending and replacing on the client side
 * Redo the update dependency mechanism to serious data structures - dependency graph or tree or smth
 * Different solution for sql parsing. Perhaps the 40MB js lib... (but that seems insane to me)
+* Special Admin connection with privileges.
 * plenty more
 
 #### Dont be shy to try this out on your small project. Feedback from real world use cases is much appreciated 🥰
