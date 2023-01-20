@@ -461,9 +461,10 @@ export class SocioServer extends LogHandler {
         } catch (e: err) { this.HandleError(e); return false; }
     }
 
+    //https://stackoverflow.com/a/54875979/8422448
     async Admin(f_name:string, args:any[]){
         if (f_name in GetAllMethods(this))
-            return this[f_name](...args);
+            return this[f_name].call(this, ...args); //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/call
         else
             return new E(`[${f_name}] is not a name of a function on the SocioServer instance`, f_name);
     }
