@@ -287,6 +287,11 @@ export class SocioServer extends LogHandler {
                         this.#lifecycle_hooks.serv(client, data);
                     else throw new E('Client sent generic data to the server, but the hook for it is not registed. [#no-serv-hook]', client_id);
                     break;
+                // case 'ADMIN':
+                //     if(client.admin)
+                //         client.Send('RES', await this.Admin(data?.data.f_name, data?.data.args));
+                //     else throw new E('A non Admin send an Admin message, but was not executed.', kind, data, client_id)
+                //     break;
                 // case '': break;
                 default: throw new E(`Unrecognized message kind! [#unknown-msg-kind]`, kind, data);
             }
@@ -456,14 +461,12 @@ export class SocioServer extends LogHandler {
         } catch (e: err) { this.HandleError(e); return false; }
     }
 
-    // Emit(data = {}) {
-    //     switch (true) {
-    //         case data instanceof Blob: this.#wss.emit(data); break;
-    //         // case data instanceof Object || data instanceof Array: this.#wss.emit(JSON.stringify({ kind: 'EMIT', data: data })); break;
-    //         // case data instanceof Blob: this.#wss.emit(data); break;
-    //         default: this.#wss.emit(JSON.stringify({ kind: 'EMIT', data: data })); break;
-    //     }
-    // }
+    async Admin(f_name:string, args:any[]){
+        if (f_name in GetAllMethods(this))
+            return this[f_name](...args);
+        else
+            return new E(`[${f_name}] is not a name of a function on the SocioServer instance`, f_name);
+    }
 }
 
 //group the hooks based on SQL + PARAMS (to optimize DB mashing), since those queries would be identical, but the recipients most likely arent, so cant just dedup the array.
@@ -480,11 +483,28 @@ function GroupHooks(sql = '', hooks: QueryObject[]=[]){
     return Object.values(grouped)
 }
 
-//@ts-ignore
-// Set.prototype.Find = (predicate: (ws:WebSocket) => boolean):WebSocket | undefined => {
-//     if(this)
-//         for(const ws of this)
-//             if(predicate(ws))
-//                 return ws;
-//     return undefined
-// }
+//https://stackoverflow.com/a/35033472/8422448
+function GetAllMethods(obj:any) {
+    let props = []
+
+    do {
+        const l = Object.getOwnPropertyNames(obj)
+            .concat(Object.getOwnPropertySymbols(obj).map(s => s.toString()))
+            .sort()
+            .filter((p, i, arr) =>
+                typeof obj[p] === 'function' &&  //only the methods
+                p !== 'constructor' &&           //not the constructor
+                (i == 0 || p !== arr[i - 1]) &&  //not overriding in this prototype
+                //@ts-ignore
+                props.indexOf(p) === -1          //not overridden in a child
+            );
+        //@ts-ignore
+        props = props.concat(l)
+    }
+    while (
+        (obj = Object.getPrototypeOf(obj)) &&   //walk-up the prototype chain
+        Object.getPrototypeOf(obj)              //not the the Object prototype methods (hasOwnProperty, etc...)
+    )
+
+    return props
+}

@@ -23,6 +23,7 @@ export class SocioSession extends LogHandler {
     #hooks: { [id: id]: HookObj ; } = {}//msg_id:[{table_name, sql, params}]
     #authenticated = false //usually boolean, but can be any truthy or falsy value to show the state of the session. Can be a token or smth for your own use, bcs the client will only receive a boolean
     #perms: { [key: string]: string[]; } = {} //verb:[tables strings] keeps a dict of access permissions of verb type and to which tables this session has been granted
+    #admin = false;
 
     //public:
     verbose = true
@@ -91,4 +92,6 @@ export class SocioSession extends LogHandler {
     last_seen_now(){
         this.last_seen = new Date().toISOString()
     }
+
+    get admin(){return this.#admin}
 }
