@@ -22,10 +22,10 @@ In the future i may support more of the NoSQL ecosystem.
 
 ```ts
 //server code - can be in express or SvelteKit's hooks.server.ts/js file or whatever way you have of running server side code once.
-import { SocioServer } from 'socio/core.js'
-import type { SocioSession } from 'socio/core-session.js'
+import { SocioServer } from 'socio/dist/core.js'
+import type { SocioSession } from 'socio/dist/core-session.js'
 import type { IncomingMessage } from 'http'
-import type { QueryFunction } from 'socio/core';
+import type { QueryFunction } from 'socio/dist/core';
 
 //SocioServer needs a "query" function that it can call to fetch data. This would usually be your preffered ORM lib interface raw query function, but really this function is as simple as input and output, so it can do whatever you want. Like read from a txt file or whatever. It should be async and Socio will always await its response to send back to the client.
 //id is a unique auto incrementing index for the query itself that is sent from the client - not really important for you, but perhaps for debugging.
@@ -49,7 +49,7 @@ socserv.Emit({data:'literally data.', all:'currently connected clients will rece
 
 ```ts
 //browser code - can be inside just a js script that gets loaded with a script tag or in components of whatever framework.
-import {SocioClient} from 'socio/core-client.js'
+import {SocioClient} from 'socio/dist/core-client.js'
 
 //instantiate the Socio Client from lib on the expected websocket port and wait for it to connect
 //NB! use wss secure socket protocol and use the ./core/Secure class to encrypt these queries in PROD!
@@ -88,9 +88,9 @@ const success = sc.authenticate({username:'Bob', password:'pass123'}) //success 
 
 ```ts
 //server code - can be in express or SvelteKit's hooks.server.ts/js file or whatever way you have of running server side code once.
-import { SocioServer } from 'socio/core.js'
-import type { SocioSession } from 'socio/core-session.js'
-import { SocioSecurity } from 'socio/secure';
+import { SocioServer } from 'socio/dist/core.js'
+import type { SocioSession } from 'socio/dist/core-session.js'
+import { SocioSecurity } from 'socio/dist/secure';
 
 //vite plugin and this instance must share the same private secret key, so perhaps use .env mechanism
 const socsec = new SocioSecurity({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', verbose: true });
@@ -103,7 +103,7 @@ const socserv = new SocioServer({ port: ws_port }, QueryWrap as QueryFunction, {
 
 import { sveltekit } from '@sveltejs/kit/vite';
 import { viteCommonjs } from '@originjs/vite-plugin-commonjs'
-import { SocioSecurityPlugin } from 'socio/dist/secure';
+import { SocioSecurityPlugin } from 'socio/dist/dist/secure';
 
 /** @type {import('vite').UserConfig} */
 const config = {
@@ -117,8 +117,8 @@ export default config;
 
 ```ts
 //server code
-import { SocioServer } from 'socio/core.js'
-import type { PropValue } from 'socio/types';
+import { SocioServer } from 'socio/dist/core.js'
+import type { PropValue } from 'socio/dist/types';
 const socserv = new SocioServer(...)
 
 //set up a key "color" to hold an initial value of "#ffffff" and add an optional assigner function instead of the unsafe default.
@@ -141,7 +141,7 @@ To ensure extendability, i have created a simple generic communication mechanism
 
 ```ts
 //browser code - can be inside just a js script that gets loaded with a script tag or in components of whatever framework.
-import {SocioClient} from 'socio/core-client.js'
+import {SocioClient} from 'socio/dist/core-client.js'
 const sc = new SocioClient(`ws://localhost:3000`, { verbose: true })
 await sc.ready()
 
@@ -150,9 +150,9 @@ await sc.serv({some:'data'} || 'string' || ['anthing']) //use the serv() functio
 
 ```ts
 //server code
-import { SocioServer } from 'socio/core.js'
-import type { MessageDataObj } from 'socio/core.js'
-import type { SocioSession } from 'socio/core-session.js'
+import { SocioServer } from 'socio/dist/core.js'
+import type { MessageDataObj } from 'socio/dist/core.js'
+import type { SocioSession } from 'socio/dist/core-session.js'
 const socserv = new SocioServer(...)
 
 socserv.LifecycleHookNames; //all the hook names for convenience
@@ -172,9 +172,9 @@ Sometimes you might expect a lot of connections and each to have a lot of differ
 
 ```ts
 //server code
-import { SocioServer } from 'socio/core.js'
-import type { MessageDataObj } from 'socio/core.js'
-import type { SocioSession } from 'socio/core-session.js'
+import { SocioServer } from 'socio/dist/core.js'
+import type { MessageDataObj } from 'socio/dist/core.js'
+import type { SocioSession } from 'socio/dist/core-session.js'
 const socserv = new SocioServer(...)
 
 socserv.RateLimitNames; //all the hook names for convenience
@@ -189,7 +189,7 @@ Caution! This approach will inevitably lead to bad UX for your application. Rate
 You may also add ratelimits to individual subscriptions on the front-end.
 ```ts
 //browser code - can be inside just a js script that gets loaded with a script tag or in components of whatever framework.
-import {SocioClient} from 'socio/core-client.js'
+import {SocioClient} from 'socio/dist/core-client.js'
 const sc = new SocioClient(`ws://localhost:3000`, { verbose: true })
 await sc.ready()
 
