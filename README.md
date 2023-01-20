@@ -67,6 +67,8 @@ HTTP has well established session patterns using cookies. WebSockets do not. The
 
 I cannot guarantee perfect safety of the query encryption and thus that clients could not destroy your data. Neither can anyone, though. And neither can traditional HTTP backends. Every year new scientific papers come out breaking previously thought "unbreakable, future-proof" cryptographic algorithms. You may use SocioServer hooks to double check the incoming data yourself for your peace of mind.
 
+The SocioSecurity Vite plugin searches many types of frontend script file extensions and will encrypt any string that ends with --socio[-args].
+
 ## TODOs 📝
 * Keyed SQL queries
 * Better SQL dependency distinguisher on queries
