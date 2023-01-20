@@ -33,9 +33,9 @@ Examples given in TS, since the lib is written like that and its more secure, bu
 
 ```ts
 //TS server side
-import { SocioServer } from 'socio/core';
-import { SocioSecurity } from 'socio/secure';
-import type { QueryFunction, QueryFuncParams } from 'socio/core';
+import { SocioServer } from 'socio/dist/core'; //this way for both JS and TS
+import { SocioSecurity } from 'socio/dist/secure'; //this way for both JS and TS
+import type { QueryFunction, QueryFuncParams } from 'socio/dist/core';
 function QueryWrap({ id = undefined, sql = '', params = undefined }:QueryFuncParams = { sql: '' }){
     //do whatever u need to run the sql on your DB and return its result
 }
@@ -46,7 +46,7 @@ const socserv = new SocioServer({ port: 3000 }, QueryWrap as QueryFunction, { ve
 
 ```ts
 //client side browser code
-import {SocioClient} from 'socio/core-client'
+import {SocioClient} from 'socio/dist/core-client' //this way for both JS and TS
 const sc = new SocioClient('ws://localhost:3000', {verbose:true, name:'Main'});
 await sc.ready();
 
