@@ -17,10 +17,6 @@ Check the [Simple Documentation](https://github.com/Rolands-Laucis/Socio/blob/ma
 ```sh
 npm i socio
 ```
-or
-```sh
-pnpm i socio
-```
 
 ## How? ✨
 
