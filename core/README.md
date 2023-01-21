@@ -83,6 +83,8 @@ I cannot guarantee perfect safety of the query encryption and thus that clients 
 
 The SocioSecurity Vite plugin searches many types of frontend script file extensions and will encrypt any string that ends with --socio[-args].
 
+Page navigations, reloads, new tabs would all destroy any running JS on the client-side, ergo the SocioClient instance as well. You'd have to reauth and reestablish table permissions on each such event on the new instance. As well as, if the WebSocket disconnects by itself for some reason. However, using client-side routers (that popular frameworks use) would preserve the running JS and thus the instance. In addition, I am working on a automatic, general solution. Otherwise, for now you may keep the login details using browsers SessionStorage API (if that is safe) and reauth.
+
 ## Contributing 🥰
 As this is an open source project that i spend my free time on, perhaps someone else would like to help with various things:
 * Ideas for better parsing of the SQL to also extract WHERE clause info, that would help minimize DB calls and websocket traffic, and improve performance overall
