@@ -17,7 +17,7 @@ import { RateLimiter } from './ratelimit.js'
 //types
 import type { ServerOptions, WebSocket } from 'ws';
 import type { IncomingMessage } from 'http'
-import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind } from './types.js'
+import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind } from './types.js'
 import type { RateLimit } from './ratelimit.js'
 export type MessageDataObj = { id?: id, sql?: string, params?: object | null, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue, data?:any, rate_limit?:RateLimit };
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
@@ -27,7 +27,7 @@ type QueryObject = { id: id, params: object | null, session: SocioSession }; //f
 export class SocioServer extends LogHandler {
     // private:
     #wss: WebSocketServer;
-    #sessions: { [key: string]: SocioSession } = {}; //client_id:SocioSession
+    #sessions: { [key: id]: SocioSession } = {}; //client_id:SocioSession
 
     //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages, if the msg flag is set
     #secure: { socio_security: SocioSecurity | null, decrypt_sql: boolean, decrypt_prop:boolean};
@@ -302,6 +302,8 @@ export class SocioServer extends LogHandler {
     }
 
     Update(tables:string[]=[]){
+        if(!tables.length) return;
+        
         //rate limit check
         if(this.#ratelimits.upd)
             if(this.#ratelimits.upd.CheckLimit())
@@ -459,6 +461,14 @@ export class SocioServer extends LogHandler {
             this.#props[key].val = new_val;
             return true;
         } catch (e: err) { this.HandleError(e); return false; }
+    }
+
+    //send some data to all clients by their ID. By default emits to all connected clients
+    SendToClients(client_ids: id[] = [], kind: ClientMessageKind ='CMD',data:object={}){
+        if(!client_ids.length)
+            Object.values(this.#sessions).forEach(s => s.Send(kind, data));
+        else
+            client_ids.forEach(c_id => this.#sessions[c_id].Send(kind, data));
     }
 
     //https://stackoverflow.com/a/54875979/8422448

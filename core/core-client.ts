@@ -6,7 +6,7 @@ import { LogHandler, E, err, log, info, done } from './logging.js'
 import type { ClientOptions } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
 import type { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind } from './types.js'
 import type { RateLimit } from './ratelimit.js'
-type MessageDataObj = { id: id, verb?: string, table?: string, status?:string, result?:string|object|boolean|PropValue, prop?:PropKey };
+type MessageDataObj = { id: id, verb?: string, table?: string, status?:string, result?:string|object|boolean|PropValue, prop?:PropKey, data?:object };
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
 type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?: Function};
 type QueryObject = { sql: string, params?: object | null, onUpdate: SubscribeCallbackObject }
@@ -22,7 +22,7 @@ export class SocioClient extends LogHandler {
     #is_ready: Function | boolean = false;
     #authenticated=false
 
-    #queries: { [id: id]: QueryObject | Function } = {} //keeps a dict of all subscribed queries
+    #queries: { [id: id]: QueryObject | Function } = {}; //keeps a dict of all subscribed queries
     #props: { [prop_key: PropKey]: { [id: id]: PropUpdateCallback } } = {};
     #perms: { [verb: string]: string[]} = {}; //verb:[tables strings] keeps a dict of access permissions of verb type and to which tables this session has been granted. This is not safe, the backend does its own checks anyway.
 
@@ -32,7 +32,7 @@ export class SocioClient extends LogHandler {
     name:string;
     verbose:boolean;
     key_generator: (() => number | string) | undefined;
-    lifecycle_hooks: { [key: string]: Function | null; } = { discon:null, msg:null}
+    lifecycle_hooks: { [key: string]: Function | null; } = { discon:null, msg:null, cmd:null};
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
 
     constructor(url: string, { ws_opts = {}, name = '', verbose = false, keep_alive = true, reconnect_tries = 1 }: { ws_opts?: ClientOptions, name?: string, verbose?: boolean, keep_alive?: boolean, reconnect_tries?:number} = {}) {
@@ -135,6 +135,7 @@ export class SocioClient extends LogHandler {
                             (this.#queries[data.id] as Function)(data.result); //resolve the promise
                     }else throw new E('Not enough prop info sent from server to perform prop update.', data)
                     break;
+                case 'CMD': if(this.lifecycle_hooks?.cmd) this.lifecycle_hooks.cmd(data?.data); break; //the server pushed some data to this client, let the dev handle it
                 case 'ERR'://when using this, make sure that the setup query is a promise func. The result field is used as a cause of error msg on the backend
                     this.#FindID(kind, data?.id);
                     (this.#queries[data.id] as Function)(null);
