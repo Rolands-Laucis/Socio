@@ -3,7 +3,6 @@
 import { LogHandler, E, err, log, info, done } from './logging.js'
 
 //types
-import type { ClientOptions } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
 import type { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind } from './types.js'
 import type { RateLimit } from './ratelimit.js'
 type MessageDataObj = { id: id, verb?: string, table?: string, status?:string, result?:string|object|boolean|PropValue, prop?:PropKey, data?:object };
@@ -34,8 +33,9 @@ export class SocioClient extends LogHandler {
     key_generator: (() => number | string) | undefined;
     lifecycle_hooks: { [key: string]: Function | null; } = { discon:null, msg:null, cmd:null};
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
+    //discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
 
-    constructor(url: string, { ws_opts = {}, name = '', verbose = false, keep_alive = true, reconnect_tries = 1 }: { ws_opts?: ClientOptions, name?: string, verbose?: boolean, keep_alive?: boolean, reconnect_tries?:number} = {}) {
+    constructor(url: string, { name = '', verbose = false, keep_alive = true, reconnect_tries = 1 }: { name?: string, verbose?: boolean, keep_alive?: boolean, reconnect_tries?:number} = {}) {
         super({ verbose, prefix: 'SocioClient' });
 
         if (window || undefined && url.startsWith('ws://'))
@@ -46,25 +46,33 @@ export class SocioClient extends LogHandler {
         this.verbose = verbose //It is recommended to turn off verbose in prod.
         
         this.#latency = (new Date()).getTime();
-        this.#connect(url, ws_opts, keep_alive, verbose, reconnect_tries)
+        this.#connect(url, keep_alive, verbose, reconnect_tries)
     }
 
-    #connect(url: string, ws_opts: ClientOptions, keep_alive: boolean, verbose: boolean, reconnect_tries:number){
+    #connect(url: string, keep_alive: boolean, verbose: boolean, reconnect_tries:number){
         this.#ws = new WebSocket(url)
         if (keep_alive && reconnect_tries)
             this.#ws.addEventListener("close", () => {
                 this.HandleError(new E(`WebSocket closed. Retrying...`, this.name));
+                this.#resetConn(); //invalidate any state this session had
+                this.#connect(url, keep_alive, verbose, reconnect_tries - 1); //reconnect
 
                 //pass the object to the discon hook, if it exists
-                if (this.lifecycle_hooks.discon)
-                    if (this.lifecycle_hooks.discon(this.name, this.#client_id, keep_alive, reconnect_tries))
-                        return;
-
-                //otherwise reconnect
-                this.#connect(url, ws_opts, keep_alive, verbose, reconnect_tries - 1);
-            }); // <- rise from your grave!
+                if (this.lifecycle_hooks.discon)//discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
+                    this.lifecycle_hooks.discon(this.name, this.#client_id, url, keep_alive, verbose, reconnect_tries - 1); //here you can await ready() and reauth and regain all needed perms
+            });
         
         this.#ws.addEventListener('message', this.#message.bind(this));
+    }
+    #resetConn() {
+        this.#client_id = '';
+        this.#ws = null;
+        this.#latency = Infinity;
+        this.#is_ready = false;
+        this.#authenticated = false;
+        this.#queries = {};
+        this.#props = {};
+        this.#perms = {};
     }
 
     #message(event: MessageEvent) {
