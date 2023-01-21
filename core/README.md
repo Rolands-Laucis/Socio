@@ -1,6 +1,6 @@
 # Socio - A WebSocket based realtime duplex Front-End and Back-End synced API paradigm framework (under active early development)
 
-## Connecting your Front-End to Back-End DB reactively!
+## Connecting your Front-End to Back-End DB reactively! ⇄
 
 [Youtube video Demo](https://www.youtube.com/watch?v=iJIC9B3cKME&ab_channel=CepuminsLV "Youtube video Demo")
 
@@ -12,22 +12,33 @@ Check [Secure Full-Stack Framework Demo](https://github.com/Rolands-Laucis/Socio
 
 Check the [Simple Documentation](https://github.com/Rolands-Laucis/Socio/blob/master/core/docs.md) page to see direct examples and explinations of how to use various parts of the lib. Might be out of date, but the lib core files arent that big, and they are full of comments, so u can read up on those.
 
-## How?
+### Instalation
+
+```sh
+npm i socio
+```
+or
+```sh
+pnpm i socio
+```
+
+## How? ✨
 
 On the backend instantiate the ``SocioServer`` class and provide it a single DB (of your choice) raw query function, that will receive the SQL string and dynamic parameters object. The raw result of that is passed back to the caller on the client side, where the SQL and params sit - where an instance of ``SocioClient`` has made a .query() call. Using the same mechanism, an automagical subscription to that SQL resource can be registered via the .subscribe() method, that runs your callback function whenever the data this query relies upon has changed on the backend DB for any reason.
 
-## What about SQL injections and overall data safety?
+## What about SQL injections and overall data safety? 💉
 
 Included is a class for auto securing the SQL via server-side string symetric encryption run at build time using the AES-256-GCM algorithm.
 Preventing the client seeing or altering the query string. Dynamic data inserted as query parameters should be sanitized by your DB interface function, since Socio passes the SQL and params to you seperately. Or you can wrap the DB interface function and sanatize them yourself.
 In addition, all queries have opt-in flags for authentification and table permissions requirements, that are managed on the backend.
 And even a simple Vite plugin that wraps it this functionality for all of your front-end souce code 🥳
 
-## Does it scale?
+## Does it scale? ⚖️
 
 Currently the performance is neglegable for small projects. I havent stress tested yet, as its still early dev, but i optimize my data structures, where i can as i go. Current estimate is about 100 concurrent users should be a breeze on a cheap Linode server. There are plans for more optimizations for less traffic of signals via caching and dedup queries and ratelimiting, but i also expect your backend DB to be set up properly with table indexing and caching queries.
 
-## Sportsmanship
+## Sportsmanship 🤝
+
 The use of the Socio lib **does not** prohibit the use of standard HTTP technologies. Even better - socio server can be configured to run on your existing http webserver, like one that you'd create with express.js. Since WebSockets are established over HTTP, then take over with their own protocol. Though, seeing as they are different technologies, there are situations where you'd need to "stitch" your own solutions between the two, e.g. tracking sessions.
 
 ## Code snippets
@@ -72,6 +83,15 @@ I cannot guarantee perfect safety of the query encryption and thus that clients 
 
 The SocioSecurity Vite plugin searches many types of frontend script file extensions and will encrypt any string that ends with --socio[-args].
 
+## Contributing 🥰
+As this is an open source project that i spend my free time on, perhaps someone else would like to help with various things:
+* Ideas for better parsing of the SQL to also extract WHERE clause info, that would help minimize DB calls and websocket traffic, and improve performance overall
+* Ideas for serious data structures of subscription dependency tracking - directional graph or tree or smth. Currently a custom format dictionary object.
+* "Socio Rooms": a plugin that creates and manages general WebSocket "rooms", such that the sockets are isolated and synced with each other, but not the whole backend. For party games like Kahoot, or Live Whiteboard setups etc.
+* Socio-HTTP cookie session plugin, that stitches the two together in some useful way. Express.js has popular plugins for session management, perhaps we can integrate SocioSession.client_id on the session object.
+* Starter template projects for various front-end and back-end tech stacks with Socio setup
+* Web bundler HMR mechanisms seem pretty complex, perhaps someone wants to make a plugin or recommend some basic solution? The idea is for the server to push new css, js, html files or chunks to be replaced on all clients live - CI/CD automation.
+
 ## TODOs 📝
 * Keyed SQL queries
 * Better SQL dependency distinguisher on queries
@@ -81,14 +101,16 @@ The SocioSecurity Vite plugin searches many types of frontend script file extens
 * Redo the update dependency mechanism to serious data structures - dependency graph or tree or smth
 * Different solution for sql parsing. Perhaps the 40MB js lib... (but that seems insane to me)
 * Special Admin connection with privileges.
+* Server pushed commands to clients.
 * plenty more
 
 #### Dont be shy to try this out on your small project. Feedback from real world use cases is much appreciated 🥰
 
-## Related lib and tech
+## Related lib and tech 🔗
 * [https://github.com/ghostebony/sse](https://github.com/ghostebony/sse)
 * [Server-sent events API](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events)
 * [The WebSocket API](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API) *Socio uses on the browser*
+* [WS](https://www.npmjs.com/package/ws) *Socio uses on the server*
 * [Firebase Realtime Database](https://firebase.google.com/docs/database) Google backed.
 * [PocketBase](https://pocketbase.io/) Firebase alternative written in GO.
 * [RethinkDB](https://rethinkdb.com/) Distributed architecture.
