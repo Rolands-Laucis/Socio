@@ -23,6 +23,7 @@ export type MessageDataObj = { id?: id, sql?: string, params?: object | null, ve
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
 export type QueryFunction = (obj: QueryFuncParams | MessageDataObj) => Promise<object>;
 type QueryObject = { id: id, params: object | null, session: SocioSession }; //for grouping hooks
+type SocioServerOptions = { DB_query_function?: QueryFunction, socio_security?: SocioSecurity | null, verbose?: boolean, decrypt_sql?: boolean, decrypt_prop?: boolean, hard_crash?: boolean, reconnect_ttl_ms?:number }
 
 export class SocioServer extends LogHandler {
     // private:
@@ -47,8 +48,9 @@ export class SocioServer extends LogHandler {
 
     //public:
     Query: QueryFunction; //you can change this at any time
+    reconnect_ttl_ms:number;
 
-    constructor(opts: ServerOptions | undefined = {}, DB_query_function: QueryFunction, { socio_security = null, decrypt_sql = true, decrypt_prop = false, verbose = true, hard_crash = false }: { socio_security?: SocioSecurity | null, verbose?: boolean, decrypt_sql?: boolean, decrypt_prop?: boolean, hard_crash?:boolean} = {}){
+    constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, decrypt_sql = true, decrypt_prop = false, verbose = true, hard_crash = false, reconnect_ttl_ms = 1000*15 }: SocioServerOptions = {}){
         super({ verbose, hard_crash, prefix:'SocioServer'});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
         //hard_crash will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
@@ -59,7 +61,9 @@ export class SocioServer extends LogHandler {
         this.#secure = { socio_security, decrypt_sql, decrypt_prop}
 
         //public:
-        this.Query = DB_query_function
+        //@ts-ignore
+        this.Query = DB_query_function || (() => {})
+        this.reconnect_ttl_ms = reconnect_ttl_ms;
 
         this.#wss.on('connection', this.#Connect.bind(this)); //https://thenewstack.io/mastering-javascript-callbacks-bind-apply-call/ have to bind 'this' to the function, otherwise it will use the .on()'s 'this', so that this.[prop] are not undefined
         this.#wss.on('close', (...stuff) => { this.HandleInfo('WebSocketServer close event', ...stuff) });
@@ -71,41 +75,45 @@ export class SocioServer extends LogHandler {
     #Connect(conn: WebSocket, req: IncomingMessage){
         try{
             //construct the new session with a unique client ID
-            let client_id: string = (this.#lifecycle_hooks.gen_client_id ? this.#lifecycle_hooks.gen_client_id() : UUID())?.toString()
+            let client_id: string = (this.#lifecycle_hooks.gen_client_id ? this.#lifecycle_hooks.gen_client_id() : UUID())?.toString();
             while (client_id in this.#sessions) //avoid id collisions
-                client_id = (this.#lifecycle_hooks.gen_client_id ? this.#lifecycle_hooks.gen_client_id() : UUID())?.toString()
+                client_id = (this.#lifecycle_hooks.gen_client_id ? this.#lifecycle_hooks.gen_client_id() : UUID())?.toString();
 
             //create the socio session class and save down the client id ref for convenience later
-            const client = new SocioSession(client_id, conn, { verbose: this.verbose })
-            this.#sessions[client_id] = client
+            const client = new SocioSession(client_id, conn, { verbose: this.verbose });
+            this.#sessions[client_id] = client;
 
             //pass the object to the connection hook, if it exists. It cant take over
             if (this.#lifecycle_hooks.con)
-                this.#lifecycle_hooks.con(client, client_id, req)
+                this.#lifecycle_hooks.con(client, client_id, req);
 
             //notify the client of their ID
             client.Send('CON', client_id);
-            this.HandleInfo('CON', client_id) //, this.#wss.clients
+            this.HandleInfo('CON', client_id); //, this.#wss.clients
 
             //set this client websockets event handlers
             conn.on('message', (req: Buffer | ArrayBuffer | Buffer[], isBinary: Boolean) => this.#Message.bind(this)(client, req, isBinary));
             conn.on('close', () => {
                 //trigger hook
                 if (this.#lifecycle_hooks.discon)
-                    this.#lifecycle_hooks.discon(client)
+                    this.#lifecycle_hooks.discon(client);
 
-                //delete the connection object and the subscriptions of this client
-                delete this.#sessions[client_id]
-                //for each prop itereate its update obj and delete the keys with this client_id
-                Object.values(this.#props).forEach(p => { 
-                    Object.keys(p.updates).forEach(c_id => { 
-                        if (c_id == client_id) 
-                            delete p.updates[c_id];
+                client.Destroy(() => {
+                    //for each prop itereate its update obj and delete the keys with this client_id
+                    Object.values(this.#props).forEach(p => {
+                        Object.keys(p.updates).forEach(c_id => {
+                            if (c_id == client_id)
+                                delete p.updates[c_id];
+                        })
                     })
-                })
-                //Update() only works on session objects, and if we delete this one, then its query subscriptions should also be gone.
+                    //Update() only works on session objects, and if we delete this one, then its query subscriptions should also be gone.
 
-                this.HandleInfo('DISCON', client_id)
+                    //delete the connection object and the subscriptions of this client
+                    delete this.#sessions[client_id];
+                    this.HandleInfo('Session Destroyed', client_id);
+                }, this.reconnect_ttl_ms);
+
+                this.HandleInfo('DISCON', client_id);
             });
         } catch (e: err) { this.HandleError(e); }
     }

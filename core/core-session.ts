@@ -24,6 +24,7 @@ export class SocioSession extends LogHandler {
     #authenticated = false //usually boolean, but can be any truthy or falsy value to show the state of the session. Can be a token or smth for your own use, bcs the client will only receive a boolean
     #perms: { [key: string]: string[]; } = {} //verb:[tables strings] keeps a dict of access permissions of verb type and to which tables this session has been granted
     #admin = false;
+    #destroyed:number = 0;
 
     //public:
     verbose = true
@@ -48,6 +49,7 @@ export class SocioSession extends LogHandler {
 
     //accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
     Send(kind: ClientMessageKind, ...data) {//data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
+        if(this.#destroyed) return; //if this session is marked for destruction
         if (data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, data) //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
         this.#ws.send(JSON.stringify(Object.assign({}, { kind: kind, data: data[0] }, ...data.slice(1))))
         this.HandleInfo('sent:', kind, data)
@@ -94,4 +96,15 @@ export class SocioSession extends LogHandler {
     }
 
     get admin(){return this.#admin}
+
+    //marks the session to be destroyed after some time to live
+    Destroy(remove_session_callback:Function, ttl_ms:number){
+        this.#destroyed = setTimeout(remove_session_callback, ttl_ms);
+    }
+    //cancels the destruction queue
+    Restore(){
+        if(this.#destroyed)
+            clearTimeout(this.#destroyed);
+        this.#destroyed = 0;
+    }
 }
