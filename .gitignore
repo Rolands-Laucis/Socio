@@ -12,7 +12,7 @@ d
 *.vscode
 core/dist
 core/dev_serv.ts
-web2
+test
 
 ### Database ###
 *.accdb
