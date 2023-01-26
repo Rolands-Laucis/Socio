@@ -5,7 +5,7 @@
 import { WebSocketServer } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
 
 //mine
-import { QueryIsSelect, ParseQueryTables, SocioStringParse, ParseQueryVerb, sleep } from './utils.js'
+import { QueryIsSelect, ParseQueryTables, SocioStringParse, ParseQueryVerb, sleep, GetAllMethodNamesOf } from './utils.js'
 import { E, LogHandler, err, log, info, done } from './logging.js'
 import { UUID, SocioSecurity } from './secure.js'
 import { SocioSession } from './core-session.js'
@@ -24,6 +24,7 @@ export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
 export type QueryFunction = (obj: QueryFuncParams | MessageDataObj) => Promise<object>;
 type QueryObject = { id: id, params: object | null, session: SocioSession }; //for grouping hooks
 type SocioServerOptions = { DB_query_function?: QueryFunction, socio_security?: SocioSecurity | null, verbose?: boolean, decrypt_sql?: boolean, decrypt_prop?: boolean, hard_crash?: boolean, reconnect_ttl_ms?:number }
+type AdminMessageDataObj = {function:string, args?:any[], secure_key:string}
 
 export class SocioServer extends LogHandler {
     // private:
@@ -72,20 +73,24 @@ export class SocioServer extends LogHandler {
         this.done(`Created SocioServer on port`, opts?.port);
     }
 
-    #Connect(conn: WebSocket, req: IncomingMessage){
+    #Connect(conn: WebSocket, request: IncomingMessage){
         try{
             //construct the new session with a unique client ID
             let client_id: string = (this.#lifecycle_hooks.gen_client_id ? this.#lifecycle_hooks.gen_client_id() : UUID())?.toString();
             while (client_id in this.#sessions) //avoid id collisions
                 client_id = (this.#lifecycle_hooks.gen_client_id ? this.#lifecycle_hooks.gen_client_id() : UUID())?.toString();
 
+            //get the IP. Gets either from a reverse proxy header (like if u have nginx) or just straight off the http meta
+            //@ts-ignore
+            const client_ip = 'x-forwarded-for' in request?.headers ? request.headers['x-forwarded-for'].split(',')[0].trim() : request.socket.remoteAddress;
+
             //create the socio session class and save down the client id ref for convenience later
-            const client = new SocioSession(client_id, conn, { verbose: this.verbose });
+            const client = new SocioSession(client_id, conn, client_ip, { verbose: this.verbose });
             this.#sessions[client_id] = client;
 
             //pass the object to the connection hook, if it exists. It cant take over
             if (this.#lifecycle_hooks.con)
-                this.#lifecycle_hooks.con(client, client_id, req);
+                this.#lifecycle_hooks.con(client, request); //u can get the client_id and client_ip off the client object
 
             //notify the client of their ID
             client.Send('CON', client_id);
@@ -297,16 +302,13 @@ export class SocioServer extends LogHandler {
                     break;
                 // case 'ADMIN':
                 //     if(client.admin)
-                //         client.Send('RES', await this.Admin(data?.data.f_name, data?.data.args));
-                //     else throw new E('A non Admin send an Admin message, but was not executed.', kind, data, client_id)
+                //         client.Send('RES', await this.#Admin(((data as unknown) as AdminMessageDataObj)?.function, ((data as unknown) as AdminMessageDataObj)?.args));
+                //     else throw new E('A non Admin send an Admin message, but was not executed.', kind, data, client_id);
                 //     break;
                 // case '': break;
                 default: throw new E(`Unrecognized message kind! [#unknown-msg-kind]`, kind, data);
             }
-        } catch (e: err) { 
-            this.HandleError(e); 
-            // client.Send('ERR', { result: e?.message}); //some functions send their own errors, so sometimes might receive 2 ERR, which might be fine, but weird.
-        }
+        } catch (e: err) { this.HandleError(e); }
     }
 
     Update(tables:string[]=[]){
@@ -472,7 +474,7 @@ export class SocioServer extends LogHandler {
     }
 
     //send some data to all clients by their ID. By default emits to all connected clients
-    SendToClients(client_ids: id[] = [], kind: ClientMessageKind ='CMD',data:object={}){
+    SendToClients(client_ids: id[] = [], data: object = {}, kind: ClientMessageKind = 'CMD'){
         if(!client_ids.length)
             Object.values(this.#sessions).forEach(s => s.Send(kind, data));
         else
@@ -480,12 +482,15 @@ export class SocioServer extends LogHandler {
     }
 
     //https://stackoverflow.com/a/54875979/8422448
-    async Admin(f_name:string, args:any[]){
-        if (f_name in GetAllMethods(this))
-            return this[f_name].call(this, ...args); //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/call
-        else
-            return new E(`[${f_name}] is not a name of a function on the SocioServer instance`, f_name);
-    }
+    // async #Admin(function_name:string = '', args:any[] = []){
+    //     try{
+    //         if (GetAllMethodNamesOf(this).includes(function_name))
+    //             return this[function_name].call(this, ...args); //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/call
+    //         else
+    //             return `[${function_name}] is not a name of a function on the SocioServer instance`;
+    //     }catch(e){return e;}
+    // }
+    // get methods() { return GetAllMethodNamesOf(this) }
 }
 
 //group the hooks based on SQL + PARAMS (to optimize DB mashing), since those queries would be identical, but the recipients most likely arent, so cant just dedup the array.
@@ -500,30 +505,4 @@ function GroupHooks(sql = '', hooks: QueryObject[]=[]){
             grouped[key] = [h]
     }
     return Object.values(grouped)
-}
-
-//https://stackoverflow.com/a/35033472/8422448
-function GetAllMethods(obj:any) {
-    let props = []
-
-    do {
-        const l = Object.getOwnPropertyNames(obj)
-            .concat(Object.getOwnPropertySymbols(obj).map(s => s.toString()))
-            .sort()
-            .filter((p, i, arr) =>
-                typeof obj[p] === 'function' &&  //only the methods
-                p !== 'constructor' &&           //not the constructor
-                (i == 0 || p !== arr[i - 1]) &&  //not overriding in this prototype
-                //@ts-ignore
-                props.indexOf(p) === -1          //not overridden in a child
-            );
-        //@ts-ignore
-        props = props.concat(l)
-    }
-    while (
-        (obj = Object.getPrototypeOf(obj)) &&   //walk-up the prototype chain
-        Object.getPrototypeOf(obj)              //not the the Object prototype methods (hasOwnProperty, etc...)
-    )
-
-    return props
 }

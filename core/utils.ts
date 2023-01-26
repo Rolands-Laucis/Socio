@@ -40,3 +40,17 @@ export function SocioMarkerHas(marker: QueryMarker, { parsed = null, str = '' }:
 export function sleep(seconds:number=2){
     return new Promise(res => setTimeout(res, seconds *1000))
 }
+
+//https://stackoverflow.com/a/40577337/8422448
+export function GetAllMethodNamesOf(obj: any): string[] {
+    const methods: Set<string> = new Set();
+    while (obj = Reflect.getPrototypeOf(obj)) {
+        Reflect.ownKeys(obj)
+            .map(k => k.toString()) //bcs some might be symbols
+            .filter(k =>
+                k != 'constructor'
+                && !k.startsWith('__')
+            ).forEach((k) => methods.add(k));
+    }
+    return [...methods];
+}

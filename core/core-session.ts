@@ -30,12 +30,13 @@ export class SocioSession extends LogHandler {
     verbose = true
     last_seen: string | null = null //date and time of last seen active session
 
-    constructor(client_id: string, browser_ws_conn: WebSocket, { verbose = true, default_perms = {} } = {}) {
+    constructor(client_id: string, ws_client: WebSocket, client_ip:string, { verbose = true, default_perms = {} } = {}) {
         super({ verbose, prefix: 'SocioSession' });
         
         //private:
-        this.#ws = browser_ws_conn
+        this.#ws = ws_client
         this.#ws['socio_client_id'] = client_id //set the client id (uuid) in the actual WebSocket class, so that the client doesnt have to send his ID, but instead the server tracks all the sockets and this way will have its ID. Preventing impersonation.
+        this.#ws['socio_client_ip'] = client_ip
         this.#perms = default_perms
 
         //public:
@@ -46,6 +47,7 @@ export class SocioSession extends LogHandler {
     }
 
     get id(): string { return this.#ws['socio_client_id'] }
+    get ip(): string { return this.#ws['socio_client_ip'] }
 
     //accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
     Send(kind: ClientMessageKind, ...data) {//data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
