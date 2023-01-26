@@ -1,12 +1,12 @@
 console.log('running hooks.server.ts ...')
-import { SocioServer } from 'socio/core';
-import { SocioSecurity } from 'socio/secure';
-import type { QueryFunction, QueryFuncParams } from 'socio/core';
-import type { PropValue } from 'socio/types';
+import { SocioServer } from 'socio/dist/core';
+import { SocioSecurity } from 'socio/dist/secure';
+import type { QueryFunction, QueryFuncParams } from 'socio/dist/core';
+import type { PropValue } from 'socio/dist/types';
 // import { SocioStringParse } from 'socio/utils'
 
 import { Sequelize } from 'sequelize';
-import { log, info, done, soft_error } from 'socio/logging';
+import { log, info, done, soft_error } from 'socio/dist/logging';
 
 // log(SocioStringParse('SELECT * FROM users;--socio-32946486'))
 // process.exit(0)
@@ -28,17 +28,13 @@ try{
     }
 
     const socsec = new SocioSecurity({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', verbose: true });
-    const socserv = new SocioServer({ port: ws_port }, QueryWrap as QueryFunction, { verbose: true, socio_security: socsec });
-    done(`Created SocioServer on port`, ws_port);
+    const socserv = new SocioServer({ port: ws_port }, { DB_query_function: QueryWrap as QueryFunction, verbose: true, socio_security: socsec });
 
     socserv.RegisterProp('color', '#ffffff', (curr_val: PropValue, new_val: PropValue): boolean => {
         if (typeof new_val != 'string' || new_val.length != 7) return false;
         if (!new_val.match(/^#[0-9a-f]{6}/mi)) return false;
-        //...more checks.
-
-        //success, so assign
         return socserv.SetPropVal('color', new_val);
-    })
+    });
 } catch (e:any) {
     soft_error(e);
 }

@@ -14,7 +14,6 @@
     "@sveltejs/adapter-auto": "^1.0.0",
     "@sveltejs/kit": "^1.0.0",
     "sass": "^1.53.0",
-    "socio": "file:../../core",
     "svelte": "^3.54.0",
     "svelte-check": "^2.9.2",
     "svelte-preprocess": "^4.10.7",
@@ -25,6 +24,7 @@
   "type": "module",
   "dependencies": {
     "sequelize": "^6.28.0",
+    "socio": "^0.4.13",
     "sqlite3": "^5.1.4",
     "svelte-french-toast": "^1.0.3",
     "ws": "^8.11.0"

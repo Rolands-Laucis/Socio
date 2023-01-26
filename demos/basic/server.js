@@ -1,6 +1,5 @@
-// import {SocioServer} from '../../core/core.js' //i use this locally
 import { SocioServer } from 'socio/dist/core.js' //for using the lib as a download from npm
-import { log, info, done } from 'socio/logging';
+import { log, info, done } from 'socio/dist/logging.js';
 
 import express from 'express'
 import { Sequelize } from 'sequelize';
@@ -23,7 +22,7 @@ async function QueryWrap({ id = 0, sql = '', params = {} } = {}) {
     return (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))[0]
 }
 
-const socserv = new SocioServer({ port: ws_port }, QueryWrap, {verbose:true} )
+const socserv = new SocioServer({ port: ws_port }, { DB_query_function: QueryWrap, verbose:true} )
 done(`Created SocioServer on port`, ws_port)
 
 //init

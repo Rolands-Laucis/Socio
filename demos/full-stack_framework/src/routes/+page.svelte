@@ -1,11 +1,11 @@
 <script lang="ts">
     //imports
-    import { SocioClient } from "socio/core-client";
-    // import type {id} from 'socio/types'
+    import { SocioClient } from "socio/dist/core-client";
+    import type {id} from 'socio/dist/types'
     import { onMount, onDestroy } from "svelte";
-    //@ts-ignore
+
     import { slide } from "svelte/transition";
-    import toast from 'svelte-french-toast';
+    import toast from 'svelte-french-toast'; //https://github.com/kbrgl/svelte-french-toast
 
     //comps
     import Bloom from "$lib/bloom.svelte";
@@ -21,9 +21,9 @@
     //setup toasts
     sc.lifecycle_hooks.msg = (name:string, client_id:string, kind:string, data:any) => {
         if(['UPD', 'PROP_UPD'].includes(kind))
-            toast('An update came in from the Socio Server.', {style:'background: #0D0D0E; color: #fff;',position: "bottom-center"});
+            toast('An update came in from the Socio Server.', {style:'background: #0D0D0E; color: #fff;',position: "bottom-center", duration:1000});
         else if(kind == 'ERR')
-            toast.error(`An error arrived for a query or prop. MSG ID:${data.id}`,{position: "bottom-center"})
+            toast.error(`An error arrived for a query or prop. MSG ID:${data.id}`,{position: "bottom-center", duration:2000})
     }
 
     //variables
@@ -35,7 +35,7 @@
 
     onMount(async () => {
         ready = await sc.ready();
-        toast.success('Socio Client connected!', {icon:'🥳',position: "bottom-center"});
+        toast.success('Socio Client connected!', {icon:'🥳',position: "bottom-center", duration:1000});
         
         sc.subscribe({sql: "SELECT COUNT(*) AS RES FROM users WHERE name = :name;--socio",params: { name: "John" }}, (res) => {
                 //@ts-ignore
