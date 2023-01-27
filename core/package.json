@@ -1,6 +1,6 @@
 {
   "name": "socio",
-  "version": "0.4.13",
+  "version": "0.4.14",
   "description": "A WebSocket based realtime duplex Front-End and Back-End syncing API paradigm framework.",
   "main": "./dist/core.js",
   "type": "module",
@@ -9,7 +9,7 @@
     "build": "tsc",
     "pub": "npm run build && npm publish",
     "watch": "tsc --watch",
-    "admin":"node admin2.js",
+    "admin": "node admin2.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "files": [
