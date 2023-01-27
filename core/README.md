@@ -1,10 +1,11 @@
-# Socio - A WebSocket based realtime duplex Front-End and Back-End synced API paradigm framework (under active early development)
+# Socio - A WebSocket based realtime duplex Full-stack synced API framework.
+##### (under active early development)
 
 ## Connecting your Front-End to Back-End DB reactively! ⇄
 
-[Youtube video Demo](https://www.youtube.com/watch?v=iJIC9B3cKME&ab_channel=CepuminsLV "Youtube video Demo")
+<a href="https://www.youtube.com/watch?v=iJIC9B3cKME&ab_channel=CepuminsLV" target="_blank">3 min Youtube video Demo</a>
 
-Say goodbye to REST APIs 👋. No more API middleware and DB interfacing functions and wrappers and handlers. Write your SQL queries on the frontend and have their results be automagically refreshed on all clients when a resource is changed on the server DB.
+No more API middleware and backend DB interfacing functions and wrappers and handlers. Write your SQL queries on the frontend and have their results be automagically refreshed on all clients when a resource is changed on the server DB. This is secure.
 
 Check [Basic Demo](https://github.com/Rolands-Laucis/Socio/blob/master/demos/basic/readme.md) to try an interactive bare-bones demonstration.
 
@@ -27,11 +28,11 @@ On the backend instantiate the ``SocioServer`` class and provide it a single DB 
 Included is a class for auto securing the SQL via server-side string symetric encryption run at build time using the AES-256-GCM algorithm.
 Preventing the client seeing or altering the query string. Dynamic data inserted as query parameters should be sanitized by your DB interface function, since Socio passes the SQL and params to you seperately. Or you can wrap the DB interface function and sanatize them yourself.
 In addition, all queries have opt-in flags for authentification and table permissions requirements, that are managed on the backend.
-And even a simple Vite plugin that wraps it this functionality for all of your front-end souce code 🥳
+And even a simple Vite plugin that wraps this functionality for all of your front-end souce code 🥳
 
 ## Does it scale? ⚖️
 
-Currently the performance is neglegable for small projects. I havent stress tested yet, as its still early dev, but i optimize my data structures, where i can as i go. Current estimate is about 100 concurrent users should be a breeze on a cheap Linode server. There are plans for more optimizations for less traffic of signals via caching and dedup queries and ratelimiting, but i also expect your backend DB to be set up properly with table indexing and caching queries.
+Currently the performance is neglegable for small projects. I havent stress tested yet, as its still early dev, but i optimize my data structures, where i can as i go. Current estimate is about 100 concurrent users should be a breeze on a cheap Linode server. There are plans for more optimizations for less traffic, but i also expect your backend DB to be set up properly with table indexing and caching queries.
 
 ## Sportsmanship 🤝
 
@@ -50,36 +51,38 @@ function QueryWrap({ id = undefined, sql = '', params = undefined }:QueryFuncPar
     //do whatever u need to run the sql on your DB and return its result
 }
 
-const socsec = new SocioSecurity({ secure_private_key: '...', verbose:true }); //for decrypting incoming queries
+const socsec = new SocioSecurity({ secure_private_key: '...', verbose:true }); //for decrypting incoming queries. This same key is used for encrypting the source files when you build and bundle them.
 const socserv = new SocioServer({ port: 3000 }, { DB_query_function: QueryWrap as QueryFunction, verbose: true, socio_security: socsec }); //creates localhost:3000 web socket server
 ```
 
 ```ts
 //client side browser code
 import {SocioClient} from 'socio/dist/core-client' //this way for both JS and TS
-const sc = new SocioClient('ws://localhost:3000', {verbose:true, name:'Main'});
-await sc.ready();
+const sc = new SocioClient('ws://localhost:3000', {verbose:true, name:'Main'}); //create as many as you like
+await sc.ready(); //wait to establish the connection
 
+//will recall the callback whenever the Users table data gets altered
 const id = sc.subscribe({sql:'SELECT * FROM Users;--socio'}, (res) => {
     console.log(res);
-})
+});
 
+//send a single query and wait for its result
 console.log(await sc.query('INSERT INTO Users (name, num) VALUES(:name, :num);--socio', {name:'bob', num:42})); //sanatize dynamic data yourself!
-sc.unsubscribe(id);
+sc.unsubscribe(id); //notify the server, so it doesnt waste resources processing this.
 ```
 
 # Caveats
 For SQL queries the automagic happens because i regex parse the strings myself with simple patterns. The most basic usecases should be covered, but more complex SQL queries are not. Situations like: nested queries; multiple queries in a single string. Only table names are extracted, so sometimes subscriptions would receive an update, even though for its specific WHERE clauses it would logically not have changed data. E.g. if you alter a specific users info on a Users table, all subscribed users would get an update. I am planning to fix these, but there are no great solutions.
 
-Currently everything is single threaded, but i do make good use of async Promise patterns to not block the event loop. If you are mad enough like me to use Socio in production, you should use a load balancer. Otherwise one good multi-core CPU should be fine for small projects.
-
 HTTP has well established session patterns using cookies. WebSockets do not. They are identified only by the TCP pipes id's, which i keep track of. You can quite easily mimic cookie sessions on whatever backend by using SocioServer hooks.
 
-I cannot guarantee perfect safety of the query encryption and thus that clients could not destroy your data. Neither can anyone, though. And neither can traditional HTTP backends. Every year new scientific papers come out breaking previously thought "unbreakable, future-proof" cryptographic algorithms. You may use SocioServer hooks to double check the incoming data yourself for your peace of mind.
+I cannot guarantee perfect safety of the query encryption. Neither can anyone, though. And neither can traditional HTTP backends. Every year new scientific papers come out breaking previously thought "unbreakable, future-proof" cryptographic algorithms. You may use SocioServer hooks to double check the incoming data yourself for your peace of mind.
+
+Page navigations, reloads, new tabs would all destroy any running JS on the client-side, ergo the SocioClient instance as well. You'd have to reauth and reestablish table permissions on each such event on the new instance. As well as, if the WebSocket disconnects by itself for some reason. However, using client-side routers (that popular frameworks use) would preserve the running JS and thus the instance. In addition, I am working on a automatic, general solution. Otherwise, for now you may keep the login details using browsers SessionStorage API (if that is safe) and reauth.
 
 The SocioSecurity Vite plugin searches many types of frontend script file extensions and will encrypt any string that ends with --socio[-args].
 
-Page navigations, reloads, new tabs would all destroy any running JS on the client-side, ergo the SocioClient instance as well. You'd have to reauth and reestablish table permissions on each such event on the new instance. As well as, if the WebSocket disconnects by itself for some reason. However, using client-side routers (that popular frameworks use) would preserve the running JS and thus the instance. In addition, I am working on a automatic, general solution. Otherwise, for now you may keep the login details using browsers SessionStorage API (if that is safe) and reauth.
+You should be using WSS:// and HTTPS:// protocols for everything, so that the data secure over the network. But thats easier said than done.
 
 ## Contributing 🥰
 As this is an open source project that i spend my free time on, perhaps someone else would like to help with various things:
