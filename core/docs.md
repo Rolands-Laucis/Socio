@@ -128,12 +128,11 @@ socserv.RegisterProp('color', '#ffffff', (curr_val:PropValue, new_val:PropValue)
   //...more checks.
   
   //success, so assign
-  curr_val = new_val; //assign any way you want, even just changing nested objects instead of the whole thing
-  return true; //tell socio that everything went well
+  return socserv.SetPropVal('color', new_val); //assign the prop. Returns truthy, if was set succesfully
 })
 ```
 
-Though usable for realtime web chat applications, i advise against that, because props data traffic is not yet optimized. It sends the entire prop data structure both ways. Instead you should use the Emit() function on clients and store the chat messages yourself.
+Though usable for realtime web chat applications, i advise against that, because props data traffic is not yet optimized. It sends the entire prop data structure both ways. Instead you should use the SendToClients() function and store the chat messages yourself. A built in solution for this is in the works.
 
 ### Generic communication
 
@@ -165,6 +164,20 @@ socserv.RegisterLifecycleHookHandler('serv', (ses:SocioSession, data:MessageData
 ```
 
 Though the server can also intercept any msg that comes in from all clients via the 'msg' hook.
+
+Likewise the server can send a command (CMD) to any client via the SendToClients() function, where your client-side hook can handle it.
+
+```ts
+//server code
+const socserv = new SocioServer(...)
+socserv.SendToClients([], {some:"data"}); //empty array of client_id's will emit to all connected. Returns void.
+```
+
+```ts
+//browser code - can be inside just a js script that gets loaded with a script tag or in components of whatever framework.
+const sc = new SocioClient(...)
+sc.lifecycle_hooks.cmd = (data:any) => { log(data) }
+```
 
 ### Rate-limiting
 
