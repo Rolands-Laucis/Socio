@@ -12,6 +12,8 @@ d
 *.vscode
 core/dist
 core/dev_serv.ts
+core/admin.js
+core/admin2.js
 test
 
 ### Database ###

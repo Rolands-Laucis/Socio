@@ -23,38 +23,38 @@ export class SocioSession extends LogHandler {
     #hooks: { [id: id]: HookObj ; } = {}//msg_id:[{table_name, sql, params}]
     #authenticated = false //usually boolean, but can be any truthy or falsy value to show the state of the session. Can be a token or smth for your own use, bcs the client will only receive a boolean
     #perms: { [key: string]: string[]; } = {} //verb:[tables strings] keeps a dict of access permissions of verb type and to which tables this session has been granted
-    #admin = false;
     #destroyed:number = 0;
 
     //public:
     verbose = true
-    last_seen: string | null = null //date and time of last seen active session
+    last_seen: number = 0 //ms since epoch when this session was last active
 
-    constructor(client_id: string, ws_client: WebSocket, client_ip:string, { verbose = true, default_perms = {} } = {}) {
+    constructor(client_id: string, ws_client: WebSocket, client_ipAddr:string, { verbose = true, default_perms = {} } = {}) {
         super({ verbose, prefix: 'SocioSession' });
         
         //private:
-        this.#ws = ws_client
-        this.#ws['socio_client_id'] = client_id //set the client id (uuid) in the actual WebSocket class, so that the client doesnt have to send his ID, but instead the server tracks all the sockets and this way will have its ID. Preventing impersonation.
-        this.#ws['socio_client_ip'] = client_ip
-        this.#perms = default_perms
+        this.#ws = ws_client;
+        this.#ws['socio_client_id'] = client_id; //set the client id (uuid) in the actual WebSocket class, so that the client doesnt have to send his ID, but instead the server tracks all the sockets and this way will have its ID. Preventing impersonation.
+        this.#ws['socio_client_ipAddr'] = client_ipAddr;
+        this.#perms = default_perms;
 
         //public:
-        this.verbose = verbose
+        this.verbose = verbose;
 
-        this.last_seen_now()
+        this.last_seen_now();
         // this.HandleInfo('New session created', client_id)
     }
 
     get id(): string { return this.#ws['socio_client_id'] }
-    get ip(): string { return this.#ws['socio_client_ip'] }
+    get ipAddr(): string { return this.#ws['socio_client_ipAddr'] }
 
     //accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
     Send(kind: ClientMessageKind, ...data) {//data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
         if(this.#destroyed) return; //if this session is marked for destruction
-        if (data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, data) //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
-        this.#ws.send(JSON.stringify(Object.assign({}, { kind: kind, data: data[0] }, ...data.slice(1))))
-        this.HandleInfo('sent:', kind, data)
+        if (data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, data); //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
+        this.#ws.send(JSON.stringify(Object.assign({}, { kind: kind, data: data[0] }, ...data.slice(1))));
+        this.HandleInfo('sent:', kind, data);
+        this.last_seen_now();
     }
 
     //TODO this used to be well optimized datastructures back in 0.2.1, but had to simplify down, bcs it gets complicated
@@ -93,20 +93,20 @@ export class SocioSession extends LogHandler {
         else this.#perms[verb] = [key];
     }
 
-    last_seen_now(){
-        this.last_seen = new Date().toISOString()
-    }
-
-    get admin(){return this.#admin}
+    last_seen_now(){this.last_seen = (new Date()).getTime()}
 
     //marks the session to be destroyed after some time to live
-    Destroy(remove_session_callback:Function, ttl_ms:number){
-        this.#destroyed = setTimeout(remove_session_callback, ttl_ms);
+    Destroy(remove_session_callback:Function, ttl_ms:number, force:boolean = false){
+        if (force) {//destroyed immediately
+            if (this.#ws?.close)
+                this.#ws.close();
+            remove_session_callback();
+        } 
+        else this.#destroyed = setTimeout(remove_session_callback, ttl_ms);
     }
     //cancels the destruction queue
     Restore(){
-        if(this.#destroyed)
-            clearTimeout(this.#destroyed);
+        if(this.#destroyed) clearTimeout(this.#destroyed);
         this.#destroyed = 0;
     }
 }

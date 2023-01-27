@@ -15,7 +15,7 @@ import { RateLimiter } from './ratelimit.js'
 //whereas public variables are free for you to alter freely at any time during runtime.
 
 //types
-import type { ServerOptions, WebSocket } from 'ws';
+import type { ServerOptions, WebSocket, AddressInfo } from 'ws';
 import type { IncomingMessage } from 'http'
 import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind } from './types.js'
 import type { RateLimit } from './ratelimit.js'
@@ -23,13 +23,14 @@ export type MessageDataObj = { id?: id, sql?: string, params?: object | null, ve
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
 export type QueryFunction = (obj: QueryFuncParams | MessageDataObj) => Promise<object>;
 type QueryObject = { id: id, params: object | null, session: SocioSession }; //for grouping hooks
-type SocioServerOptions = { DB_query_function?: QueryFunction, socio_security?: SocioSecurity | null, verbose?: boolean, decrypt_sql?: boolean, decrypt_prop?: boolean, hard_crash?: boolean, reconnect_ttl_ms?:number }
+type SocioServerOptions = { DB_query_function?: QueryFunction, socio_security?: SocioSecurity | null, verbose?: boolean, decrypt_sql?: boolean, decrypt_prop?: boolean, hard_crash?: boolean, reconnect_ttl_ms?: number }
 type AdminMessageDataObj = {function:string, args?:any[], secure_key:string}
 
 export class SocioServer extends LogHandler {
     // private:
     #wss: WebSocketServer;
     #sessions: { [key: id]: SocioSession } = {}; //client_id:SocioSession
+    #allow_admin_ipAddr:string[] = [];
 
     //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages, if the msg flag is set
     #secure: { socio_security: SocioSecurity | null, decrypt_sql: boolean, decrypt_prop:boolean};
@@ -40,18 +41,19 @@ export class SocioServer extends LogHandler {
     //rate limits server functions globally
     #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
 
-    #lifecycle_hooks: { [key: string]: Function | null; } = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null, serv:null } //call the register function to hook on these. They will be called if they exist
+    #lifecycle_hooks: { [key: string]: Function | null; } = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null, serv:null, admin:null } //call the register function to hook on these. They will be called if they exist
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //msg hook receives all incomming msgs to the server. 
     //upd works the same as msg, but for everytime updates need to be propogated to all the sockets.
     //auth func can return any truthy or falsy value, the client will only receive a boolean, so its safe to set it to some credential or id or smth, as this would be accessible and useful to you when checking the session access to tables.
     //the grant_perm funtion is for validating that the user has access to whatever tables or resources the sql is working with. A client will ask for permission to a verb (SELECT, INSERT...) and table(s). If you grant access, then the server will persist it for the entire connection.
+    //the admin function will be called, when a socket attempts to use an ADMIN msg kind. It receives the SocioSession instance, that has id, ip and last seen fields you can use. Also the data it sent, so u can check your own secure key or smth. Return truthy to allow access
 
     //public:
     Query: QueryFunction; //you can change this at any time
     reconnect_ttl_ms:number;
 
-    constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, decrypt_sql = true, decrypt_prop = false, verbose = true, hard_crash = false, reconnect_ttl_ms = 1000*15 }: SocioServerOptions = {}){
+    constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, decrypt_sql = true, decrypt_prop = false, verbose = true, hard_crash = false, reconnect_ttl_ms = 1000*15 }: SocioServerOptions){
         super({ verbose, hard_crash, prefix:'SocioServer'});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
         //hard_crash will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
@@ -70,7 +72,10 @@ export class SocioServer extends LogHandler {
         this.#wss.on('close', (...stuff) => { this.HandleInfo('WebSocketServer close event', ...stuff) });
         this.#wss.on('error', (...stuff) => { this.HandleError(new E('WebSocketServer error event', ...stuff))});
 
-        this.done(`Created SocioServer on port`, opts?.port);
+        const addr: AddressInfo = this.#wss.address() as AddressInfo;
+        this.done(`Created SocioServer on `, addr);
+        // if (addr.family == 'ws')
+        //     this.HandleInfo('WARNING! Your server is using an unsecure WebSocket protocol, setup wss:// instead, when you can!');
     }
 
     #Connect(conn: WebSocket, request: IncomingMessage){
@@ -300,11 +305,12 @@ export class SocioServer extends LogHandler {
                         this.#lifecycle_hooks.serv(client, data);
                     else throw new E('Client sent generic data to the server, but the hook for it is not registed. [#no-serv-hook]', client_id);
                     break;
-                // case 'ADMIN':
-                //     if(client.admin)
-                //         client.Send('RES', await this.#Admin(((data as unknown) as AdminMessageDataObj)?.function, ((data as unknown) as AdminMessageDataObj)?.args));
-                //     else throw new E('A non Admin send an Admin message, but was not executed.', kind, data, client_id);
-                //     break;
+                case 'ADMIN':
+                    if(this.#lifecycle_hooks.admin)
+                        if (this.#lifecycle_hooks.admin(client, data)) //you get the client, which has its ID, ipAddr and last_seen fields, that can be used to verify access. Also data should contain some secret key, but thats up to you
+                            client.Send('RES', await this.#Admin(((data as unknown) as AdminMessageDataObj)?.function, ((data as unknown) as AdminMessageDataObj)?.args));
+                        else throw new E('A non Admin send an Admin message, but was not executed.', kind, data, client_id);
+                    break;
                 // case '': break;
                 default: throw new E(`Unrecognized message kind! [#unknown-msg-kind]`, kind, data);
             }
@@ -482,15 +488,15 @@ export class SocioServer extends LogHandler {
     }
 
     //https://stackoverflow.com/a/54875979/8422448
-    // async #Admin(function_name:string = '', args:any[] = []){
-    //     try{
-    //         if (GetAllMethodNamesOf(this).includes(function_name))
-    //             return this[function_name].call(this, ...args); //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/call
-    //         else
-    //             return `[${function_name}] is not a name of a function on the SocioServer instance`;
-    //     }catch(e){return e;}
-    // }
-    // get methods() { return GetAllMethodNamesOf(this) }
+    async #Admin(function_name:string = '', args:any[] = []){
+        try{
+            if (GetAllMethodNamesOf(this).includes(function_name))
+                return this[function_name].call(this, ...args); //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/call
+            else
+                return `[${function_name}] is not a name of a function on the SocioServer instance`;
+        }catch(e){return e;}
+    }
+    get methods() { return GetAllMethodNamesOf(this) }
 }
 
 //group the hooks based on SQL + PARAMS (to optimize DB mashing), since those queries would be identical, but the recipients most likely arent, so cant just dedup the array.

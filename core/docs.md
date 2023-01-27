@@ -32,7 +32,7 @@ import type { QueryFunction } from 'socio/dist/core';
 const QueryWrap = async ({ id = 0, sql = '', params = {} } = {}) => (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))[0]
 
 //The actual instance of the manager on port 3000 using the created query function. Verbose will make it print all incoming and outgoing traffic from all sockets in a pretty printed look :)
-const socserv = new SocioServer({ port: 3000 }, QueryWrap as QueryFunction, {verbose:true} )
+const socserv = new SocioServer({ port: 3000 }, {DB_query_function: QueryWrap as QueryFunction, verbose:true} )
 
 //This class has a few public fields that you can alter, as well as useful functions to call later in your program at any time. E.g. set up lifecycle hooks:
 manager.LifecycleHookNames //get an array of the hooks currently recognized in Socio. Or look them up yourself in the core lib :)
@@ -94,7 +94,7 @@ import { SocioSecurity } from 'socio/dist/secure';
 
 //vite plugin and this instance must share the same private secret key, so perhaps use .env mechanism
 const socsec = new SocioSecurity({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', verbose: true });
-const socserv = new SocioServer({ port: ws_port }, QueryWrap as QueryFunction, { verbose: true, socio_security: socsec });
+const socserv = new SocioServer({ port: ws_port }, { DB_query_function: QueryWrap as QueryFunction, verbose: true, socio_security: socsec });
 //by default ecrypts all strings that end with the socio marker, but decryption can be individually turned off for either sql or prop key strings.
 ```
 
@@ -200,3 +200,33 @@ sc.subscribe({ sql: "SELECT COUNT(*) AS RESULT FROM users;"}, (res) => {
 sc.subscribeProp('color', (c) => {let ans = c}, {n:5, minutes:1}) //rate limit of 5 per 1 minute UPD receivable. Server wont send upd, if exceedes.
 ```
 This again leads to similar problems, but per query.
+
+### Admin socket
+
+Wouldnt it be nice to connect to the backend SocioServer and run instructions on there at runtime? Well you can, but the safety of that is completely in your hands. Opt-in mechanism.
+
+```ts
+//some node.js script. This wrapper currently does not support browsers, but you can write your own that does with just a few lines changed!
+import {AdminClient} from 'socio/dist/admin-client.js'
+
+//AdminClient is just a convenient wrapper for the actual mechanism. 
+const ac = new AdminClient({url:"wss://localhost:3000", client_secret:'jh45kh345j34g53jh4g52hj3g542j3h2jh34g'}); //NOTE should always use wss instead of ws protocol for safety, but i dont yet have a way of checking that on the server.
+await ac.ready();
+const res = await ac.Run('GetPropVal', 'color') //will call SocioServer.GetPropVal('color') and return the call return value. The name of the function and infinite args to pass to it.
+```
+
+```ts
+//backend socio server setup to allow admin connections
+//...imports
+
+const socserv = new SocioServer(...);
+
+//'admin' will be called whenever any socket attempts to take action as an admin.
+socserv.RegisterLifecycleHookHandler('admin', (client:SocioSession, data:any) => {
+    log(client.id, client.ipAddr, client.last_seen, data?.function, data?.args, data?.client_secret) //perform any checks with this - IMPORTANT for your own safety
+    return true; //return truthy to grant access to the call.
+    //Any public SocioServer instance method or object property can be called by its name
+})
+```
+
+The neat thing is that, this mechanism just uses WebSockets, so you can implement your own admin client in any language, even from a remote computer and even on the browser! Imagine how simple it would be to create an admin dashboard with this! Just look at the wrapper code, and it should be clear how to make your own. Its not that long.

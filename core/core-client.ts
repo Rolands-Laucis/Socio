@@ -256,8 +256,8 @@ export class SocioClient extends LogHandler {
             })
 
             //send off the request, which will be resolved in the message handler
-            this.#Send('SQL', { id: id, sql: sql, params: params })
-            return prom
+            this.#Send('SQL', { id: id, sql: sql, params: params });
+            return prom;
         } catch (e: err) { this.HandleError(e); return null; }
     }
     setProp(prop: PropKey, new_val:PropValue){
@@ -346,10 +346,10 @@ export class SocioClient extends LogHandler {
             throw new E(`${kind} message for unregistered SQL query! msg_id -`, id)
     }
     #HandleBasicPromiseMessage(kind:string, data:MessageDataObj){
-        this.#FindID(kind, data?.id)
+        this.#FindID(kind, data?.id);
         //@ts-ignore
         this.#queries[data.id](data?.result);
-        delete this.#queries[data.id] //clear memory
+        delete this.#queries[data.id]; //clear memory
     }
 
     get client_id(){return this.#client_id}

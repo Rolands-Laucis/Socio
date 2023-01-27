@@ -51,7 +51,7 @@ function QueryWrap({ id = undefined, sql = '', params = undefined }:QueryFuncPar
 }
 
 const socsec = new SocioSecurity({ secure_private_key: '...', verbose:true }); //for decrypting incoming queries
-const socserv = new SocioServer({ port: 3000 }, QueryWrap as QueryFunction, { verbose: true, socio_security: socsec }); //creates localhost:3000 web socket server
+const socserv = new SocioServer({ port: 3000 }, { DB_query_function: QueryWrap as QueryFunction, verbose: true, socio_security: socsec }); //creates localhost:3000 web socket server
 ```
 
 ```ts
@@ -98,8 +98,6 @@ As this is an open source project that i spend my free time on, perhaps someone 
 * File and blob sending and replacing on the client side
 * Redo the update dependency mechanism to serious data structures - dependency graph or tree or smth
 * Different solution for sql parsing. Perhaps the 40MB js lib... (but that seems insane to me)
-* Special Admin connection with privileges.
-* Server pushed commands to clients.
 * plenty more
 
 #### Dont be shy to try this out on your small project. Feedback from real world use cases is much appreciated 🥰
