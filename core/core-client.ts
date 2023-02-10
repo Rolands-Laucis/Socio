@@ -314,14 +314,14 @@ export class SocioClient extends LogHandler {
         this.#Send('PING', { id: num || this.#GenKey })
     }
 
-    authenticate(params:object={}){ //params here can be anything, like username and password stuff etc. The backend server auth function callback will receive this entire object
+    authenticate(params:object={}):Promise<boolean>{ //params here can be anything, like username and password stuff etc. The backend server auth function callback will receive this entire object
         //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
         const id = this.#GenKey;
-        const prom = new Promise((res) => {
+        const prom: Promise<boolean> = new Promise((res) => {
             this.#queries[id] = res
         })
         this.#Send('AUTH', { id: id, params: params })
-        return prom
+        return prom;
     }
     get authenticated() { return this.#authenticated === true }
     askPermission(verb='', table='') {//ask the backend for a permission on a table with the SQL verb u want to perform on it, i.e. SELECT, INSERT etc.

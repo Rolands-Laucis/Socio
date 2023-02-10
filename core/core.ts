@@ -56,7 +56,7 @@ export class SocioServer extends LogHandler {
     session_delete_delay_ms:number;
     recon_ttl_ms:number;
 
-    constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, decrypt_sql = true, decrypt_prop = false, verbose = true, hard_crash = false, session_delete_delay_ms = 1000 * 5, recon_ttl_ms=1000*5 }: SocioServerOptions){
+    constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, decrypt_sql = true, decrypt_prop = false, verbose = true, hard_crash = false, session_delete_delay_ms = 1000 * 5, recon_ttl_ms=1000*60*60 }: SocioServerOptions){
         super({ verbose, hard_crash, prefix:'SocioServer'});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
         //hard_crash will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
@@ -333,7 +333,7 @@ export class SocioServer extends LogHandler {
 
                     if (data?.data?.type == 'GET'){
                         //@ts-expect-error
-                        const token = this.#secure.socio_security.EncryptString([client.ipAddr, client.id, (new Date()).getTime()].join(' ')); //creates string in the format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where encrypted_text_base64 is a token of format "[ip] [client_id] [ms_since_epoch]"
+                        const token = this.#secure.socio_security.EncryptString([this.#secure.socio_security?.GenRandInt(100_000, 1_000_000), client.ipAddr, client.id, (new Date()).getTime(), this.#secure.socio_security?.GenRandInt(100_000, 1_000_000)].join(' ')); //creates string in the format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where encrypted_text_base64 is a token of format "[rand] [ip] [client_id] [ms_since_epoch] [rand]"
                         this.#tokens.add(token);
                         client.Send('RES', { id: data.id, result: token }); //send the token to the client for one-time use to reconnect to their established client session
                     }
@@ -356,13 +356,17 @@ export class SocioServer extends LogHandler {
                             return;
                         }
 
-                        const [ip, old_c_id, time_stamp] = token.split(' '); //decrypted payload parts
+                        const [r1, ip, old_c_id, time_stamp, r2] = token.split(' '); //decrypted payload parts
                         //safety check race conditions
+                        if (!(r1 && ip && old_c_id && time_stamp && r2)){
+                            client.Send('RECON', { id: data.id, result: 'Invalid token format', status: 0 });
+                            return;
+                        }
                         if (client.ipAddr !== ip) {
                             client.Send('RECON', { id: data.id, result: 'IP address changed between reconnect', status: 0 });
                             return;
                         }
-                        else if ((new Date()).getTime() - time_stamp > this.recon_ttl_ms){
+                        else if ((new Date()).getTime() - parseInt(time_stamp) > this.recon_ttl_ms){
                             client.Send('RECON', { id: data.id, result: 'Token has expired', status: 0 });
                             return;
                         }
