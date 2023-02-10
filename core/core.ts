@@ -30,7 +30,6 @@ export class SocioServer extends LogHandler {
     // private:
     #wss: WebSocketServer;
     #sessions: { [key: id]: SocioSession } = {}; //client_id:SocioSession
-    #allow_admin_ipAddr:string[] = [];
 
     //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages, if the msg flag is set
     #secure: { socio_security: SocioSecurity | null, decrypt_sql: boolean, decrypt_prop:boolean};
@@ -49,11 +48,14 @@ export class SocioServer extends LogHandler {
     //the grant_perm funtion is for validating that the user has access to whatever tables or resources the sql is working with. A client will ask for permission to a verb (SELECT, INSERT...) and table(s). If you grant access, then the server will persist it for the entire connection.
     //the admin function will be called, when a socket attempts to use an ADMIN msg kind. It receives the SocioSession instance, that has id, ip and last seen fields you can use. Also the data it sent, so u can check your own secure key or smth. Return truthy to allow access
 
+    //stores active reconnection tokens
+    #tokens: Set<string> = new Set()
+
     //public:
     Query: QueryFunction; //you can change this at any time
     reconnect_ttl_ms:number;
 
-    constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, decrypt_sql = true, decrypt_prop = false, verbose = true, hard_crash = false, reconnect_ttl_ms = 1000*15 }: SocioServerOptions){
+    constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, decrypt_sql = true, decrypt_prop = false, verbose = true, hard_crash = false, reconnect_ttl_ms = 1000*5 }: SocioServerOptions){
         super({ verbose, hard_crash, prefix:'SocioServer'});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
         //hard_crash will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
@@ -102,7 +104,12 @@ export class SocioServer extends LogHandler {
             this.HandleInfo('CON', client_id); //, this.#wss.clients
 
             //set this client websockets event handlers
-            conn.on('message', (req: Buffer | ArrayBuffer | Buffer[], isBinary: Boolean) => this.#Message.bind(this)(client, req, isBinary));
+            conn.on('message', (req: Buffer | ArrayBuffer | Buffer[], isBinary: Boolean) => {
+                if(client_id in this.#sessions)
+                    this.#Message.bind(this)(this.#sessions[client_id], req, isBinary);
+                else
+                    conn?.close();
+            });
             conn.on('close', () => {
                 //trigger hook
                 if (this.#lifecycle_hooks.discon)
@@ -237,7 +244,12 @@ export class SocioServer extends LogHandler {
                     }
                     break;
                 case 'GET_PERM':
-                    if(this.#lifecycle_hooks?.grant_perm){
+                    //check if already has the perm
+                    if (client.HasPermFor(data?.verb, data?.table)){
+                        client.Send('GET_PERM', { id: data.id, result: true, verb: data.verb, table: data.table });
+                    }
+                    //otherwise try to grant the perm
+                    else if(this.#lifecycle_hooks?.grant_perm){
                         const granted:boolean = await this.#lifecycle_hooks?.grant_perm(client_id, data)
                         client.Send('GET_PERM', { id: data.id, result: granted === true, verb: data.verb, table: data.table }) //the client will only receive a boolean, but still make sure to only return bools as well
                     }
@@ -259,20 +271,20 @@ export class SocioServer extends LogHandler {
                     })
                     break;
                 case 'PROP_UNREG':
-                    this.#CheckPropExists(data?.prop, client, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
+                    this.#CheckPropExists(data?.prop, client, data?.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
                     //remove hook
                     try{
                         delete this.#props[data.prop as string].updates[client_id]
 
                         //send response
                         client.Send('RES', {
-                            id: data.id,
+                            id: data?.id,
                             result: true
                         });
                     } catch (e: err) {
                         //send response
                         client.Send('ERR', {
-                            id: data.id,
+                            id: data?.id,
                             result: e?.msg
                         });
                         throw e; //report on the server as well
@@ -311,7 +323,64 @@ export class SocioServer extends LogHandler {
                             client.Send('RES', await this.#Admin(((data as unknown) as AdminMessageDataObj)?.function, ((data as unknown) as AdminMessageDataObj)?.args));
                         else throw new E('A non Admin send an Admin message, but was not executed.', kind, data, client_id);
                     break;
-                // case '': break;
+                case 'RECON': //client attempts to reconnect to its previous session
+                    if(!this.#secure){
+                        client.Send('ERR', { id: data.id, result: 'Cannot reconnect on this server configuration!', status: 0 });
+                        throw new E(`RECON requires SocioServer to be set up with the Secure class! [#recon-needs-secure]`, kind, data);
+                    }
+
+                    if (data?.data?.type == 'GET'){
+                        //@ts-expect-error
+                        const token = this.#secure.socio_security.EncryptString([client.ipAddr, client.id, (new Date()).toISOString()].join(' ')); //creates string in the format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where encrypted_text_base64 is a token of format "[ip] [client_id]"
+                        this.#tokens.add(token);
+                        client.Send('RES', { id: data.id, result: token }); //send the token to the client for one-time use to reconnect to their established client session
+                    }
+                    else if (data?.data?.type == 'POST'){
+                        if (data?.data?.token && this.#tokens.has(data.data.token)){
+                            this.#tokens.delete(data.data.token); //single use token
+
+                            let [iv, token, auth_tag] = data.data.token.split(' '); //split the format into parts
+                            if (iv && token && auth_tag)
+                                token = this.#secure.socio_security?.DecryptString(iv, token, auth_tag); //decrypt the payload
+                            else
+                                client.Send('RECON', { id: data.id, result: 'Invalid token', status: 0 });
+
+                            const new_client_id = client.id;
+                            const [ip, old_c_id, date] = token.split(' '); //old_c_id is the old connection that was closed on DISCON
+                            
+
+                            if(client.ipAddr == ip){
+                                if (old_c_id in this.#sessions){
+                                    const old_client = this.#sessions[old_c_id];
+
+                                    old_client.Restore();//stop the old session deletion, since a reconnect was actually attempted
+                                    client.CopySessionFrom(old_client);
+
+                                    //clear the subscriptions on the sockets, since the new instance will define new ones on the new page. Also to avoid ID conflicts
+                                    this.#ClearClientSessionSubs(old_c_id);
+                                    this.#ClearClientSessionSubs(new_client_id);
+
+                                    //delete old session for good
+                                    old_client.Destroy(() => {
+                                        delete this.#sessions[old_c_id];
+                                    }, this.reconnect_ttl_ms);
+
+                                    //notify the client 
+                                    client.Send('RECON', { id: data.id, result: { old_client_id: old_c_id, auth: client.authenticated}, status: 1 });
+                                    this.HandleInfo(`RECON ${old_c_id} -> ${new_client_id} (old client ID -> new/current client ID)`);
+                                }
+                                else
+                                    client.Send('RECON', { id: data.id, result: 'Old session ID was not found', status: 0 });
+                            }
+                            else
+                                client.Send('RECON', { id: data.id, result: 'IP address changed between reconnect', status:0 });
+                        }
+                        else
+                            client.Send('RECON', { id: data.id, result: 'Invalid token', status: 0 });
+                    }
+
+                    break;
+                    // case '': break;
                 default: throw new E(`Unrecognized message kind! [#unknown-msg-kind]`, kind, data);
             }
         } catch (e: err) { this.HandleError(e); }
@@ -497,6 +566,11 @@ export class SocioServer extends LogHandler {
         }catch(e){return e;}
     }
     get methods() { return GetAllMethodNamesOf(this) }
+
+    #ClearClientSessionSubs(client_id:id){
+        this.#sessions[client_id].ClearHooks(); //clear query subs
+        Object.values(this.#props).forEach(prop => { if (client_id in prop.updates) delete prop.updates[client_id]; }); //clear prop subs
+    }
 }
 
 //group the hooks based on SQL + PARAMS (to optimize DB mashing), since those queries would be identical, but the recipients most likely arent, so cant just dedup the array.

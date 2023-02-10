@@ -95,7 +95,7 @@ export class LogHandler {
     }
 
     error(msg: any, ...args: any[]) {
-        console.log(`${LogHandler.prefix(`${this.use_prefix} ERROR`, colors.BgRed + colors.FgWhite)} 😐 Bruh...\n\n${msg}`)
+        console.log(`${LogHandler.prefix(`${this.use_prefix} ERROR`, colors.BgRed + colors.FgWhite)} ${msg}`)
         if (args)
             console.log(...args, '\n')
 

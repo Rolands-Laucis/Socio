@@ -12,6 +12,7 @@ type HookObj = {
     params: object | null,
     rate_limiter: RateLimiter | null
 }
+type Perms = { [key: string]: string[]; };
 
 //NB! some fields in these variables are private for safety reasons, but also bcs u shouldnt be altering them, only if through my defined ways. They are mostly expected to be constants.
 //whereas public variables are free for you to alter freely at any time during runtime.
@@ -22,7 +23,7 @@ export class SocioSession extends LogHandler {
     #ws: WebSocket;
     #hooks: { [id: id]: HookObj ; } = {}//msg_id:[{table_name, sql, params}]
     #authenticated = false //usually boolean, but can be any truthy or falsy value to show the state of the session. Can be a token or smth for your own use, bcs the client will only receive a boolean
-    #perms: { [key: string]: string[]; } = {} //verb:[tables strings] keeps a dict of access permissions of verb type and to which tables this session has been granted
+    #perms: Perms  = {} //verb:[tables strings] keeps a dict of access permissions of verb type and to which tables this session has been granted
     #destroyed:number = 0;
 
     //public:
@@ -46,6 +47,7 @@ export class SocioSession extends LogHandler {
     }
 
     get id(): string { return this.#ws['socio_client_id'] }
+    set id(new_id:string) { this.#ws['socio_client_id'] = new_id }
     get ipAddr(): string { return this.#ws['socio_client_ipAddr'] }
 
     //accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
@@ -62,7 +64,6 @@ export class SocioSession extends LogHandler {
         if (!(id in this.#hooks))
             this.#hooks[id] = { tables, sql, params, rate_limiter: rate_limit ? new RateLimiter(rate_limit) : null };
         else throw new E('MSG ID already registered as hook!', tables, id, sql, params);
-        // this.HandleInfo('registered hook', id, sql);
     }
     UnRegisterHook(id: id) {
         if (!id || !(id in this.#hooks)) return false; //check if it exists
@@ -78,7 +79,7 @@ export class SocioSession extends LogHandler {
     }
 
     get authenticated() { return this.#authenticated }
-    async Authenticate(auth_func:Function, ...params) { //auth func can return any truthy or falsy value, the client will only receive a boolean, so its safe to set it to some credential or id or smth, as this would be accessible and useful to you when checking the session access to tables
+    async Authenticate(auth_func:Function, ...params:any[]) { //auth func can return any truthy or falsy value, the client will only receive a boolean, so its safe to set it to some credential or id or smth, as this would be accessible and useful to you when checking the session access to tables
         const auth:boolean = await auth_func(...params)
         this.#authenticated = auth
         return auth
@@ -108,5 +109,14 @@ export class SocioSession extends LogHandler {
     Restore(){
         if(this.#destroyed) clearTimeout(this.#destroyed);
         this.#destroyed = 0;
+    }
+
+    ClearHooks(){this.#hooks = {};}
+    CopySessionFrom(old_client:SocioSession){
+        this.#authenticated = old_client.#authenticated;
+        this.#perms = old_client.#perms;
+        this.#ws['socio_client_ipAddr'] = old_client.ipAddr;
+        this.verbose = old_client.verbose;
+        this.last_seen = old_client.last_seen;
     }
 }

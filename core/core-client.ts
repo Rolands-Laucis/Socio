@@ -11,6 +11,7 @@ type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?
 type QueryObject = { sql: string, params?: object | null, onUpdate: SubscribeCallbackObject }
 
 type PropUpdateCallback = ((new_val: PropValue) => void) | null;
+type SocioClientOptions = { name?: string, verbose?: boolean, keep_alive?: boolean, reconnect_tries?: number, persistent?:boolean };
 
 //"Because he not only wants to perform well, he wants to be well received  —  and the latter lies outside his control." /Epictetus/
 export class SocioClient extends LogHandler {
@@ -23,7 +24,6 @@ export class SocioClient extends LogHandler {
 
     #queries: { [id: id]: QueryObject | Function } = {}; //keeps a dict of all subscribed queries
     #props: { [prop_key: PropKey]: { [id: id]: PropUpdateCallback } } = {};
-    #perms: { [verb: string]: string[]} = {}; //verb:[tables strings] keeps a dict of access permissions of verb type and to which tables this session has been granted. This is not safe, the backend does its own checks anyway.
 
     static #key = 1 //all instances will share this number, such that they are always kept unique. Tho each of these clients would make a different session on the backend, but still
 
@@ -32,10 +32,11 @@ export class SocioClient extends LogHandler {
     verbose:boolean;
     key_generator: (() => number | string) | undefined;
     lifecycle_hooks: { [key: string]: Function | null; } = { discon:null, msg:null, cmd:null};
+    persistent:boolean=false;
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
 
-    constructor(url: string, { name = '', verbose = false, keep_alive = true, reconnect_tries = 1 }: { name?: string, verbose?: boolean, keep_alive?: boolean, reconnect_tries?:number} = {}) {
+    constructor(url: string, { name = 'Main', verbose = false, keep_alive = true, reconnect_tries = 1, persistent=false }: SocioClientOptions = {}) {
         super({ verbose, prefix: 'SocioClient' });
 
         if (window || undefined && url.startsWith('ws://'))
@@ -44,12 +45,13 @@ export class SocioClient extends LogHandler {
         //public:
         this.name = name
         this.verbose = verbose //It is recommended to turn off verbose in prod.
+        this.persistent = persistent;
         
         this.#latency = (new Date()).getTime();
-        this.#connect(url, keep_alive, verbose, reconnect_tries)
+        this.#connect(url, keep_alive, verbose, reconnect_tries);
     }
 
-    #connect(url: string, keep_alive: boolean, verbose: boolean, reconnect_tries:number){
+    async #connect(url: string, keep_alive: boolean, verbose: boolean, reconnect_tries:number){
         this.#ws = new WebSocket(url)
         if (keep_alive && reconnect_tries)
             this.#ws.addEventListener("close", () => {
@@ -61,7 +63,7 @@ export class SocioClient extends LogHandler {
                 if (this.lifecycle_hooks.discon)//discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
                     this.lifecycle_hooks.discon(this.name, this.#client_id, url, keep_alive, verbose, reconnect_tries - 1); //here you can await ready() and reauth and regain all needed perms
             });
-        
+
         this.#ws.addEventListener('message', this.#message.bind(this));
     }
     #resetConn() {
@@ -72,10 +74,9 @@ export class SocioClient extends LogHandler {
         this.#authenticated = false;
         this.#queries = {};
         this.#props = {};
-        this.#perms = {};
     }
 
-    #message(event: MessageEvent) {
+    async #message(event: MessageEvent) {
         try{
             const { kind, data }: { kind: ClientMessageKind; data: MessageDataObj } = JSON.parse(event.data)
             this.HandleInfo('recv:', kind, data)
@@ -89,6 +90,13 @@ export class SocioClient extends LogHandler {
                 case 'CON':
                     //@ts-ignore
                     this.#client_id = data;//should just be a string
+                    this.#latency = (new Date()).getTime() - this.#latency;
+
+                    if (this.persistent) {
+                        await this.#TryReconnect(); //try to reconnect with existing token in local storage
+                        await this.#GetReconToken(); //get new recon token and push to local storage
+                    }
+
                     if (this.#is_ready !== false && typeof this.#is_ready === "function")
                         this.#is_ready(true); //resolve promise to true
                     else
@@ -96,7 +104,6 @@ export class SocioClient extends LogHandler {
                     if (this.verbose) done(`Socio WebSocket connected.`, this.name);
 
                     this.#is_ready = true;
-                    this.#latency = (new Date()).getTime() - this.#latency;
                     break;
                 case 'UPD':
                     this.#FindID(kind, data?.id);
@@ -117,15 +124,8 @@ export class SocioClient extends LogHandler {
                     break;
                 case 'GET_PERM':
                     this.#FindID(kind, data?.id)
-                    if (data?.result !== true) {
-                        this.HandleInfo(`PERM returned FALSE, which means websocket has not been granted perm for ${data?.verb} on ${data?.table}.`);
-                    } else {//add to perms
-                        if ((data?.verb as string) in this.#perms) {
-                            if (!this.#perms[(data?.verb as string)].includes((data?.table as string)))
-                                this.#perms[(data?.verb as string)].push((data?.table as string));
-                        }
-                        else this.#perms[(data?.verb as string)] = [(data?.table as string)];
-                    }
+                    if (data?.result !== true) 
+                        this.HandleInfo(`Server rejected grant perm for ${data?.verb} on ${data?.table}.`);
 
                     (this.#queries[data.id] as Function)(data?.result === true); //result should be either True or False to indicate success status
                     delete this.#queries[data.id] //clear memory
@@ -146,8 +146,16 @@ export class SocioClient extends LogHandler {
                 case 'CMD': if(this.lifecycle_hooks?.cmd) this.lifecycle_hooks.cmd(data?.data); break; //the server pushed some data to this client, let the dev handle it
                 case 'ERR'://when using this, make sure that the setup query is a promise func. The result field is used as a cause of error msg on the backend
                     this.#FindID(kind, data?.id);
-                    (this.#queries[data.id] as Function)(null);
-                    throw new E(`Request to DB returned ERROR response for query id, reason #[err-msg]`, data.id, data?.result);
+                    if (typeof this.#queries[data.id] == 'function')
+                        (this.#queries[data.id] as Function)(null);
+                    
+                    throw new E(`Request to Server returned ERROR response for query id, reason #[err-msg-kind]`, data.id, data?.result);
+                case 'RECON': 
+                    this.#FindID(kind, data?.id);
+                    //@ts-expect-error
+                    this.#queries[data.id](data);
+                    delete this.#queries[data.id]; //clear memory
+                break;
                 // case '': break;
                 default: throw new E(`Unrecognized message kind!`, kind, data);
             }
@@ -317,19 +325,15 @@ export class SocioClient extends LogHandler {
     }
     get authenticated() { return this.#authenticated === true }
     askPermission(verb='', table='') {//ask the backend for a permission on a table with the SQL verb u want to perform on it, i.e. SELECT, INSERT etc.
-        //if the perm already exists, lets not bother the poor server :)
-        if (verb in this.#perms && this.#perms[verb].includes(table)) 
-            return true
-
         //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
         const id = this.#GenKey;
         const prom = new Promise((res) => {
             this.#queries[id] = res
-        })
+        });
         this.#Send('GET_PERM', { id: id, verb:verb, table:table })
         return prom
     }
-    hasPermFor(verb = '', table = ''){ return verb in this.#perms && this.#perms[verb].includes(table)}
+    // hasPermFor(verb = '', table = ''){ this.HandleError('TODO')}
     
     //generates a unique key either via static counter or user provided key gen func
     get #GenKey(): id {
@@ -343,7 +347,7 @@ export class SocioClient extends LogHandler {
     //checks if the ID of a query exists (i.e. has been registered), otherwise rejects and logs
     #FindID(kind: string, id: id) {
         if (!(id in this.#queries))
-            throw new E(`${kind} message for unregistered SQL query! msg_id -`, id)
+            throw new E(`${kind} message for unregistered SQL query! msg_id -`, id, Object.keys(this.#queries))
     }
     #HandleBasicPromiseMessage(kind:string, data:MessageDataObj){
         this.#FindID(kind, data?.id);
@@ -355,4 +359,49 @@ export class SocioClient extends LogHandler {
     get client_id(){return this.#client_id}
     get latency() { return this.#latency } //shows the latency in ms of the initial connection handshake to determine network speed for this session. Might be useful to inform the user, if its slow.
     ready(): Promise<boolean> { return this.#is_ready === true ? (new Promise(res => res(true))) : (new Promise(res => this.#is_ready = res)) }
+
+    async #GetReconToken(name:string = this.name){
+        try {
+            const id = this.#GenKey;
+            const prom = new Promise((res) => {
+                this.#queries[id] = res;
+            });
+
+            //ask the server for a one-time auth token
+            this.#Send('RECON', { id: id, data: { type: 'GET' } });
+            const token = await prom as string; //await the token
+
+            //save down the token. Name is used to map new instance to old instance by same name.
+            localStorage.setItem(`Socio_recon_token_${name}`, token); //https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage localstorage is origin locked, so should be safe to store this here
+        } catch (e: err) { this.HandleError(e); }
+    }
+
+    async #TryReconnect(name: string = this.name){
+        const key = `Socio_recon_token_${name}`
+        const token = localStorage.getItem(key);
+
+        if (token){
+            localStorage.removeItem(key); //one-time use
+
+            const id = this.#GenKey;
+            const prom = new Promise((res) => {
+                this.#queries[id] = res
+            });
+
+            //ask the server for a reconnection to an old session via our one-time token
+            this.#Send('RECON', { id: id, data: { type: 'POST', token } });
+            const res = await prom;
+
+            //@ts-ignore
+            if(res?.status){
+                //@ts-ignore
+                this.#authenticated = res?.result?.auth;
+
+                //@ts-ignore
+                this.HandleInfo(`${this.name} reconnected successfully. ${res?.result?.old_client_id} -> ${this.#client_id} (old client ID -> new/current client ID)`)
+            }
+            else
+                this.HandleError(new E('Failed to reconnect', res));
+        }
+    }
 }
