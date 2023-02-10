@@ -78,11 +78,9 @@ HTTP has well established session patterns using cookies. WebSockets do not. The
 
 I cannot guarantee perfect safety of the query encryption. Neither can anyone, though. And neither can traditional HTTP backends. Every year new scientific papers come out breaking previously thought "unbreakable, future-proof" cryptographic algorithms. You may use SocioServer hooks to double check the incoming data yourself for your peace of mind.
 
-Page navigations, reloads, new tabs would all destroy any running JS on the client-side, ergo the SocioClient instance as well. You'd have to reauth and reestablish table permissions on each such event on the new instance. As well as, if the WebSocket disconnects by itself for some reason. However, using client-side routers (that popular frameworks use) would preserve the running JS and thus the instance. In addition, I am working on a automatic, general solution. Otherwise, for now you may keep the login details using browsers SessionStorage API (if that is safe) and reauth.
+The SocioSecurity Vite plugin searches many types of frontend script file extensions and will encrypt any string that ends with --socio[-args]. Careful.
 
-The SocioSecurity Vite plugin searches many types of frontend script file extensions and will encrypt any string that ends with --socio[-args].
-
-You should be using WSS:// and HTTPS:// protocols for everything, so that the data secure over the network. But thats easier said than done.
+You should be using WSS:// and HTTPS:// protocols for everything, so that the data is secure over the network. But thats easier said than done.
 
 ## Contributing 🥰
 As this is an open source project that i spend my free time on, perhaps someone else would like to help with various things:

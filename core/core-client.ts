@@ -40,7 +40,7 @@ export class SocioClient extends LogHandler {
         super({ verbose, prefix: 'SocioClient' });
 
         if (window || undefined && url.startsWith('ws://'))
-            info('UNSECURE WEBSOCKET URL CONNECTION! Please use wss:// and https:// protocols in production to protect against man-in-the-middle attacks.')
+            this.info('UNSECURE WEBSOCKET URL CONNECTION! Please use wss:// and https:// protocols in production to protect against man-in-the-middle attacks.')
 
         //public:
         this.name = name
@@ -101,7 +101,7 @@ export class SocioClient extends LogHandler {
                         this.#is_ready(true); //resolve promise to true
                     else
                         this.#is_ready = true;
-                    if (this.verbose) done(`Socio WebSocket connected.`, this.name);
+                    if (this.verbose) this.done(`Socio WebSocket connected.`, this.name);
 
                     this.#is_ready = true;
                     break;
@@ -184,7 +184,7 @@ export class SocioClient extends LogHandler {
             const callbacks: SubscribeCallbackObject = { success: onUpdate, ...status_callbacks };
 
             this.#queries[id] = { sql, params, onUpdate: callbacks }
-            this.#Send('REG', { id, sql, params, rate_limit })
+            this.#Send('SUB', { id, sql, params, rate_limit })
 
             return id //the ID of the query
         } catch (e: err) { this.HandleError(e); return null; }
@@ -200,7 +200,7 @@ export class SocioClient extends LogHandler {
                 this.#props[prop_name][id] = onUpdate;
             else {//init the prop object
                 this.#props[prop_name] = { [id]: onUpdate };
-                this.#Send('PROP_REG', { id, prop: prop_name, rate_limit })
+                this.#Send('PROP_SUB', { id, prop: prop_name, rate_limit })
             }
         } catch (e: err) { this.HandleError(e); }
     }
@@ -215,7 +215,7 @@ export class SocioClient extends LogHandler {
                 const prom = new Promise((res) => {
                     this.#queries[msg_id] = res
                 })
-                this.#Send('UNREG', { id: msg_id, unreg_id:id })
+                this.#Send('UNSUB', { id: msg_id, unreg_id:id })
 
                 const res = await prom; //await the response from backend
                 if(res === true)//if successful, then remove the subscribe from the client
@@ -237,7 +237,7 @@ export class SocioClient extends LogHandler {
                 const prom = new Promise((res) => {
                     this.#queries[msg_id] = res
                 })
-                this.#Send('PROP_UNREG', { id: msg_id, prop: prop_name })
+                this.#Send('PROP_UNSUB', { id: msg_id, prop: prop_name })
 
                 const res = await prom; //await the response from backend
                 if (res === true)//if successful, then remove the subscribe from the client
@@ -401,7 +401,7 @@ export class SocioClient extends LogHandler {
                 this.done(`${this.name} reconnected successfully. ${res?.result?.old_client_id} -> ${this.#client_id} (old client ID -> new/current client ID)`)
             }
             else
-                this.soft_error(new E('Failed to reconnect', res));
+                this.HandleError(new E('Failed to reconnect', res));
         }
     }
 }

@@ -99,7 +99,7 @@ export class LogHandler {
         if (args)
             console.log(...args, '\n')
 
-        throw new Error(msg)
+        // throw new Error(msg)
     }
     soft_error(msg: any, ...args: any[]) {
         console.log(`${LogHandler.prefix(`${this.use_prefix} ERROR`, colors.BgRed + colors.FgWhite)} ${msg}`)

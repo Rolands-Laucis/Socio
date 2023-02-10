@@ -243,3 +243,24 @@ socserv.RegisterLifecycleHookHandler('admin', (client:SocioSession, data:any) =>
 ```
 
 The neat thing is that, this mechanism just uses WebSockets, so you can implement your own admin client in any language, even from a remote computer and even on the browser! Imagine how simple it would be to create an admin dashboard with this! Just look at the wrapper code, and it should be clear how to make your own. Its not that long.
+
+### Client page navigation persistance (reconnect/keep alive)
+
+Since page navigation/reload unloads the entire document from memory and a new document is loaded in place, all client websocket sessions get wiped as well. This would mean re-authenticating and regaining all perms every reload. No good. Setting the ``persistent`` flag on SocioClient construction will automagically setup a mechanism that keeps the session data between page reloads. Though not between multiple tabs.
+
+```ts
+//browser code - can be inside just a js script that gets loaded with a script tag or in components of whatever framework.
+import {SocioClient} from 'socio/dist/core-client.js'
+const sc = new SocioClient(`ws://localhost:3000`, { 
+  verbose: true,
+  name: "Main", //Usually doesn't matter, but for persistent = true, this must be identical on the old page socket and new page socket. This is used as a unique key.
+  persistent:true //enables a mechanism that upon the new connection to the server, gives the server a special one-time token that gives this connection a previous sessions setup, i.e. auth and perms
+});
+```
+
+Note that the ``name`` must be set on the old and new instance and they must be identical, so that socio knows which 2 sessions are attempting to reconnect.
+After the reconnection attempt, the client asks for a new future use token to be used after the next reload. And so the cycle goes. Tokens are encrypted; stored via the Local Storage API (which is domain scoped); are one-time use, even if that use was faulty; have an expiration ttl (1h default); check change in IP; and other safety meassures.
+
+This is also not needed if your framework implements CSR (client-side routing), whereby the page doesnt actually navigate or reload, but just looks like it does.
+
+This also has better safety than traditional HTTP(S) session cookies. https://en.wikipedia.org/wiki/Session_hijacking

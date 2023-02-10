@@ -195,7 +195,7 @@ export class SocioServer extends LogHandler {
                     return;
 
             switch (kind) {
-                case 'REG':                    
+                case 'SUB':                    
                     if (QueryIsSelect(data.sql || '')) {
                         //set up hook
                         const tables = ParseQueryTables(data.sql || '')
@@ -216,7 +216,7 @@ export class SocioServer extends LogHandler {
                         })
 
                     break;
-                case 'UNREG':
+                case 'UNSUB':
                     const res_1 = client.UnRegisterHook(data.unreg_id || '');
                     client.Send('RES', { id: data.id, result: res_1 === true })
                     break;
@@ -260,7 +260,7 @@ export class SocioServer extends LogHandler {
                         client.Send('GET_PERM', { id: data.id, result: false })
                     }
                     break;
-                case 'PROP_REG':
+                case 'PROP_SUB':
                     this.#CheckPropExists(data?.prop, client, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
                     //set up hook
                     this.#props[data.prop as PropKey].updates[client_id] = { id: data.id as id, rate_limiter: data?.rate_limit ? new RateLimiter(data.rate_limit) : null}
@@ -272,7 +272,7 @@ export class SocioServer extends LogHandler {
                         result: this.GetPropVal(data.prop as PropKey)
                     })
                     break;
-                case 'PROP_UNREG':
+                case 'PROP_UNSUB':
                     this.#CheckPropExists(data?.prop, client, data?.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
                     //remove hook
                     try{
