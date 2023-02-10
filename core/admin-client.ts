@@ -83,4 +83,6 @@ export class AdminClient extends LogHandler{
     }
 
     ready(): Promise<boolean> { return this.#is_ready === true ? (new Promise(res => res(true))) : (new Promise(res => this.#is_ready = res)) }
+
+    Close(){this.#ws.close();}
 }

@@ -322,7 +322,7 @@ export class SocioServer extends LogHandler {
                 case 'ADMIN':
                     if(this.#lifecycle_hooks.admin)
                         if (this.#lifecycle_hooks.admin(client, data)) //you get the client, which has its ID, ipAddr and last_seen fields, that can be used to verify access. Also data should contain some secret key, but thats up to you
-                            client.Send('RES', await this.#Admin(((data as unknown) as AdminMessageDataObj)?.function, ((data as unknown) as AdminMessageDataObj)?.args));
+                            client.Send('RES', { id: data?.id, result: await this.#Admin(((data as unknown) as AdminMessageDataObj)?.function, ((data as unknown) as AdminMessageDataObj)?.args) });
                         else throw new E('A non Admin send an Admin message, but was not executed.', kind, data, client_id);
                     break;
                 case 'RECON': //client attempts to reconnect to its previous session
