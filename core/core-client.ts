@@ -398,10 +398,10 @@ export class SocioClient extends LogHandler {
                 this.#authenticated = res?.result?.auth;
 
                 //@ts-ignore
-                this.HandleInfo(`${this.name} reconnected successfully. ${res?.result?.old_client_id} -> ${this.#client_id} (old client ID -> new/current client ID)`)
+                this.done(`${this.name} reconnected successfully. ${res?.result?.old_client_id} -> ${this.#client_id} (old client ID -> new/current client ID)`)
             }
             else
-                this.HandleError(new E('Failed to reconnect', res));
+                this.soft_error(new E('Failed to reconnect', res));
         }
     }
 }

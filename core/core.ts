@@ -23,7 +23,7 @@ export type MessageDataObj = { id?: id, sql?: string, params?: object | null, ve
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
 export type QueryFunction = (obj: QueryFuncParams | MessageDataObj) => Promise<object>;
 type QueryObject = { id: id, params: object | null, session: SocioSession }; //for grouping hooks
-type SocioServerOptions = { DB_query_function?: QueryFunction, socio_security?: SocioSecurity | null, verbose?: boolean, decrypt_sql?: boolean, decrypt_prop?: boolean, hard_crash?: boolean, reconnect_ttl_ms?: number }
+type SocioServerOptions = { DB_query_function?: QueryFunction, socio_security?: SocioSecurity | null, verbose?: boolean, decrypt_sql?: boolean, decrypt_prop?: boolean, hard_crash?: boolean, session_delete_delay_ms?: number, recon_ttl_ms?:number }
 type AdminMessageDataObj = {function:string, args?:any[], secure_key:string}
 
 export class SocioServer extends LogHandler {
@@ -53,9 +53,10 @@ export class SocioServer extends LogHandler {
 
     //public:
     Query: QueryFunction; //you can change this at any time
-    reconnect_ttl_ms:number;
+    session_delete_delay_ms:number;
+    recon_ttl_ms:number;
 
-    constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, decrypt_sql = true, decrypt_prop = false, verbose = true, hard_crash = false, reconnect_ttl_ms = 1000*5 }: SocioServerOptions){
+    constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, decrypt_sql = true, decrypt_prop = false, verbose = true, hard_crash = false, session_delete_delay_ms = 1000 * 5, recon_ttl_ms=1000*5 }: SocioServerOptions){
         super({ verbose, hard_crash, prefix:'SocioServer'});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
         //hard_crash will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
@@ -68,7 +69,8 @@ export class SocioServer extends LogHandler {
         //public:
         //@ts-ignore
         this.Query = DB_query_function || (() => {})
-        this.reconnect_ttl_ms = reconnect_ttl_ms;
+        this.session_delete_delay_ms = session_delete_delay_ms;
+        this.recon_ttl_ms = recon_ttl_ms;
 
         this.#wss.on('connection', this.#Connect.bind(this)); //https://thenewstack.io/mastering-javascript-callbacks-bind-apply-call/ have to bind 'this' to the function, otherwise it will use the .on()'s 'this', so that this.[prop] are not undefined
         this.#wss.on('close', (...stuff) => { this.HandleInfo('WebSocketServer close event', ...stuff) });
@@ -128,7 +130,7 @@ export class SocioServer extends LogHandler {
                     //delete the connection object and the subscriptions of this client
                     delete this.#sessions[client_id];
                     this.HandleInfo('Session Destroyed', client_id);
-                }, this.reconnect_ttl_ms);
+                }, this.session_delete_delay_ms);
 
                 this.HandleInfo('DISCON', client_id);
             });
@@ -331,54 +333,62 @@ export class SocioServer extends LogHandler {
 
                     if (data?.data?.type == 'GET'){
                         //@ts-expect-error
-                        const token = this.#secure.socio_security.EncryptString([client.ipAddr, client.id, (new Date()).toISOString()].join(' ')); //creates string in the format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where encrypted_text_base64 is a token of format "[ip] [client_id]"
+                        const token = this.#secure.socio_security.EncryptString([client.ipAddr, client.id, (new Date()).getTime()].join(' ')); //creates string in the format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where encrypted_text_base64 is a token of format "[ip] [client_id] [ms_since_epoch]"
                         this.#tokens.add(token);
                         client.Send('RES', { id: data.id, result: token }); //send the token to the client for one-time use to reconnect to their established client session
                     }
                     else if (data?.data?.type == 'POST'){
-                        if (data?.data?.token && this.#tokens.has(data.data.token)){
-                            this.#tokens.delete(data.data.token); //single use token
+                        //check for valid token to begin with
+                        if (!data?.data?.token || !this.#tokens.has(data.data.token)) {
+                            client.Send('RECON', { id: data.id, result: 'Invalid token', status: 0 });
+                            return;
+                        }
+                        this.#tokens.delete(data.data.token); //single use token, so delete
 
-                            let [iv, token, auth_tag] = data.data.token.split(' '); //split the format into parts
+                        let [iv, token, auth_tag] = data.data.token.split(' '); //split the format into encryption parts
+                        try {
                             if (iv && token && auth_tag)
                                 token = this.#secure.socio_security?.DecryptString(iv, token, auth_tag); //decrypt the payload
                             else
                                 client.Send('RECON', { id: data.id, result: 'Invalid token', status: 0 });
-
-                            const new_client_id = client.id;
-                            const [ip, old_c_id, date] = token.split(' '); //old_c_id is the old connection that was closed on DISCON
-                            
-
-                            if(client.ipAddr == ip){
-                                if (old_c_id in this.#sessions){
-                                    const old_client = this.#sessions[old_c_id];
-
-                                    old_client.Restore();//stop the old session deletion, since a reconnect was actually attempted
-                                    client.CopySessionFrom(old_client);
-
-                                    //clear the subscriptions on the sockets, since the new instance will define new ones on the new page. Also to avoid ID conflicts
-                                    this.#ClearClientSessionSubs(old_c_id);
-                                    this.#ClearClientSessionSubs(new_client_id);
-
-                                    //delete old session for good
-                                    old_client.Destroy(() => {
-                                        delete this.#sessions[old_c_id];
-                                    }, this.reconnect_ttl_ms);
-
-                                    //notify the client 
-                                    client.Send('RECON', { id: data.id, result: { old_client_id: old_c_id, auth: client.authenticated}, status: 1 });
-                                    this.HandleInfo(`RECON ${old_c_id} -> ${new_client_id} (old client ID -> new/current client ID)`);
-                                }
-                                else
-                                    client.Send('RECON', { id: data.id, result: 'Old session ID was not found', status: 0 });
-                            }
-                            else
-                                client.Send('RECON', { id: data.id, result: 'IP address changed between reconnect', status:0 });
-                        }
-                        else
+                        } catch (e: err) {
                             client.Send('RECON', { id: data.id, result: 'Invalid token', status: 0 });
-                    }
+                            return;
+                        }
 
+                        const [ip, old_c_id, time_stamp] = token.split(' '); //decrypted payload parts
+                        //safety check race conditions
+                        if (client.ipAddr !== ip) {
+                            client.Send('RECON', { id: data.id, result: 'IP address changed between reconnect', status: 0 });
+                            return;
+                        }
+                        else if ((new Date()).getTime() - time_stamp > this.recon_ttl_ms){
+                            client.Send('RECON', { id: data.id, result: 'Token has expired', status: 0 });
+                            return;
+                        }
+                        else if (!(old_c_id in this.#sessions)) {
+                            client.Send('RECON', { id: data.id, result: 'Old session ID was not found', status: 0 });
+                            return;
+                        }
+
+                        //recon procedure
+                        const old_client = this.#sessions[old_c_id];
+                        old_client.Restore();//stop the old session deletion, since a reconnect was actually attempted
+                        client.CopySessionFrom(old_client);
+
+                        //clear the subscriptions on the sockets, since the new instance will define new ones on the new page. Also to avoid ID conflicts
+                        this.#ClearClientSessionSubs(old_c_id);
+                        this.#ClearClientSessionSubs(client.id);
+
+                        //delete old session for good
+                        old_client.Destroy(() => {
+                            delete this.#sessions[old_c_id];
+                        }, this.session_delete_delay_ms);
+
+                        //notify the client 
+                        client.Send('RECON', { id: data.id, result: { old_client_id: old_c_id, auth: client.authenticated }, status: 1 });
+                        this.HandleInfo(`RECON ${old_c_id} -> ${client.id} (old client ID -> new/current client ID)`);
+                    }
                     break;
                     // case '': break;
                 default: throw new E(`Unrecognized message kind! [#unknown-msg-kind]`, kind, data);
