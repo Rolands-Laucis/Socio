@@ -11,7 +11,7 @@ type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?
 type QueryObject = { sql: string, params?: object | null, onUpdate: SubscribeCallbackObject }
 
 type PropUpdateCallback = ((new_val: PropValue) => void) | null;
-type SocioClientOptions = { name?: string, verbose?: boolean, keep_alive?: boolean, reconnect_tries?: number, persistent?:boolean };
+export type SocioClientOptions = { name?: string, verbose?: boolean, keep_alive?: boolean, reconnect_tries?: number, persistent?:boolean };
 
 //"Because he not only wants to perform well, he wants to be well received  —  and the latter lies outside his control." /Epictetus/
 export class SocioClient extends LogHandler {
@@ -162,11 +162,18 @@ export class SocioClient extends LogHandler {
         } catch (e:err) { this.HandleError(e) }
     }
 
-    //private method - accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
-    #Send(kind: CoreMessageKind, ...data){ //data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
+    //accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
+    Send(kind: CoreMessageKind, ...data){ //data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
         if(data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, ...data) //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
         this.#ws?.send(JSON.stringify(Object.assign({}, { kind, data:data[0] }, ...data.slice(1))))
         this.HandleInfo('sent:', kind, data)
+    }
+    CreateQueryPromise(){
+        const id = this.GenKey;
+        const prom = new Promise((res) => {
+            this.#queries[id] = res
+        });
+        return {id, prom};
     }
 
     //subscribe to an sql query. Can add multiple callbacks where ever in your code, if their sql queries are identical
@@ -180,11 +187,11 @@ export class SocioClient extends LogHandler {
         if (typeof onUpdate !== "function") throw new E('Subscription onUpdate is not function, but has to be.');
         if (status_callbacks?.error && typeof status_callbacks.error !== "function") throw new E('Subscription error is not function, but has to be.');
         try {
-            const id = this.#GenKey
+            const id = this.GenKey
             const callbacks: SubscribeCallbackObject = { success: onUpdate, ...status_callbacks };
 
             this.#queries[id] = { sql, params, onUpdate: callbacks }
-            this.#Send('SUB', { id, sql, params, rate_limit })
+            this.Send('SUB', { id, sql, params, rate_limit })
 
             return id //the ID of the query
         } catch (e: err) { this.HandleError(e); return null; }
@@ -194,13 +201,13 @@ export class SocioClient extends LogHandler {
 
         if (typeof onUpdate !== "function") throw new E('Subscription onUpdate is not function, but has to be.');
         try {
-            const id = this.#GenKey
+            const id = this.GenKey
 
             if (prop_name in this.#props)//add the callback
                 this.#props[prop_name][id] = onUpdate;
             else {//init the prop object
                 this.#props[prop_name] = { [id]: onUpdate };
-                this.#Send('PROP_SUB', { id, prop: prop_name, rate_limit })
+                this.Send('PROP_SUB', { id, prop: prop_name, rate_limit })
             }
         } catch (e: err) { this.HandleError(e); }
     }
@@ -211,11 +218,11 @@ export class SocioClient extends LogHandler {
                     delete this.#queries[id];
                 
                 //set up new msg to the backend informing a wish to unregister query.
-                const msg_id = this.#GenKey;
+                const msg_id = this.GenKey;
                 const prom = new Promise((res) => {
                     this.#queries[msg_id] = res
                 })
-                this.#Send('UNSUB', { id: msg_id, unreg_id:id })
+                this.Send('UNSUB', { id: msg_id, unreg_id:id })
 
                 const res = await prom; //await the response from backend
                 if(res === true)//if successful, then remove the subscribe from the client
@@ -233,11 +240,11 @@ export class SocioClient extends LogHandler {
                     delete this.#props[prop_name];
 
                 //set up new msg to the backend informing a wish to unregister query.
-                const msg_id = this.#GenKey;
+                const msg_id = this.GenKey;
                 const prom = new Promise((res) => {
                     this.#queries[msg_id] = res
                 })
-                this.#Send('PROP_UNSUB', { id: msg_id, prop: prop_name })
+                this.Send('PROP_UNSUB', { id: msg_id, prop: prop_name })
 
                 const res = await prom; //await the response from backend
                 if (res === true)//if successful, then remove the subscribe from the client
@@ -258,13 +265,10 @@ export class SocioClient extends LogHandler {
     query(sql: string, params: object | null = null){
         try{
             //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
-            const id = this.#GenKey;
-            const prom = new Promise((res) => {
-                this.#queries[id] = res
-            })
+            const { id, prom } = this.CreateQueryPromise();
 
             //send off the request, which will be resolved in the message handler
-            this.#Send('SQL', { id: id, sql: sql, params: params });
+            this.Send('SQL', { id: id, sql: sql, params: params });
             return prom;
         } catch (e: err) { this.HandleError(e); return null; }
     }
@@ -275,68 +279,55 @@ export class SocioClient extends LogHandler {
                 throw new E('Prop must be first subscribed to set its value!', prop);
 
             //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
-            const id = this.#GenKey;
-            const prom = new Promise((res) => {
-                this.#queries[id] = res
-            });
+            const { id, prom } = this.CreateQueryPromise();
 
             //send off the request, which will be resolved in the message handler
-            this.#Send('PROP_SET', { id: id, prop: prop, prop_val:new_val });
+            this.Send('PROP_SET', { id: id, prop: prop, prop_val:new_val });
             return prom;
         } catch (e: err) { this.HandleError(e); return null; }
     }
     getProp(prop: PropKey) {
         //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
-        const id = this.#GenKey;
-        const prom = new Promise((res) => {
-            this.#queries[id] = res
-        });
+        const { id, prom } = this.CreateQueryPromise();
 
         //send off the request, which will be resolved in the message handler
-        this.#Send('PROP_GET', { id: id, prop: prop });
+        this.Send('PROP_GET', { id: id, prop: prop });
         return prom;
     }
     serv(data:object){
         try {
             //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
-            const id = this.#GenKey;
-            const prom = new Promise((res) => {
-                this.#queries[id] = res
-            })
+            const { id, prom } = this.CreateQueryPromise();
 
             //send off the request, which will be resolved in the message handler
-            this.#Send('SERV', { id: id, data })
+            this.Send('SERV', { id: id, data })
             return prom
         } catch (e: err) { this.HandleError(e); return null; }
     }
     //sends a ping with either the user provided number or an auto generated number, for keeping track of packets and debugging
     ping(num=0){
-        this.#Send('PING', { id: num || this.#GenKey })
+        this.Send('PING', { id: num || this.GenKey })
     }
 
     authenticate(params:object={}):Promise<boolean>{ //params here can be anything, like username and password stuff etc. The backend server auth function callback will receive this entire object
         //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
-        const id = this.#GenKey;
+        const id = this.GenKey;
         const prom: Promise<boolean> = new Promise((res) => {
             this.#queries[id] = res
         })
-        this.#Send('AUTH', { id: id, params: params })
+        this.Send('AUTH', { id: id, params: params })
         return prom;
     }
     get authenticated() { return this.#authenticated === true }
     askPermission(verb='', table='') {//ask the backend for a permission on a table with the SQL verb u want to perform on it, i.e. SELECT, INSERT etc.
-        //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
-        const id = this.#GenKey;
-        const prom = new Promise((res) => {
-            this.#queries[id] = res
-        });
-        this.#Send('GET_PERM', { id: id, verb:verb, table:table })
+        const { id, prom } = this.CreateQueryPromise();
+        this.Send('GET_PERM', { id: id, verb:verb, table:table })
         return prom
     }
     // hasPermFor(verb = '', table = ''){ this.HandleError('TODO')}
     
     //generates a unique key either via static counter or user provided key gen func
-    get #GenKey(): id {
+    get GenKey(): id {
         if (this?.key_generator)
             return this.key_generator()
         else{
@@ -359,16 +350,14 @@ export class SocioClient extends LogHandler {
     get client_id(){return this.#client_id}
     get latency() { return this.#latency } //shows the latency in ms of the initial connection handshake to determine network speed for this session. Might be useful to inform the user, if its slow.
     ready(): Promise<boolean> { return this.#is_ready === true ? (new Promise(res => res(true))) : (new Promise(res => this.#is_ready = res)) }
+    Close() { this.#ws?.close(); }
 
     async #GetReconToken(name:string = this.name){
         try {
-            const id = this.#GenKey;
-            const prom = new Promise((res) => {
-                this.#queries[id] = res;
-            });
+            const { id, prom } = this.CreateQueryPromise();
 
             //ask the server for a one-time auth token
-            this.#Send('RECON', { id: id, data: { type: 'GET' } });
+            this.Send('RECON', { id: id, data: { type: 'GET' } });
             const token = await prom as string; //await the token
 
             //save down the token. Name is used to map new instance to old instance by same name.
@@ -383,13 +372,10 @@ export class SocioClient extends LogHandler {
         if (token){
             localStorage.removeItem(key); //one-time use
 
-            const id = this.#GenKey;
-            const prom = new Promise((res) => {
-                this.#queries[id] = res
-            });
+            const { id, prom } = this.CreateQueryPromise();
 
             //ask the server for a reconnection to an old session via our one-time token
-            this.#Send('RECON', { id: id, data: { type: 'POST', token } });
+            this.Send('RECON', { id: id, data: { type: 'POST', token } });
             const res = await prom;
 
             //@ts-ignore
