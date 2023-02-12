@@ -219,11 +219,11 @@ This again leads to similar problems, but per query.
 Wouldnt it be nice to connect to the backend SocioServer and run instructions on there at runtime? Well you can, but the safety of that is completely in your hands. Opt-in mechanism.
 
 ```ts
-//some node.js script. This wrapper currently does not support browsers, but you can write your own that does with just a few lines changed!
-import {AdminClient} from 'socio/dist/admin-client.js'
+//some node.js script. The server-admin.js runs only on node, and doesn't inherit from SocioClient, whereas admin-client.js does and runs only on the browser.
+import {AdminClient} from 'socio/dist/admin-server.js'
 
-//AdminClient is just a convenient wrapper for the actual mechanism. 
-const ac = new AdminClient({url:"wss://localhost:3000", client_secret:'jh45kh345j34g53jh4g52hj3g542j3h2jh34g'}); //NOTE should always use wss instead of ws protocol for safety, but i dont yet have a way of checking that on the server.
+//AdminClient is just a convenient wrapper for the actual mechanism, which you can do yourself. 
+const ac = new AdminClient({url:"wss://localhost:3000", client_secret:'jh45kh345j34g53jh4g52hj3g542j3h2jh34g'}); //NOTE should always use WSS instead of ws protocol for safety, but i dont yet have a way of checking that on the server.
 await ac.ready();
 const res = await ac.Run('GetPropVal', 'color') //will call SocioServer.GetPropVal('color') and return the call return value. The name of the function and infinite args to pass to it.
 ```
