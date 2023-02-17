@@ -221,16 +221,13 @@ export class SocioServer extends LogHandler {
                     client.Send('RES', { id: data.id, result: res_1 === true })
                     break;
                 case 'SQL':
-                    const is_select = QueryIsSelect(data.sql || '')
-
                     //have to do the query in every case
-                    const res = this.Query(data)
-                    if (is_select) //wait for result, if a result is expected, and send it back
-                        client.Send('RES', { id: data.id, result: await res })
+                    const res = this.Query(data);
+                    client.Send('RES', { id: data.id, result: await res }); //wait for result and send it back
 
                     //if the sql wasnt a SELECT, but altered some resource, then need to propogate that to other connection hooks
-                    if (!is_select)
-                        this.Update(ParseQueryTables(data?.sql || ''))
+                    if (!QueryIsSelect(data.sql || ''))
+                        this.Update(ParseQueryTables(data?.sql || ''));
                     
                     break;
                 case 'PING': 
