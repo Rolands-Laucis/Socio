@@ -40,7 +40,7 @@ export class SocioServer extends LogHandler {
     //rate limits server functions globally
     #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
 
-    #lifecycle_hooks: { [key: string]: Function | null; } = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null, serv:null, admin:null } //call the register function to hook on these. They will be called if they exist
+    #lifecycle_hooks: { [key: string]: Function | null; } = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null, serv:null, admin:null, blob:null } //call the register function to hook on these. They will be called if they exist
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //msg hook receives all incomming msgs to the server. 
     //upd works the same as msg, but for everytime updates need to be propogated to all the sockets.
@@ -82,7 +82,7 @@ export class SocioServer extends LogHandler {
         //     this.HandleInfo('WARNING! Your server is using an unsecure WebSocket protocol, setup wss:// instead, when you can!');
     }
 
-    #Connect(conn: WebSocket, request: IncomingMessage){
+    async #Connect(conn: WebSocket, request: IncomingMessage){
         try{
             //construct the new session with a unique client ID
             let client_id: string = (this.#lifecycle_hooks.gen_client_id ? this.#lifecycle_hooks.gen_client_id() : UUID())?.toString();
@@ -99,7 +99,7 @@ export class SocioServer extends LogHandler {
 
             //pass the object to the connection hook, if it exists. It cant take over
             if (this.#lifecycle_hooks.con)
-                this.#lifecycle_hooks.con(client, request); //u can get the client_id and client_ip off the client object
+                await this.#lifecycle_hooks.con(client, request); //u can get the client_id and client_ip off the client object
 
             //notify the client of their ID
             client.Send('CON', client_id);
@@ -112,10 +112,10 @@ export class SocioServer extends LogHandler {
                 else
                     conn?.close();
             });
-            conn.on('close', () => {
+            conn.on('close', async () => {
                 //trigger hook
                 if (this.#lifecycle_hooks.discon)
-                    this.#lifecycle_hooks.discon(client);
+                    await this.#lifecycle_hooks.discon(client);
 
                 client.Destroy(() => {
                     //for each prop itereate its update obj and delete the keys with this client_id
@@ -139,6 +139,18 @@ export class SocioServer extends LogHandler {
 
     async #Message(client:SocioSession, req: Buffer | ArrayBuffer | Buffer[], isBinary: Boolean){
         try{
+            //handle binary data and quit
+            if(isBinary){
+                this.HandleInfo(`recv: BLOB from ${client.id}`)
+                if (this.#lifecycle_hooks.blob) {
+                    if (await this.#lifecycle_hooks.blob(client, req))
+                        client.Send('RES', { id:'BLOB', result: true });
+                    else client.Send('RES', { id: 'BLOB', result: false });
+                }
+                else client.Send('ERR', { id: 'BLOB', result: 'Server does not handle the BLOB hook.' });
+                return;
+            }
+
             const { kind, data }: { kind: CoreMessageKind; data: MessageDataObj } = JSON.parse(req.toString());
             const client_id = client.id;
 
@@ -187,11 +199,10 @@ export class SocioServer extends LogHandler {
                 }
             }
             this.HandleInfo(`recv: ${kind} from ${client_id}`, data);
-            // await sleep(2);
 
             //let the developer handle the msg
             if (this.#lifecycle_hooks.msg)
-                if(this.#lifecycle_hooks.msg(client, kind, data))
+                if(await this.#lifecycle_hooks.msg(client, kind, data, isBinary))
                     return;
 
             switch (kind) {
@@ -234,23 +245,22 @@ export class SocioServer extends LogHandler {
                     client.Send('PONG', { id: data?.id }); 
                     break;
                 case 'AUTH'://client requests to authenticate itself with the server
-                    if (this.#lifecycle_hooks.auth){
-                        await client.Authenticate(this.#lifecycle_hooks.auth, client, data.params) //bcs its a private class field, give this function the hook to call and params to it. It will set its field and we can just read that off and send it back as the result
-                        client.Send('AUTH', { id: data.id, result: client.authenticated == true }) //authenticated can be any truthy or falsy value, but the client will only receive a boolean, so its safe to set this to like an ID or token or smth for your own use
+                    if (client.authenticated) //check if already has auth
+                        client.Send('AUTH', { id: data.id, result: true });
+                    else if (this.#lifecycle_hooks.auth){
+                        const res = await client.Authenticate(this.#lifecycle_hooks.auth, client, data.params) //bcs its a private class field, give this function the hook to call and params to it. It will set its field and give back the result. NOTE this is safer than adding a setter to a private field
+                        client.Send('AUTH', { id: data.id, result: res == true }) //authenticated can be any truthy or falsy value, but the client will only receive a boolean, so its safe to set this to like an ID or token or smth for your own use
                     }else{
                         this.HandleError('Auth function hook not registered, so client not authenticated. [#no-auth-func]')
                         client.Send('AUTH', { id: data.id, result: false })
                     }
                     break;
                 case 'GET_PERM':
-                    //check if already has the perm
-                    if (client.HasPermFor(data?.verb, data?.table)){
-                        client.Send('GET_PERM', { id: data.id, result: true, verb: data.verb, table: data.table });
-                    }
-                    //otherwise try to grant the perm
-                    else if(this.#lifecycle_hooks?.grant_perm){
+                    if (client.HasPermFor(data?.verb, data?.table))//check if already has the perm
+                        client.Send('GET_PERM', { id: data.id, result: true });
+                    else if (this.#lifecycle_hooks?.grant_perm) {//otherwise try to grant the perm
                         const granted:boolean = await this.#lifecycle_hooks?.grant_perm(client_id, data)
-                        client.Send('GET_PERM', { id: data.id, result: granted === true, verb: data.verb, table: data.table }) //the client will only receive a boolean, but still make sure to only return bools as well
+                        client.Send('GET_PERM', { id: data.id, result: granted === true }) //the client will only receive a boolean, but still make sure to only return bools as well
                     }
                     else {
                         this.HandleError('grant_perm function hook not registered, so client not granted perm. [#no-grant_perm-func]')
@@ -313,12 +323,12 @@ export class SocioServer extends LogHandler {
                     break;
                 case 'SERV': 
                     if (this.#lifecycle_hooks?.serv)
-                        this.#lifecycle_hooks.serv(client, data);
+                        await this.#lifecycle_hooks.serv(client, data);
                     else throw new E('Client sent generic data to the server, but the hook for it is not registed. [#no-serv-hook]', client_id);
                     break;
                 case 'ADMIN':
                     if(this.#lifecycle_hooks.admin)
-                        if (this.#lifecycle_hooks.admin(client, data)) //you get the client, which has its ID, ipAddr and last_seen fields, that can be used to verify access. Also data should contain some secret key, but thats up to you
+                        if (await this.#lifecycle_hooks.admin(client, data)) //you get the client, which has its ID, ipAddr and last_seen fields, that can be used to verify access. Also data should contain some secret key, but thats up to you
                             client.Send('RES', { id: data?.id, result: await this.#Admin(((data as unknown) as AdminMessageDataObj)?.function, ((data as unknown) as AdminMessageDataObj)?.args) });
                         else throw new E('A non Admin send an Admin message, but was not executed.', kind, data, client_id);
                     break;
@@ -391,13 +401,13 @@ export class SocioServer extends LogHandler {
                         this.HandleInfo(`RECON ${old_c_id} -> ${client.id} (old client ID -> new/current client ID)`);
                     }
                     break;
-                    // case '': break;
+                // case '': break;
                 default: throw new E(`Unrecognized message kind! [#unknown-msg-kind]`, kind, data);
             }
         } catch (e: err) { this.HandleError(e); }
     }
 
-    Update(tables:string[]=[]){
+    async Update(tables:string[]=[]){
         if(!tables.length) return;
         
         //rate limit check
@@ -407,7 +417,7 @@ export class SocioServer extends LogHandler {
 
         //hand off to hook
         if (this.#lifecycle_hooks.upd)
-            if (this.#lifecycle_hooks.upd(this.#sessions, tables))
+            if (await this.#lifecycle_hooks.upd(this.#sessions, tables))
                 return;
 
         //try the logic myself

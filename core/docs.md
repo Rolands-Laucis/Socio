@@ -1,7 +1,7 @@
 # Simple Documentation for Socio usage.
 ##### Those that know, do. Those that understand, teach. /Aristotle/
 
-## Overview
+### Overview
 
 The ``./core.js`` file contains logic to be run on a backend server. It exports the class ``SocioServer`` that you instantiate and work with mostly during just the setup initialization of your backend. It creates a websocket server on a port and listens for clients to connect. It is the transaction middle-man between your DB and the SocioClient on the frontend doing queries.
 
@@ -53,35 +53,45 @@ import {SocioClient} from 'socio/dist/core-client.js'
 
 //instantiate the Socio Client from lib on the expected websocket port and wait for it to connect
 //NB! use wss secure socket protocol and use the ./core/Secure class to encrypt these queries in PROD!
-const sc = new SocioClient(`ws://localhost:3000`, { verbose: true }) //each instance is going to be its own "session" on the server, but you can spawn and destroy these where ever in your code
-await sc.ready() //wait until it has connected as confimed by the server
+const sc = new SocioClient(`ws://localhost:3000`, { verbose: true }) ;//each instance is going to be its own "session" on the server, but you can spawn and destroy these where ever in your code
+await sc.ready(); //wait until it has connected as confimed by the server
 
 sc.client_id //can take a look at its ID, if that interests you idk
 
-console.log((await sc.query("SELECT 42+69 AS RESULT;"))[0].RESULT)//will imediately send a one-time query to the DB and print the response result
+console.log((await sc.query("SELECT 42+69 AS RESULT;"))[0].RESULT);//will imediately send a one-time query to the DB and print the response result
 
 //subscribe to the changes of this query - whenever the table is altered on the backend. And run the callback with the new received data
 //this will also run the sql query to get the initial value, then indefinitely receive updates and rerun this callback.
 sc.subscribe({ sql: "SELECT COUNT(*) AS RESULT FROM users;"}, (res) => {
     let ans = res[0].RESULT //res is whatever object your particular DB interface lib returns from a raw query
-})
+});
+
+//-----------------more advanced stuff:
 
 //now if we insert new data into the table, the above callback will rerun with the new data as refetched from the DB. Automagical.
-await sc.query("INSERT INTO users VALUES('Bob', 420);")
+const new_user_id = await sc.query("INSERT INTO users VALUES('Bob', 420) RETURNING id;");
 
 //queries with dynamic data - via params:
-await sc.query("SELECT COUNT(*) AS RESULT FROM users WHERE name = :name;", params: { name: 'Bob' } ) //it is up to you to sanitize 'Bob' here or hope your DB has injection protection.
+await sc.query("SELECT COUNT(*) AS RESULT FROM users WHERE name = :name;", params: { name: 'Bob' } ); //it is up to you to sanitize 'Bob' here or hope your DB has injection protection.
 
 //security:
-await sc.query("SELECT COUNT(*) FROM users;--socio") //postfix a literal '--socio' at the end of your query, which by popular SQL notation should be a line comment and thus shouldnt interfere with the query itself, to mark it as to be encrypted by the SocioSecurity class during code building or bundling. Use the included Vite plugin or make your own way of integrating the class. NB! All strings in your entire frontend code base that end with the --socio marker will be encrypted. The marker also accepts an infinite amount of dash seperated params in any order, e.g. '--socio-perm-auth' to indicate, that this query shouldnt run without the required permissions on tables and that the session must be authenticated. Socio automatically appends a random integer as one of these params, just to randomize the encrypted string from being guessed or deduced.
+await sc.query("SELECT COUNT(*) FROM users;--socio"); //postfix a literal '--socio' at the end of your query, which by popular SQL notation should be a line comment and thus shouldnt interfere with the query itself, to mark it as to be encrypted by the SocioSecurity class during code building or bundling. Use the included Vite plugin or make your own way of integrating the class. NB! All strings in your entire frontend code base that end with the --socio marker will be encrypted. The marker also accepts an infinite amount of dash seperated params in any order, e.g. '--socio-perm-auth' to indicate, that this query shouldnt run without the required permissions on tables and that the session must be authenticated. Socio automatically appends a random integer as one of these params, just to randomize the encrypted string from being guessed or deduced.
 
 //you may also want to be safe that the encrypted query can only be executed by "logged in" or authenticated users. Just include another postfix:
-await sc.query("SELECT COUNT(*) FROM users;--socio-auth") //the backend will only execute this, if the session is marked as authenticated. But how would that come to be? 
+await sc.query("SELECT COUNT(*) FROM users;--socio-auth"); //the backend will only execute this, if the session is marked as authenticated. But how would that come to be? 
 
 //Fear not, after awaiting ready, just send an auth request:
-const success = sc.authenticate({username:'Bob', password:'pass123'}) //success will be a boolean representing the status of the auth request. The params to the request are your free choice. This object will be passed to your auth hook callback, and it is there that you compute the decision yourself. Then you may execute --socio-auth queries. If this socket were to disconnect, you'd have to redo the auth, but that isnt very likely.
+const auth_success = (await sc.authenticate({username:'Bob', password:'pass123'}))?.result; //success = Promise<{ id: id, result: boolean }>. The params to the request are your free choice. This object will be passed to your auth hook callback, and it is there that you compute the decision yourself. Then you may execute --socio-auth queries. If this socket were to disconnect, you'd have to redo the auth, but that isnt very likely. You can also at any time check the instance sc.authenticated property to see the state.
 
+//Similar mechanism for table permissions:
+const perm_success = (await sc.askPermission('SELECT', 'Users'))?.result; //The perm is asked and granted per VERB on a TABLE. This will be passed to your grant_perm hook callback, and it is there that you compute the decision yourself. Then you may execute --socio-perm queries. If this socket were to disconnect, you'd have to redo the perm, but that isnt very likely. If you want to later check, if an instance has a perm, then you'd do this same procedure, but the server already knows what perms you have, so its quicker.
+```
 
+#### Sending Files/Blobs/Binary data
+```ts
+//browser code - can be inside just a js script that gets loaded with a script tag or in components of whatever framework.
+//setup is the same as above until sc.ready()
+const success = (await sc.SendBlob(Blob()))?.result;
 ```
 
 ### Setup of ``SocioSecurity`` and ``SocioSecurityPlugin``

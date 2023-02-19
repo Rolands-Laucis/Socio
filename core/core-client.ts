@@ -164,9 +164,17 @@ export class SocioClient extends LogHandler {
 
     //accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
     Send(kind: CoreMessageKind, ...data){ //data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
-        if(data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, ...data) //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
-        this.#ws?.send(JSON.stringify(Object.assign({}, { kind, data:data[0] }, ...data.slice(1))))
-        this.HandleInfo('sent:', kind, data)
+        if(data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, ...data); //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
+        this.#ws?.send(JSON.stringify(Object.assign({}, { kind, data:data[0] }, ...data.slice(1))));
+        this.HandleInfo('sent:', kind, data);
+    }
+    SendBlob(blob: Blob | ArrayBuffer | ArrayBufferView){
+        this.#ws?.send(blob);
+        this.HandleInfo('sent: BLOB');
+
+        return new Promise((res) => {
+            this.#queries[`BLOB`] = res
+        });
     }
     CreateQueryPromise(){
         const id = this.GenKey;
@@ -309,22 +317,18 @@ export class SocioClient extends LogHandler {
         this.Send('PING', { id: num || this.GenKey })
     }
 
-    authenticate(params:object={}):Promise<boolean>{ //params here can be anything, like username and password stuff etc. The backend server auth function callback will receive this entire object
+    async authenticate(params:object={}){ //params here can be anything, like username and password stuff etc. The backend server auth function callback will receive this entire object
         //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
-        const id = this.GenKey;
-        const prom: Promise<boolean> = new Promise((res) => {
-            this.#queries[id] = res
-        })
-        this.Send('AUTH', { id: id, params: params })
-        return prom;
+        const { id, prom } = this.CreateQueryPromise();
+        this.Send('AUTH', { id: id, params: params });
+        return prom as Promise<{ id: id, result: boolean }>;
     }
     get authenticated() { return this.#authenticated === true }
-    askPermission(verb='', table='') {//ask the backend for a permission on a table with the SQL verb u want to perform on it, i.e. SELECT, INSERT etc.
+    askPermission(verb = '', table = '') {//ask the backend for a permission on a table with the SQL verb u want to perform on it, i.e. SELECT, INSERT etc.
         const { id, prom } = this.CreateQueryPromise();
         this.Send('GET_PERM', { id: id, verb:verb, table:table })
-        return prom
+        return prom as Promise<{ id: id, result: boolean }>;
     }
-    // hasPermFor(verb = '', table = ''){ this.HandleError('TODO')}
     
     //generates a unique key either via static counter or user provided key gen func
     get GenKey(): id {
