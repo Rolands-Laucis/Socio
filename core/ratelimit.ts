@@ -1,9 +1,9 @@
 //You can always count on Americans to do the right thing - after they've tried everything else. /Winston Churchill/
 
-import { LogHandler } from "./logging.js";
+import { E, LogHandler } from "./logging.js";
 
-type RateLimitTimeUnit = { ms?: number, seconds?: number, minutes?: number }
-export type RateLimit = { n: number } & RateLimitTimeUnit; //in ms, bcs js (new Date()).getTime() returns ms, and converting every time would be a performance hit
+type RateLimitTimeUnit = { ms?: number, seconds?: number, minutes?: number } //can specify any combination of these
+export type RateLimit = { n: number } & RateLimitTimeUnit;
 
 //the idea is to get 2 "pins" on a timeline - 1. some clock start ms since epoch, 2. now ms since epoch
 //and test how many checks happened between the two - no background clocks or processes, only stores 2 integers + original ratelimit settings
@@ -16,14 +16,15 @@ export class RateLimiter extends LogHandler {
     constructor(rl:RateLimit){
         super({ verbose:false, prefix: 'RateLimiter' });
         
-        if(!rl) throw 'No RateLimit object provided';
+        if(!rl) throw new E('Must provide RateLimit object!', rl);
 
         //convert formats to ms, since that will be way more performance efficient for functions
+        if (!rl?.ms && !rl?.seconds && !rl?.minutes) throw new E('Must provide RateLimitTimeUnit!', rl);
+        else rl.ms ??= 0; //assign 0 if undefined
         if(rl?.seconds)
-            rl.ms = rl.seconds * 1000;
+            rl.ms += rl.seconds * 1000;
         if (rl?.minutes)
-            rl.ms = rl.minutes * 60 * 1000;
-        if (!rl?.ms) throw 'No RateLimit ms provided';
+            rl.ms += rl.minutes * 60 * 1000;
         
         //remove, since they are just convenience formats
         delete rl?.seconds;
