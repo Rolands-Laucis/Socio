@@ -176,7 +176,7 @@ socserv.SendToClients([], {some:"data"}); //empty array of client_id's will emit
 ```ts
 //browser code - can be inside just a js script that gets loaded with a script tag or in components of whatever framework.
 const sc = new SocioClient(...)
-sc.lifecycle_hooks.cmd = (data:any) => { log(data) }
+sc.lifecycle_hooks.cmd = (data:any) => { console.log(data) }
 ```
 
 ### Rate-limiting
@@ -236,7 +236,7 @@ const socserv = new SocioServer(...);
 
 //'admin' will be called whenever any socket attempts to take action as an admin.
 socserv.RegisterLifecycleHookHandler('admin', (client:SocioSession, data:any) => {
-    log(client.id, client.ipAddr, client.last_seen, data?.function, data?.args, data?.client_secret) //perform any checks with this - IMPORTANT for your own safety
+    console.log(client.id, client.ipAddr, client.last_seen, data?.function, data?.args, data?.client_secret) //perform any checks with this - IMPORTANT for your own safety
     return true; //return truthy to grant access to the call.
     //Any public SocioServer instance method or object property can be called by its name
 })
