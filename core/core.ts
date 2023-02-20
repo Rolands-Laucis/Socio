@@ -219,7 +219,7 @@ export class SocioServer extends LogHandler {
                         client.Send('UPD', {
                             id: data.id,
                             result: await this.Query(data),
-                            status: 'success'
+                            status: 1
                         })
                     } else
                         //send response

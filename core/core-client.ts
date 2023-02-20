@@ -7,7 +7,7 @@ import b64 from 'base64-js'
 import type { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind, Bit } from './types.js'
 import type { RateLimit } from './ratelimit.js'
 import type { SocioFiles } from './types.js';
-type MessageDataObj = { id: id, verb?: string, table?: string, status?:string, result?:string|object|boolean|PropValue, prop?:PropKey, data?:object };
+type MessageDataObj = { id: id, verb?: string, table?: string, status?:string|number, result?:string|object|boolean|PropValue|number, prop?:PropKey, data?:object };
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
 type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?: Function};
 type QueryObject = { sql: string, params?: object | null, onUpdate: SubscribeCallbackObject }
