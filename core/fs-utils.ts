@@ -1,9 +1,9 @@
 import fs from 'fs';
 import b64 from 'base64-js'
 import { default as os_path } from "path";
-// import { log } from './logging.js';
 
-export type SocioFiles = {[filename:string]:{file_meta:{}, bin:string}};
+//types
+import type { SocioFiles } from './types.js';
 
 export async function SaveFilesToDiskPath(path_array: string[], files: SocioFiles){
     for (const [filename, file_data] of Object.entries(files)) {

@@ -6,6 +6,7 @@ import b64 from 'base64-js'
 //types
 import type { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind, Bit } from './types.js'
 import type { RateLimit } from './ratelimit.js'
+import type { SocioFiles } from './types.js';
 type MessageDataObj = { id: id, verb?: string, table?: string, status?:string, result?:string|object|boolean|PropValue, prop?:PropKey, data?:object };
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
 type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?: Function};
@@ -145,12 +146,11 @@ export class SocioClient extends LogHandler {
                     }else throw new E('Not enough prop info sent from server to perform prop update.', data)
                     break;
                 case 'CMD': if(this.lifecycle_hooks?.cmd) this.lifecycle_hooks.cmd(data?.data); break; //the server pushed some data to this client, let the dev handle it
-                case 'ERR'://when using this, make sure that the setup query is a promise func. The result field is used as a cause of error msg on the backend
-                    this.#FindID(kind, data?.id);
+                case 'ERR'://The result field is sometimes used as a cause of error msg on the backend
                     if (typeof this.#queries[data.id] == 'function')
-                        (this.#queries[data.id] as Function)(null);
-                    
-                    throw new E(`Request to Server returned ERROR response for query id, reason #[err-msg-kind]`, data.id, data?.result as Bit);
+                        (this.#queries[data.id] as Function)();
+
+                    this.HandleError(new E(`Request to Server returned ERROR response for query id, reason #[err-msg-kind]`, data?.id, data?.result as Bit))
                 case 'RECON': 
                     this.#FindID(kind, data?.id);
                     //@ts-expect-error
@@ -169,7 +169,27 @@ export class SocioClient extends LogHandler {
         this.#ws?.send(JSON.stringify(Object.assign({}, { kind, data:data[0] }, ...data.slice(1))));
         this.HandleInfo('sent:', kind, data);
     }
-    SendBlob(blob: Blob | ArrayBuffer | ArrayBufferView){
+    async SendFiles(files:File[], other_data:object|undefined={}){
+        const proc_files: SocioFiles = {}; //my own kind of FormData, specific for files, because FormData is actually a very riggid type
+
+        //add each file
+        for(const file of files){
+            //relevant info about files is stored in file_meta
+            const file_meta = {
+                lastModified: file.lastModified,
+                size: file.size,
+                type: file.type
+            };
+            proc_files[file.name] = { file_meta, bin: b64.fromByteArray(new Uint8Array(await file.arrayBuffer()))}; //this is the best way that i could find. JS is really unhappy about binary data
+        }
+
+        //create the server request as usual
+        const {id, prom} = this.CreateQueryPromise();
+        this.Send('FILES', { id, files:proc_files, other_data});
+
+        return prom;
+    }
+    SendBinary(blob: Blob | ArrayBuffer | ArrayBufferView) { //send binary. Unfortunately, it is not useful for me to invent my own byte formats and build functionality. You can tho. This is just low level access.
         if (this.#queries[`BLOB`]) throw new E('BLOB already being uploaded. Wait until the last query completes!');
 
         this.#ws?.send(blob);
@@ -178,25 +198,6 @@ export class SocioClient extends LogHandler {
         return new Promise((res) => {
             this.#queries[`BLOB`] = res
         });
-    }
-    async SendFiles(files:File[]){
-        if (this.#queries[`FILES`]) throw new E('FILES already being uploaded. Wait until the last query completes!');
-
-        const proc_files = {};
-
-        for(const file of files){
-            const file_meta = {
-                lastModified: file.lastModified,
-                size: file.size,
-                type: file.type
-            };
-            proc_files[file.name] = { file_meta, bin: b64.fromByteArray(new Uint8Array(await file.arrayBuffer()))};
-        }
-
-        const {id, prom} = this.CreateQueryPromise();
-        this.Send('FILES', { id:id, files:proc_files});
-
-        return prom;
     }
     CreateQueryPromise(){
         const id = this.GenKey;
@@ -361,10 +362,10 @@ export class SocioClient extends LogHandler {
             return SocioClient.#key
         }
     }
-    //checks if the ID of a query exists (i.e. has been registered), otherwise rejects and logs
+    //checks if the ID of a query exists, otherwise rejects and logs
     #FindID(kind: string, id: id) {
         if (!(id in this.#queries))
-            throw new E(`${kind} message for unregistered SQL query! msg_id -`, id, Object.keys(this.#queries))
+            throw new E(`${kind} message for unregistered SQL query! msg_id -`, id);
     }
     #HandleBasicPromiseMessage(kind:string, data:MessageDataObj){
         this.#FindID(kind, data?.id);
