@@ -19,7 +19,7 @@ import type { ServerOptions, WebSocket, AddressInfo } from 'ws';
 import type { IncomingMessage } from 'http'
 import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind } from './types.js'
 import type { RateLimit } from './ratelimit.js'
-export type MessageDataObj = { id?: id, sql?: string, params?: object | null, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue, data?:any, rate_limit?:RateLimit };
+export type MessageDataObj = { id?: id, sql?: string, params?: object | null, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue, data?:any, rate_limit?:RateLimit, files?:object };
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
 export type QueryFunction = (obj: QueryFuncParams | MessageDataObj) => Promise<object>;
 type QueryObject = { id: id, params: object | null, session: SocioSession }; //for grouping hooks
@@ -40,7 +40,7 @@ export class SocioServer extends LogHandler {
     //rate limits server functions globally
     #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
 
-    #lifecycle_hooks: { [key: string]: Function | null; } = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null, serv:null, admin:null, blob:null } //call the register function to hook on these. They will be called if they exist
+    #lifecycle_hooks: { [key: string]: Function | null; } = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null, serv:null, admin:null, blob:null, files:null } //call the register function to hook on these. They will be called if they exist
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //msg hook receives all incomming msgs to the server. 
     //upd works the same as msg, but for everytime updates need to be propogated to all the sockets.
@@ -144,8 +144,8 @@ export class SocioServer extends LogHandler {
                 this.HandleInfo(`recv: BLOB from ${client.id}`)
                 if (this.#lifecycle_hooks.blob) {
                     if (await this.#lifecycle_hooks.blob(client, req))
-                        client.Send('RES', { id:'BLOB', result: true });
-                    else client.Send('RES', { id: 'BLOB', result: false });
+                        client.Send('RES', { id:'BLOB', result: 1 });
+                    else client.Send('RES', { id: 'BLOB', result: 0 });
                 }
                 else client.Send('ERR', { id: 'BLOB', result: 'Server does not handle the BLOB hook.' });
                 return;
@@ -199,7 +199,8 @@ export class SocioServer extends LogHandler {
                     }else if (data?.prop) throw new E('Perm checking for server props is currently unsupported! #[unsupported-feature]', data, markers)
                 }
             }
-            this.HandleInfo(`recv: ${kind} from ${client_id}`, data);
+            if(kind != 'FILES')
+                this.HandleInfo(`recv: ${kind} from ${client_id}`, data);
 
             //let the developer handle the msg
             if (this.#lifecycle_hooks.msg)
@@ -247,25 +248,25 @@ export class SocioServer extends LogHandler {
                     break;
                 case 'AUTH'://client requests to authenticate itself with the server
                     if (client.authenticated) //check if already has auth
-                        client.Send('AUTH', { id: data.id, result: true });
+                        client.Send('AUTH', { id: data.id, result: 1 });
                     else if (this.#lifecycle_hooks.auth){
                         const res = await client.Authenticate(this.#lifecycle_hooks.auth, client, data.params) //bcs its a private class field, give this function the hook to call and params to it. It will set its field and give back the result. NOTE this is safer than adding a setter to a private field
-                        client.Send('AUTH', { id: data.id, result: res == true }) //authenticated can be any truthy or falsy value, but the client will only receive a boolean, so its safe to set this to like an ID or token or smth for your own use
+                        client.Send('AUTH', { id: data.id, result: res == true ? 1 : 0 }) //authenticated can be any truthy or falsy value, but the client will only receive a boolean, so its safe to set this to like an ID or token or smth for your own use
                     }else{
-                        this.HandleError('Auth function hook not registered, so client not authenticated. [#no-auth-func]')
-                        client.Send('AUTH', { id: data.id, result: false })
+                        this.HandleError('AUTH function hook not registered, so client not authenticated. [#no-auth-func]')
+                        client.Send('AUTH', { id: data.id, result: 0 })
                     }
                     break;
                 case 'GET_PERM':
                     if (client.HasPermFor(data?.verb, data?.table))//check if already has the perm
-                        client.Send('GET_PERM', { id: data.id, result: true });
+                        client.Send('GET_PERM', { id: data.id, result: 1 });
                     else if (this.#lifecycle_hooks?.grant_perm) {//otherwise try to grant the perm
                         const granted:boolean = await this.#lifecycle_hooks?.grant_perm(client_id, data)
-                        client.Send('GET_PERM', { id: data.id, result: granted === true }) //the client will only receive a boolean, but still make sure to only return bools as well
+                        client.Send('GET_PERM', { id: data.id, result: granted === true ? 1 : 0 }) //the client will only receive a boolean, but still make sure to only return bools as well
                     }
                     else {
                         this.HandleError('grant_perm function hook not registered, so client not granted perm. [#no-grant_perm-func]')
-                        client.Send('GET_PERM', { id: data.id, result: false })
+                        client.Send('GET_PERM', { id: data.id, result: 0 })
                     }
                     break;
                 case 'PROP_SUB':
@@ -402,6 +403,14 @@ export class SocioServer extends LogHandler {
                         this.HandleInfo(`RECON ${old_c_id} -> ${client.id} (old client ID -> new/current client ID)`);
                     }
                     break;
+                case 'FILES':
+                    if (this.#lifecycle_hooks?.files)
+                        client.Send('RES', { id: data.id, result: await this.#lifecycle_hooks.files(client, data?.files) ? 1 : 0 });
+                    else{
+                        this.HandleError('FILES hook not registered. [#no-files-hook]');
+                        client.Send('RES', { id: data.id, result: 0 });
+                    }
+                    break;
                 // case '': break;
                 default: throw new E(`Unrecognized message kind! [#unknown-msg-kind]`, kind, data);
             }
@@ -482,7 +491,7 @@ export class SocioServer extends LogHandler {
         try{
             if (f_name in this.#lifecycle_hooks)
                 this.#lifecycle_hooks[f_name] = handler;
-            else throw new E(`Lifecycle hook [${f_name}] does not exist! Settable: ${this.LifecycleHookNames}`)
+            else throw new E(`Lifecycle hook [${f_name}] does not exist! Settable: ${this.LifecycleHookNames}`);
         } catch (e:err) { this.HandleError(e) }
     }
     UnRegisterLifecycleHookHandler(name = '') {

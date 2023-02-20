@@ -1,9 +1,10 @@
 //https://stackoverflow.com/questions/38946112/es6-import-error-handling
 
 import { LogHandler, E, err, log, info, done } from './logging.js'
+import b64 from 'base64-js'
 
 //types
-import type { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind } from './types.js'
+import type { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind, Bit } from './types.js'
 import type { RateLimit } from './ratelimit.js'
 type MessageDataObj = { id: id, verb?: string, table?: string, status?:string, result?:string|object|boolean|PropValue, prop?:PropKey, data?:object };
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
@@ -20,12 +21,12 @@ export class SocioClient extends LogHandler {
     #client_id:id = '';
     #latency:number;
     #is_ready: Function | boolean = false;
-    #authenticated=false
+    #authenticated=false;
 
     #queries: { [id: id]: QueryObject | Function } = {}; //keeps a dict of all subscribed queries
     #props: { [prop_key: PropKey]: { [id: id]: PropUpdateCallback } } = {};
 
-    static #key = 1 //all instances will share this number, such that they are always kept unique. Tho each of these clients would make a different session on the backend, but still
+    static #key = 1; //all instances will share this number, such that they are always kept unique. Tho each of these clients would make a different session on the backend, but still
 
     //public:
     name:string;
@@ -115,26 +116,26 @@ export class SocioClient extends LogHandler {
                     break;
                 case 'AUTH':
                     this.#FindID(kind, data?.id)
-                    if (data?.result !== true)
+                    if (data?.result as Bit !== 1)
                         this.HandleInfo(`AUTH returned FALSE, which means websocket has not authenticated.`);
 
-                    this.#authenticated = data?.result === true;
+                    this.#authenticated = data?.result as Bit === 1;
                     (this.#queries[data.id] as Function)(this.#authenticated); //result should be either True or False to indicate success status
                     delete this.#queries[data.id] //clear memory
                     break;
                 case 'GET_PERM':
                     this.#FindID(kind, data?.id)
-                    if (data?.result !== true) 
+                    if (data?.result as Bit !== 1) 
                         this.HandleInfo(`Server rejected grant perm for ${data?.verb} on ${data?.table}.`);
 
-                    (this.#queries[data.id] as Function)(data?.result === true); //result should be either True or False to indicate success status
+                    (this.#queries[data.id] as Function)(data?.result as Bit === 1); //result should be either True or False to indicate success status
                     delete this.#queries[data.id] //clear memory
                     break;
                 case 'RES':
                     this.#HandleBasicPromiseMessage(kind, data)
                     break;
                 case 'PROP_UPD':
-                    if(data?.prop && data?.id && data?.result){
+                    if(data?.prop && data?.id && data?.result as Bit){
                         if (this.#props[data.prop as string] && this.#props[data.prop as string][data.id as id] && typeof this.#props[data.prop as string][data.id as id] === 'function'){
                             //@ts-ignore
                             this.#props[data.prop as string][data.id as id](data.result as PropValue);
@@ -149,7 +150,7 @@ export class SocioClient extends LogHandler {
                     if (typeof this.#queries[data.id] == 'function')
                         (this.#queries[data.id] as Function)(null);
                     
-                    throw new E(`Request to Server returned ERROR response for query id, reason #[err-msg-kind]`, data.id, data?.result);
+                    throw new E(`Request to Server returned ERROR response for query id, reason #[err-msg-kind]`, data.id, data?.result as Bit);
                 case 'RECON': 
                     this.#FindID(kind, data?.id);
                     //@ts-expect-error
@@ -169,12 +170,33 @@ export class SocioClient extends LogHandler {
         this.HandleInfo('sent:', kind, data);
     }
     SendBlob(blob: Blob | ArrayBuffer | ArrayBufferView){
+        if (this.#queries[`BLOB`]) throw new E('BLOB already being uploaded. Wait until the last query completes!');
+
         this.#ws?.send(blob);
         this.HandleInfo('sent: BLOB');
 
         return new Promise((res) => {
             this.#queries[`BLOB`] = res
         });
+    }
+    async SendFiles(files:File[]){
+        if (this.#queries[`FILES`]) throw new E('FILES already being uploaded. Wait until the last query completes!');
+
+        const proc_files = {};
+
+        for(const file of files){
+            const file_meta = {
+                lastModified: file.lastModified,
+                size: file.size,
+                type: file.type
+            };
+            proc_files[file.name] = { file_meta, bin: b64.fromByteArray(new Uint8Array(await file.arrayBuffer()))};
+        }
+
+        const {id, prom} = this.CreateQueryPromise();
+        this.Send('FILES', { id:id, files:proc_files});
+
+        return prom;
     }
     CreateQueryPromise(){
         const id = this.GenKey;
@@ -233,7 +255,7 @@ export class SocioClient extends LogHandler {
                 this.Send('UNSUB', { id: msg_id, unreg_id:id })
 
                 const res = await prom; //await the response from backend
-                if(res === true)//if successful, then remove the subscribe from the client
+                if(res === 1)//if successful, then remove the subscribe from the client
                     delete this.#queries[id];
                 return res;//forward the success status to the developer
             }
@@ -255,7 +277,7 @@ export class SocioClient extends LogHandler {
                 this.Send('PROP_UNSUB', { id: msg_id, prop: prop_name })
 
                 const res = await prom; //await the response from backend
-                if (res === true)//if successful, then remove the subscribe from the client
+                if (res === 1)//if successful, then remove the subscribe from the client
                     delete this.#props[prop_name];
                 return res;//forward the success status to the developer
             }
@@ -321,13 +343,13 @@ export class SocioClient extends LogHandler {
         //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
         const { id, prom } = this.CreateQueryPromise();
         this.Send('AUTH', { id: id, params: params });
-        return prom as Promise<{ id: id, result: boolean }>;
+        return prom as Promise<{ id: id, result: Bit }>;
     }
     get authenticated() { return this.#authenticated === true }
     askPermission(verb = '', table = '') {//ask the backend for a permission on a table with the SQL verb u want to perform on it, i.e. SELECT, INSERT etc.
         const { id, prom } = this.CreateQueryPromise();
         this.Send('GET_PERM', { id: id, verb:verb, table:table })
-        return prom as Promise<{ id: id, result: boolean }>;
+        return prom as Promise<{ id: id, result: Bit }>;
     }
     
     //generates a unique key either via static counter or user provided key gen func
@@ -347,7 +369,7 @@ export class SocioClient extends LogHandler {
     #HandleBasicPromiseMessage(kind:string, data:MessageDataObj){
         this.#FindID(kind, data?.id);
         //@ts-ignore
-        this.#queries[data.id](data?.result);
+        this.#queries[data.id](data?.result as Bit);
         delete this.#queries[data.id]; //clear memory
     }
 
@@ -368,6 +390,7 @@ export class SocioClient extends LogHandler {
             localStorage.setItem(`Socio_recon_token_${name}`, token); //https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage localstorage is origin locked, so should be safe to store this here
         } catch (e: err) { this.HandleError(e); }
     }
+    async RefreshReconToken(name: string = this.name){return await this.#GetReconToken(name);}
 
     async #TryReconnect(name: string = this.name){
         const key = `Socio_recon_token_${name}`

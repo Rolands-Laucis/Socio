@@ -1,6 +1,6 @@
 //I ask not for a lighter burden, but for broader shoulders. -Atlas, when asking Zeus for sympathy.
 
-import { QueryMarker } from "./types.js"
+import type { QueryMarker } from "./types.js"
 
 export type SocioStringObj = { str: string, markers: string[] };
 
