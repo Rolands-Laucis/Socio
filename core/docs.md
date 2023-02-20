@@ -87,17 +87,26 @@ const auth_success = (await sc.authenticate({username:'Bob', password:'pass123'}
 const perm_success = (await sc.askPermission('SELECT', 'Users'))?.result; //The perm is asked and granted per VERB on a TABLE. This will be passed to your grant_perm hook callback, and it is there that you compute the decision yourself. Then you may execute --socio-perm queries. If this socket were to disconnect, you'd have to redo the perm, but that isnt very likely. If you want to later check, if an instance has a perm, then you'd do this same procedure, but the server already knows what perms you have, so its quicker.
 ```
 
-#### Sending Files/Blobs/Binary data
+#### Sending Files/
 ```ts
-//browser code - can be inside just a js script that gets loaded with a script tag or in components of whatever framework.
+//browser code
 //setup is the same as above until sc.ready()
-const success = (await sc.SendBlob(Blob()))?.result;
+const file_input_element = document.getElementByID('my-file-input'); //or any other way you'd normaly get the chosen files, like the onchange event etc.
+const success = (await sc.SendFiles(file_input_element.files, {any:'other data here in this object'}))?.result; //important that the passed files are all of class File, which extends Blob.
+```
+
+#### Sending Blobs/Binary data
+```ts
+//browser code
+//setup is the same as above until sc.ready()
+const success = (await sc.SendBinary(new Blob() | ArrayBuffer | ArrayBufferView))?.result; 
+//Note that this very primative and a special case. If you need to add extra data to this, then you're gonna have to start creating your own byte formats etc. This is handled on the server via the blob hook, and it will receive this exact same binary data, most likely as a Buffer.
 ```
 
 ### Setup of ``SocioSecurity`` and ``SocioSecurityPlugin``
 
 ```ts
-//server code - can be in express or SvelteKit's hooks.server.ts/js file or whatever way you have of running server side code once.
+//server code
 import { SocioServer } from 'socio/dist/core.js'
 import type { SocioSession } from 'socio/dist/core-session.js'
 import { SocioSecurity } from 'socio/dist/secure';
@@ -149,7 +158,7 @@ Though usable for realtime web chat applications, i advise against that, because
 To ensure extendability, i have created a simple generic communication mechanism. Clients can send any generic serializable object to the server, where Socio will just pass it to a special hook and not do anything else with it. It is then the servers responsibility to answer to the client.
 
 ```ts
-//browser code - can be inside just a js script that gets loaded with a script tag or in components of whatever framework.
+//browser code
 import {SocioClient} from 'socio/dist/core-client.js'
 const sc = new SocioClient(`ws://localhost:3000`, { verbose: true })
 await sc.ready()
@@ -184,7 +193,7 @@ socserv.SendToClients([], {some:"data"}); //empty array of client_id's will emit
 ```
 
 ```ts
-//browser code - can be inside just a js script that gets loaded with a script tag or in components of whatever framework.
+//browser code
 const sc = new SocioClient(...)
 sc.lifecycle_hooks.cmd = (data:any) => { console.log(data) }
 ```
@@ -211,7 +220,7 @@ Caution! This approach will inevitably lead to bad UX for your application. Rate
 
 You may also add ratelimits to individual subscriptions on the front-end.
 ```ts
-//browser code - can be inside just a js script that gets loaded with a script tag or in components of whatever framework.
+//browser code
 import {SocioClient} from 'socio/dist/core-client.js'
 const sc = new SocioClient(`ws://localhost:3000`, { verbose: true })
 await sc.ready()
@@ -259,7 +268,7 @@ The neat thing is that, this mechanism just uses WebSockets, so you can implemen
 Since page navigation/reload unloads the entire document from memory and a new document is loaded in place, all client websocket sessions get wiped as well. This would mean re-authenticating and regaining all perms every reload. No good. Setting the ``persistent`` flag on SocioClient construction will automagically setup a mechanism that keeps the session data between page reloads. Though not between multiple tabs.
 
 ```ts
-//browser code - can be inside just a js script that gets loaded with a script tag or in components of whatever framework.
+//browser code
 import {SocioClient} from 'socio/dist/core-client.js'
 const sc = new SocioClient(`ws://localhost:3000`, { 
   verbose: true,
