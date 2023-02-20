@@ -87,13 +87,29 @@ const auth_success = (await sc.authenticate({username:'Bob', password:'pass123'}
 const perm_success = (await sc.askPermission('SELECT', 'Users'))?.result; //The perm is asked and granted per VERB on a TABLE. This will be passed to your grant_perm hook callback, and it is there that you compute the decision yourself. Then you may execute --socio-perm queries. If this socket were to disconnect, you'd have to redo the perm, but that isnt very likely. If you want to later check, if an instance has a perm, then you'd do this same procedure, but the server already knows what perms you have, so its quicker.
 ```
 
-#### Sending Files/
+#### Sending Files
 ```ts
 //browser code
 //setup is the same as above until sc.ready()
 const file_input_element = document.getElementByID('my-file-input'); //or any other way you'd normaly get the chosen files, like the onchange event etc.
 const success = (await sc.SendFiles(file_input_element.files, {any:'other data here in this object'}))?.result; //important that the passed files are all of class File, which extends Blob.
 ```
+
+#### Receiving Files
+```ts
+//server code
+const socserv = new SocioServer(...)
+import { SaveFilesToDiskPath } from 'socio/fs-utils';
+
+import type { SocioSession } from 'socio/core-session';
+import type { SocioFiles } from 'socio/types';
+
+socserv.RegisterLifecycleHookHandler('files', async (client: SocioSession, files: SocioFiles) => {
+    await SaveFilesToDiskPath(['.', 'files'], files); //simple function for your convenience, that cross platform saves your files to your FS directory
+    return true; //return truthy to tell client success. NOTE, if this hangs (e.g. path is invalid), the server will print an error, but the client's promise wont ever resolve, if you're waiting for it.
+});
+```
+
 
 #### Sending Blobs/Binary data
 ```ts

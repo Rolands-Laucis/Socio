@@ -200,6 +200,7 @@ export class SocioClient extends LogHandler {
         });
     }
     CreateQueryPromise(){
+        //https://advancedweb.hu/how-to-add-timeout-to-a-promise-in-javascript/ should implement promise timeouts
         const id = this.GenKey;
         const prom = new Promise((res) => {
             this.#queries[id] = res
