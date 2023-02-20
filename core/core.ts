@@ -169,6 +169,7 @@ export class SocioServer extends LogHandler {
 
                 //decrypt
                 str = this.#secure.socio_security.DecryptString(parts[0], parts[1], parts[2]);
+                str = this.#secure.socio_security.RemoveRandInts(str);
                 ;({ str, markers } = SocioStringParse(str));
                 
                 //assign it back like nothing happened

@@ -101,6 +101,8 @@ export class SocioSession extends LogHandler {
         if (force) {//destroyed immediately
             if (this.#ws?.close)
                 this.#ws.close();
+            if (this.#ws?.terminate)
+                this.#ws.terminate();
             remove_session_callback();
         } 
         else this.#destroyed = setTimeout(remove_session_callback, ttl_ms);

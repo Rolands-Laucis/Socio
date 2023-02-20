@@ -96,7 +96,6 @@ export class SocioSecurity extends LogHandler {
         const auth_tag = cipher.getAuthTag().toString('base64');
         return [iv.toString('base64'), cipher_text, auth_tag].join(' ');
     }
-
     DecryptString(iv_base64: string, cipher_text: string, auth_tag_base64:string):string {
         const iv = Buffer.from(iv_base64, 'base64');
         const auth_tag = Buffer.from(auth_tag_base64, 'base64');
@@ -105,14 +104,22 @@ export class SocioSecurity extends LogHandler {
         return decipher.update(cipher_text, 'base64', 'utf-8') + decipher.final('utf-8')
     }
 
-    //surrouded by the same quotes as original, the sql gets encrypted along with its marker, so neither can be altered on the front end. 
-    //+ a random int to scramble and randomize the encrypted string for every build.
+    //surrouded by the same quotes as original, the sql gets encrypted along with its marker, so neither can be altered on the front end.
+    //to mitigate known plaintext attacks, all spaces are replaced with random ints 
     EncryptSocioString(q='', sql='', marker=''){
-        return q + this.EncryptString(sql + (marker || '--socio') + '-' + this.GenRandInt()) + q //`--${this.GenRandInt()}\n` +
+        let sql_alter = ''
+        for(const l of sql){
+            if(l == ' ') sql_alter += `_s${this.GenRandInt(10,99)}_`;
+            else sql_alter += l;
+        }
+        return q + this.EncryptString(sql_alter + (marker || '--socio')) + q;
+    }
+    RemoveRandInts(altered_sql=''){
+        return altered_sql.replace(/_s\d\d_/gi, ' ')
     }
 
     GenRandInt(min = 10_000, max = 100_000_000):number{
-        return this.#rand_int_gen ? this.#rand_int_gen(min, max) : Math.floor((Math.random() * (max - min)) + min)
+        return this.#rand_int_gen ? this.#rand_int_gen(min, max) : Math.floor((Math.random() * (max - min)) + min);
     }
 
     get supportedCiphers() { return getCiphers() } //convenience
