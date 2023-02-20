@@ -139,7 +139,7 @@ export class SocioServer extends LogHandler {
 
     async #Message(client:SocioSession, req: Buffer | ArrayBuffer | Buffer[], isBinary: Boolean){
         try{
-            //handle binary data and quit
+            //handle binary data and return
             if(isBinary){
                 this.HandleInfo(`recv: BLOB from ${client.id}`)
                 if (this.#lifecycle_hooks.blob) {
@@ -199,8 +199,7 @@ export class SocioServer extends LogHandler {
                     }else if (data?.prop) throw new E('Perm checking for server props is currently unsupported! #[unsupported-feature]', data, markers)
                 }
             }
-            if(kind != 'FILES')
-                this.HandleInfo(`recv: ${kind} from ${client_id}`, data);
+            this.HandleInfo(`recv: ${kind} from ${client_id}`, kind != 'FILES' ? data : true);
 
             //let the developer handle the msg
             if (this.#lifecycle_hooks.msg)
@@ -405,7 +404,7 @@ export class SocioServer extends LogHandler {
                     break;
                 case 'FILES':
                     if (this.#lifecycle_hooks?.files)
-                        client.Send('RES', { id: data.id, result: await this.#lifecycle_hooks.files(client, data?.files) ? 1 : 0 });
+                        client.Send('RES', { id: data.id, result: await this.#lifecycle_hooks.files(client, data?.files, data?.data) ? 1 : 0 });
                     else{
                         this.HandleError('FILES hook not registered. [#no-files-hook]');
                         client.Send('RES', { id: data.id, result: 0 });

@@ -169,7 +169,7 @@ export class SocioClient extends LogHandler {
         this.#ws?.send(JSON.stringify(Object.assign({}, { kind, data:data[0] }, ...data.slice(1))));
         this.HandleInfo('sent:', kind, data);
     }
-    async SendFiles(files:File[], other_data:object|undefined={}){
+    async SendFiles(files:File[], other_data:object|undefined=undefined){
         const proc_files: SocioFiles = {}; //my own kind of FormData, specific for files, because FormData is actually a very riggid type
 
         //add each file
@@ -185,7 +185,10 @@ export class SocioClient extends LogHandler {
 
         //create the server request as usual
         const {id, prom} = this.CreateQueryPromise();
-        this.Send('FILES', { id, files:proc_files, other_data});
+        const socio_form_data = { id, files: proc_files }
+        if(other_data)
+            socio_form_data['data'] = other_data; //add the other data if exists
+        this.Send('FILES', socio_form_data);
 
         return prom;
     }
