@@ -40,7 +40,7 @@ export class SocioServer extends LogHandler {
     //rate limits server functions globally
     #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
 
-    #lifecycle_hooks: { [key: string]: Function | null; } = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null, serv:null, admin:null, blob:null, files:null } //call the register function to hook on these. They will be called if they exist
+    #lifecycle_hooks: { [key: string]: Function | null; } = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null, serv:null, admin:null, blob:null, upload_files:null, get_files:null } //call the register function to hook on these. They will be called if they exist
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //msg hook receives all incomming msgs to the server. 
     //upd works the same as msg, but for everytime updates need to be propogated to all the sockets.
@@ -199,7 +199,7 @@ export class SocioServer extends LogHandler {
                     }else if (data?.prop) throw new E('Perm checking for server props is currently unsupported! #[unsupported-feature]', data, markers)
                 }
             }
-            this.HandleInfo(`recv: ${kind} from ${client_id}`, kind != 'FILES' ? data : true);
+            this.HandleInfo(`recv: ${kind} from ${client_id}`, kind != 'UP_FILES' ? data : true);
 
             //let the developer handle the msg
             if (this.#lifecycle_hooks.msg)
@@ -402,11 +402,19 @@ export class SocioServer extends LogHandler {
                         this.HandleInfo(`RECON ${old_c_id} -> ${client.id} (old client ID -> new/current client ID)`);
                     }
                     break;
-                case 'FILES':
-                    if (this.#lifecycle_hooks?.files)
-                        client.Send('RES', { id: data.id, result: await this.#lifecycle_hooks.files(client, data?.files, data?.data) ? 1 : 0 });
+                case 'UP_FILES':
+                    if (this.#lifecycle_hooks?.upload_files)
+                        client.Send('RES', { id: data.id, result: await this.#lifecycle_hooks.upload_files(client, data?.files, data?.data) ? 1 : 0 });
                     else{
-                        this.HandleError('FILES hook not registered. [#no-files-hook]');
+                        this.HandleError('upload_files hook not registered. [#no-upload_files-hook]');
+                        client.Send('RES', { id: data.id, result: 0 });
+                    }
+                    break;
+                case 'GET_FILES':
+                    if (this.#lifecycle_hooks?.get_files)
+                        client.Send('RECV_FILES', { id: data.id, files: await this.#lifecycle_hooks.get_files(client, data?.data) });
+                    else {
+                        this.HandleError('get_files hook not registered. [#no-get_files-hook]');
                         client.Send('RES', { id: data.id, result: 0 });
                     }
                     break;

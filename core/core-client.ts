@@ -7,7 +7,7 @@ import b64 from 'base64-js'
 import type { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind, Bit } from './types.js'
 import type { RateLimit } from './ratelimit.js'
 import type { SocioFiles } from './types.js';
-type MessageDataObj = { id: id, verb?: string, table?: string, status?:string|number, result?:string|object|boolean|PropValue|number, prop?:PropKey, data?:object };
+type MessageDataObj = { id: id, verb?: string, table?: string, status?:string|number, result?:string|object|boolean|PropValue|number, prop?:PropKey, data?:object, files?:SocioFiles };
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
 type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?: Function};
 type QueryObject = { sql: string, params?: object | null, onUpdate: SubscribeCallbackObject }
@@ -150,13 +150,21 @@ export class SocioClient extends LogHandler {
                     if (typeof this.#queries[data.id] == 'function')
                         (this.#queries[data.id] as Function)();
 
-                    this.HandleError(new E(`Request to Server returned ERROR response for query id, reason #[err-msg-kind]`, data?.id, data?.result as Bit))
+                    this.HandleError(new E(`Request to Server returned ERROR response for query id, reason #[err-msg-kind]`, data?.id, data?.result as Bit));
+                    break;
                 case 'RECON': 
                     this.#FindID(kind, data?.id);
                     //@ts-expect-error
                     this.#queries[data.id](data);
                     delete this.#queries[data.id]; //clear memory
-                break;
+                    break;
+                case 'RECV_FILES':
+                    this.#FindID(kind, data?.id);
+                    const files = ParseSocioFiles(data?.files as SocioFiles);
+                    //@ts-expect-error
+                    this.#queries[data.id](files);
+                    delete this.#queries[data.id]; //clear memory
+                    break;
                 // case '': break;
                 default: throw new E(`Unrecognized message kind!`, kind, data);
             }
@@ -165,22 +173,24 @@ export class SocioClient extends LogHandler {
 
     //accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
     Send(kind: CoreMessageKind, ...data){ //data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
-        if(data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, ...data); //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
-        this.#ws?.send(JSON.stringify(Object.assign({}, { kind, data:data[0] }, ...data.slice(1))));
-        this.HandleInfo('sent:', kind, data);
+        try{
+            if (data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, ...data); //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
+            this.#ws?.send(JSON.stringify(Object.assign({}, { kind, data: data[0] }, ...data.slice(1))));
+            this.HandleInfo('sent:', kind, data);
+        } catch (e: err) { this.HandleError(e); }
     }
     async SendFiles(files:File[], other_data:object|undefined=undefined){
         const proc_files: SocioFiles = {}; //my own kind of FormData, specific for files, because FormData is actually a very riggid type
 
         //add each file
         for(const file of files){
-            //relevant info about files is stored in file_meta
-            const file_meta = {
+            //relevant info about files is stored in meta
+            const meta = {
                 lastModified: file.lastModified,
                 size: file.size,
                 type: file.type
             };
-            proc_files[file.name] = { file_meta, bin: b64.fromByteArray(new Uint8Array(await file.arrayBuffer()))}; //this is the best way that i could find. JS is really unhappy about binary data
+            proc_files[file.name] = { meta, bin: b64.fromByteArray(new Uint8Array(await file.arrayBuffer()))}; //this is the best way that i could find. JS is really unhappy about binary data
         }
 
         //create the server request as usual
@@ -188,7 +198,7 @@ export class SocioClient extends LogHandler {
         const socio_form_data = { id, files: proc_files }
         if(other_data)
             socio_form_data['data'] = other_data; //add the other data if exists
-        this.Send('FILES', socio_form_data);
+        this.Send('UP_FILES', socio_form_data);
 
         return prom;
     }
@@ -213,7 +223,7 @@ export class SocioClient extends LogHandler {
 
     //subscribe to an sql query. Can add multiple callbacks where ever in your code, if their sql queries are identical
     //returns the created ID for that query, to use to unsubscribe all callbacks to the query
-    subscribe({ sql = '', params = null }: { sql?: string, params?: object | null } = {}, onUpdate: SubscribeCallbackObjectSuccess = null, status_callbacks: { error?: (e: string) => void } = {}, rate_limit: RateLimit | null = null): id | null{
+    Subscribe({ sql = '', params = null }: { sql?: string, params?: object | null } = {}, onUpdate: SubscribeCallbackObjectSuccess = null, status_callbacks: { error?: (e: string) => void } = {}, rate_limit: RateLimit | null = null): id | null{
         //params for sql is the object that will be passed as params to your query func
 
         //onUpdate is the success standard function, that gets called, when the DB sends an update of its data
@@ -231,7 +241,7 @@ export class SocioClient extends LogHandler {
             return id //the ID of the query
         } catch (e: err) { this.HandleError(e); return null; }
     }
-    subscribeProp(prop_name: PropKey, onUpdate: PropUpdateCallback, rate_limit: RateLimit | null = null):void{
+    SubscribeProp(prop_name: PropKey, onUpdate: PropUpdateCallback, rate_limit: RateLimit | null = null):void{
         //the prop name on the backend that is a key in the object
 
         if (typeof onUpdate !== "function") throw new E('Subscription onUpdate is not function, but has to be.');
@@ -246,7 +256,7 @@ export class SocioClient extends LogHandler {
             }
         } catch (e: err) { this.HandleError(e); }
     }
-    async unsubscribe(id: id, force=false) {
+    async Unsubscribe(id: id, force=false) {
         try {
             if (id in this.#queries){
                 if(force)//will first delete from here, to not wait for server response
@@ -268,7 +278,7 @@ export class SocioClient extends LogHandler {
                 throw new E('Cannot unsubscribe query, because provided ID is not currently tracked.', id);
         } catch (e:err) { this.HandleError(e) }
     }
-    async unsubscribeProp(prop_name: PropKey, force = false) {
+    async UnsubscribeProp(prop_name: PropKey, force = false) {
         try {
             if (prop_name in this.#props) {
                 if (force)//will first delete from here, to not wait for server response
@@ -290,24 +300,22 @@ export class SocioClient extends LogHandler {
                 throw new E('Cannot unsubscribe query, because provided prop_name is not currently tracked.', prop_name);
         } catch (e: err) { this.HandleError(e) }
     }
-    unsubscribeAll({props=true, queries=true} = {}){
+    UnsubscribeAll({props=true, queries=true} = {}){
         if(props)
-            Object.keys(this.#props).forEach(p => this.unsubscribeProp(p, true));
+            Object.keys(this.#props).forEach(p => this.UnsubscribeProp(p, true));
         if(queries)
-            Object.keys(this.#queries).forEach(q => this.unsubscribe(q, true));
+            Object.keys(this.#queries).forEach(q => this.Unsubscribe(q, true));
     }
 
-    query(sql: string, params: object | null = null){
-        try{
-            //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
-            const { id, prom } = this.CreateQueryPromise();
+    Query(sql: string, params: object | null = null){
+        //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
+        const { id, prom } = this.CreateQueryPromise();
 
-            //send off the request, which will be resolved in the message handler
-            this.Send('SQL', { id: id, sql: sql, params: params });
-            return prom;
-        } catch (e: err) { this.HandleError(e); return null; }
+        //send off the request, which will be resolved in the message handler
+        this.Send('SQL', { id: id, sql: sql, params: params });
+        return prom;
     }
-    setProp(prop: PropKey, new_val:PropValue){
+    SetProp(prop: PropKey, new_val:PropValue){
         try {
             //check that prop is subbed
             if (!(prop in this.#props))
@@ -321,37 +329,33 @@ export class SocioClient extends LogHandler {
             return prom;
         } catch (e: err) { this.HandleError(e); return null; }
     }
-    getProp(prop: PropKey) {
-        //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
+    GetProp(prop: PropKey) {
         const { id, prom } = this.CreateQueryPromise();
-
-        //send off the request, which will be resolved in the message handler
         this.Send('PROP_GET', { id: id, prop: prop });
         return prom;
     }
-    serv(data:object){
-        try {
-            //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
-            const { id, prom } = this.CreateQueryPromise();
-
-            //send off the request, which will be resolved in the message handler
-            this.Send('SERV', { id: id, data })
-            return prom
-        } catch (e: err) { this.HandleError(e); return null; }
+    Serv(data: any){
+        const { id, prom } = this.CreateQueryPromise();
+        this.Send('SERV', { id: id, data });
+        return prom;
+    }
+    GetFiles(data: any){
+        const { id, prom } = this.CreateQueryPromise();
+        this.Send('GET_FILES', { id: id, data });
+        return prom;
     }
     //sends a ping with either the user provided number or an auto generated number, for keeping track of packets and debugging
-    ping(num=0){
+    Ping(num=0){
         this.Send('PING', { id: num || this.GenKey })
     }
 
-    async authenticate(params:object={}){ //params here can be anything, like username and password stuff etc. The backend server auth function callback will receive this entire object
-        //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
+    async Authenticate(params:object={}){ //params here can be anything, like username and password stuff etc. The backend server auth function callback will receive this entire object
         const { id, prom } = this.CreateQueryPromise();
         this.Send('AUTH', { id: id, params: params });
         return prom as Promise<{ id: id, result: Bit }>;
     }
     get authenticated() { return this.#authenticated === true }
-    askPermission(verb = '', table = '') {//ask the backend for a permission on a table with the SQL verb u want to perform on it, i.e. SELECT, INSERT etc.
+    AskPermission(verb = '', table = '') {//ask the backend for a permission on a table with the SQL verb u want to perform on it, i.e. SELECT, INSERT etc.
         const { id, prom } = this.CreateQueryPromise();
         this.Send('GET_PERM', { id: id, verb:verb, table:table })
         return prom as Promise<{ id: id, result: Bit }>;
@@ -373,7 +377,7 @@ export class SocioClient extends LogHandler {
     }
     #HandleBasicPromiseMessage(kind:string, data:MessageDataObj){
         this.#FindID(kind, data?.id);
-        //@ts-ignore
+        //@ts-expect-error
         this.#queries[data.id](data?.result as Bit);
         delete this.#queries[data.id]; //clear memory
     }
@@ -384,18 +388,16 @@ export class SocioClient extends LogHandler {
     Close() { this.#ws?.close(); }
 
     async #GetReconToken(name:string = this.name){
-        try {
-            const { id, prom } = this.CreateQueryPromise();
+        const { id, prom } = this.CreateQueryPromise();
 
-            //ask the server for a one-time auth token
-            this.Send('RECON', { id: id, data: { type: 'GET' } });
-            const token = await prom as string; //await the token
+        //ask the server for a one-time auth token
+        this.Send('RECON', { id: id, data: { type: 'GET' } });
+        const token = await prom as string; //await the token
 
-            //save down the token. Name is used to map new instance to old instance by same name.
-            localStorage.setItem(`Socio_recon_token_${name}`, token); //https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage localstorage is origin locked, so should be safe to store this here
-        } catch (e: err) { this.HandleError(e); }
+        //save down the token. Name is used to map new instance to old instance by same name.
+        localStorage.setItem(`Socio_recon_token_${name}`, token); //https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage localstorage is origin locked, so should be safe to store this here
     }
-    async RefreshReconToken(name: string = this.name){return await this.#GetReconToken(name);}
+    RefreshReconToken(name: string = this.name){return this.#GetReconToken(name);}
 
     async #TryReconnect(name: string = this.name){
         const key = `Socio_recon_token_${name}`
@@ -422,4 +424,11 @@ export class SocioClient extends LogHandler {
                 this.HandleError(new E('Failed to reconnect', res));
         }
     }
+}
+
+function ParseSocioFiles(files:SocioFiles){
+    const files_array: File[] = [];
+    for(const [filename, filedata] of Object.entries(files))
+        files_array.push(new File([b64.toByteArray(filedata.bin)], filename, { type: filedata.meta.type, lastModified: filedata.meta.lastModified }));
+    return files_array;
 }
