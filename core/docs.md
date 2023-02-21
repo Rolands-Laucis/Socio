@@ -104,9 +104,9 @@ import { SaveFilesToDiskPath } from 'socio/dist/fs-utils';
 import type { SocioSession } from 'socio/dist/core-session';
 import type { SocioFiles } from 'socio/dist/types';
 
-socserv.RegisterLifecycleHookHandler('files', async (client: SocioSession, files: SocioFiles) => {
-    await SaveFilesToDiskPath(['.', 'files'], files); //simple function for your convenience, that cross platform saves your files to your FS directory
-    return true; //return truthy to tell client success. NOTE, if this hangs (e.g. path is invalid), the server will print an error, but the client's promise wont ever resolve, if you're waiting for it.
+socserv.RegisterLifecycleHookHandler('files', (client: SocioSession, files: SocioFiles) => {
+    SaveFilesToDiskPath(['.', 'files'], files); //simple function for your convenience, that cross platform saves your files to your FS directory
+    return true; //return truthy to tell client success. NOTE, if this hangs (e.g. path is invalid), the server will log an error, but the client's promise wont ever resolve, if you're waiting for it.
 });
 ```
 
@@ -120,10 +120,12 @@ const files: File[] = await sc.GetFiles(data); //This will request files from th
 #### Server Sending Files
 ```ts
 //server code
-socserv.RegisterLifecycleHookHandler('get_files', async (client: SocioSession, data: any) => {
+import { ReadFilesFromDisk } from 'socio/dist/fs-utils';
+
+socserv.RegisterLifecycleHookHandler('get_files', (client: SocioSession, data: any) => {
     //data is anything you passed into the client exactly the same. Up to you how you want to locate your files via paths, aliases, whatever.
-    const files: SocioFiles = {};
-    return files; //MUST return files as the SocioFiles type!!
+    const files: SocioFiles = ReadFilesFromDisk(['./images/hello.avif', ...data]); //simple utility. Does not include lastModified or mime type, but you can add those yourself with some lib.
+    return files; //MUST return files as the SocioFiles type!! The bin prop is a base64 bytes string. NOTE, if this hangs (e.g. path is invalid), the server will log an error, but the client's promise wont ever resolve, if you're waiting for it.
 });
 ```
 

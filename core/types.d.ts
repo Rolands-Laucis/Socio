@@ -1,6 +1,7 @@
 //general types
 export type id = string | number;
 export type Bit = 0 | 1;
+export type Base64String = string;
 
 //props
 export type PropKey = string;
@@ -8,7 +9,7 @@ export type PropValue = object | string | number | null;
 export type PropAssigner = (key: PropKey, new_val:PropValue) => boolean;
 
 //misc
-export type SocioFiles = {[filename: string]: {meta: {lastModified: number, size: number, type: string}, bin: string } }; //bin is a base64 string of the bytes of the raw file
+export type SocioFiles = { [filename: string]: { meta: { size: number, lastModified?: number,  type?: string }, bin: Base64String } }; //bin is a base64 string of the bytes of the raw file
 export type QueryMarker = 'socio' | 'auth' | 'perm';
 
 //msg kinds
