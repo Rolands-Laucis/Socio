@@ -109,13 +109,13 @@ export class SocioSecurity extends LogHandler {
     EncryptSocioString(q='', sql='', marker=''){
         let sql_alter = ''
         for(const l of sql){
-            if(l == ' ') sql_alter += `_s${this.GenRandInt(10,99)}_`;
+            if (l == ' ') sql_alter += `-;¦${this.GenRandInt(10,99)}`;
             else sql_alter += l;
         }
         return q + this.EncryptString(sql_alter + (marker || '--socio')) + q;
     }
     RemoveRandInts(altered_sql=''){
-        return altered_sql.replace(/_s\d\d_/gi, ' ')
+        return altered_sql.replace(/-;¦\d{2}/gi, ' ')
     }
 
     GenRandInt(min = 10_000, max = 100_000_000):number{
