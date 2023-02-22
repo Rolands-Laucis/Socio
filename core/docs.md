@@ -102,11 +102,12 @@ const socserv = new SocioServer(...)
 import { SaveFilesToDiskPath } from 'socio/dist/fs-utils';
 
 import type { SocioSession } from 'socio/dist/core-session';
-import type { SocioFiles } from 'socio/dist/types';
+import type { SocioFiles, FS_Util_Response } from 'socio/dist/types';
 
 socserv.RegisterLifecycleHookHandler('file_upload', (client: SocioSession, files: SocioFiles) => {
-    SaveFilesToDiskPath(['.', 'files'], files); //simple function for your convenience, that cross platform saves your files to your FS directory
-    return true; //return truthy to tell client success. NOTE, if this hangs (e.g. path is invalid), the server will log an error, but the client's promise wont ever resolve, if you're waiting for it.
+    return SaveFilesToDiskPath(['.', 'files', 'images'], files).result; //simple function for your convenience, that cross platform saves your files to your FS directory
+    //returns FS_Util_Response, but this function must return truthy or falsy to indicate success.
+    //FS_Util_Response contains result and error fields, that indicate if the FS call was successful and/or the os error msg. So you can log errors yourself.
 });
 ```
 
@@ -115,17 +116,21 @@ socserv.RegisterLifecycleHookHandler('file_upload', (client: SocioSession, files
 //browser code
 const files: File[] = await sc.GetFiles(data); //This will request files from the server and give back an array of browser File type with expected properties.
 //data is anything you want to send to your file_download server hook. It can be an array of filenames, paths, numbers, anything json serializable.
+//if unsuccessful or no files returned, then files will resolve to null.
 ```
 
 #### Server Sending Files
 ```ts
 //server code
-import { ReadFilesFromDisk } from 'socio/dist/fs-utils';
+import { ReadFilesFromDisk, MapPathsToFolder } from 'socio/dist/fs-utils';
+import type { FS_Util_Response } from 'socio/dist/types';
 
 socserv.RegisterLifecycleHookHandler('file_download', (client: SocioSession, data: any) => {
     //data is anything you passed into the client exactly the same. Up to you how you want to locate your files via paths, aliases, whatever.
-    const files: SocioFiles = ReadFilesFromDisk(['./images/hello.avif', ...data]); //simple utility. Does not include lastModified or mime type, but you can add those yourself with some lib.
-    return files; //MUST return files as the SocioFiles type!! The bin prop is a base64 bytes string. NOTE, if this hangs (e.g. path is invalid), the server will log an error, but the client's promise wont ever resolve, if you're waiting for it.
+    return ReadFilesFromDisk(['./images/hello.avif', ...data]); //simple utility. Does not include lastModified or mime type, but you can add those yourself with some lib.
+    //MUST return the FS_Util_Response type!! ReadFilesFromDisk returns it.
+    //FS_Util_Response contains result and error fields, that indicate if the FS call was successful and/or the os error msg. So you can log errors yourself.
+    //MapPathsToFolder can be used to map the clients file paths to your static files folder.
 });
 ```
 

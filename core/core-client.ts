@@ -165,7 +165,11 @@ export class SocioClient extends LogHandler {
                         const files = ParseSocioFiles(data?.files as SocioFiles);
                         //@ts-expect-error
                         this.#queries[data.id](files);
-                    } else throw new E('File receive either bad result or no files.\nResult:', data?.result, '\nfiles received:', Object.keys(data?.files || {}).length);
+                    } else {
+                        //@ts-expect-error
+                        this.#queries[data.id](null);
+                        throw new E('File receive either bad result or no files.\nResult:', data?.result, '\nfiles received:', Object.keys(data?.files || {}).length)
+                    };
 
                     delete this.#queries[data.id]; //clear memory
                     break;
@@ -343,10 +347,10 @@ export class SocioClient extends LogHandler {
         this.Send('SERV', { id: id, data });
         return prom;
     }
-    GetFiles(data: any){
+    GetFiles(data: any): Promise<File[]>{
         const { id, prom } = this.CreateQueryPromise();
         this.Send('GET_FILES', { id: id, data });
-        return prom;
+        return prom as Promise<File[]>;
     }
     //sends a ping with either the user provided number or an auto generated number, for keeping track of packets and debugging
     Ping(num=0){
