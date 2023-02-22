@@ -95,7 +95,7 @@ As this is an open source project that i spend my free time on, perhaps someone 
 * Web bundler HMR mechanisms seem pretty complex, perhaps someone wants to make a plugin or recommend some basic solution? The idea is for the server to push new css, js, html files or chunks to be replaced on all clients live - CI/CD automation.
 
 ## TODOs 📝
-* Keyed SQL queries
+* Database hook function integration instead of manually parsing SQL and updating clients.
 * Better SQL dependency distinguisher on queries
 * Threading paralization pipelines for async querry queues (perhaps offloading queries to another machine)
 * Caching and dedup UPD msg kind
