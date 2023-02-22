@@ -6,6 +6,7 @@ import { default as os_path } from "path";
 import type { SocioFiles } from './types.js';
 
 export function SaveFilesToDiskPath(path_array: string[], files: SocioFiles){
+    if(!path_array || !files) return;
     for (const [filename, file_data] of Object.entries(files)) {
         const file_path = os_path.join(...path_array, filename);
         const bin = b64.toByteArray(file_data.bin);
@@ -14,6 +15,7 @@ export function SaveFilesToDiskPath(path_array: string[], files: SocioFiles){
 }
 
 export function ReadFilesFromDisk(file_paths: string[]) {
+    if (!file_paths) return;
     const files: SocioFiles = {};
     for(const path in file_paths){
         const filename = os_path.basename(path);

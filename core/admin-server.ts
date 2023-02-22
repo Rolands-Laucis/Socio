@@ -5,7 +5,6 @@ import { WebSocket as nodeWebSocket } from "ws";
 
 //types
 import type { ClientMessageKind, id, PropValue } from './types.js'
-// import type { WebSocket as nodeWebSocket } from "ws";
 type MessageDataObj = { id: id, status?: string, result?: string | object | boolean | PropValue, data?: object };
 type AdminClientOptions = { url: string, client_secret: string, verbose?:boolean }
 

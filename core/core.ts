@@ -17,9 +17,9 @@ import { RateLimiter } from './ratelimit.js'
 //types
 import type { ServerOptions, WebSocket, AddressInfo } from 'ws';
 import type { IncomingMessage } from 'http'
-import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind } from './types.js'
+import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind, SocioFiles } from './types.js'
 import type { RateLimit } from './ratelimit.js'
-export type MessageDataObj = { id?: id, sql?: string, params?: object | null, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue, data?:any, rate_limit?:RateLimit, files?:object };
+export type MessageDataObj = { id?: id, sql?: string, params?: object | null, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue, data?:any, rate_limit?:RateLimit, files?:SocioFiles };
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
 export type QueryFunction = (obj: QueryFuncParams | MessageDataObj) => Promise<object>;
 type QueryObject = { id: id, params: object | null, session: SocioSession }; //for grouping hooks
@@ -40,7 +40,7 @@ export class SocioServer extends LogHandler {
     //rate limits server functions globally
     #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
 
-    #lifecycle_hooks: { [key: string]: Function | null; } = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null, serv:null, admin:null, blob:null, upload_files:null, get_files:null } //call the register function to hook on these. They will be called if they exist
+    #lifecycle_hooks: { [key: string]: Function | null; } = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null, serv:null, admin:null, blob:null, file_upload:null, file_download:null } //call the register function to hook on these. They will be called if they exist
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //msg hook receives all incomming msgs to the server. 
     //upd works the same as msg, but for everytime updates need to be propogated to all the sockets.
@@ -403,18 +403,18 @@ export class SocioServer extends LogHandler {
                     }
                     break;
                 case 'UP_FILES':
-                    if (this.#lifecycle_hooks?.upload_files)
-                        client.Send('RES', { id: data.id, result: await this.#lifecycle_hooks.upload_files(client, data?.files, data?.data) ? 1 : 0 });
+                    if (this.#lifecycle_hooks?.file_upload)
+                        client.Send('RES', { id: data.id, result: await this.#lifecycle_hooks.file_upload(client, data?.files, data?.data) ? 1 : 0 });
                     else{
-                        this.HandleError('upload_files hook not registered. [#no-upload_files-hook]');
+                        this.HandleError('file_upload hook not registered. [#no-file_upload-hook]');
                         client.Send('RES', { id: data.id, result: 0 });
                     }
                     break;
                 case 'GET_FILES':
-                    if (this.#lifecycle_hooks?.get_files)
-                        client.Send('RECV_FILES', { id: data.id, files: await this.#lifecycle_hooks.get_files(client, data?.data) });
+                    if (this.#lifecycle_hooks?.file_download)
+                        client.Send('RECV_FILES', { id: data.id, files: await this.#lifecycle_hooks.file_download(client, data?.data), result:1 });
                     else {
-                        this.HandleError('get_files hook not registered. [#no-get_files-hook]');
+                        this.HandleError('file_download hook not registered. [#no-file_download-hook]');
                         client.Send('RES', { id: data.id, result: 0 });
                     }
                     break;

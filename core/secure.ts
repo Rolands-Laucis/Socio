@@ -115,7 +115,7 @@ export class SocioSecurity extends LogHandler {
         return q + this.EncryptString(sql_alter + (marker || '--socio')) + q;
     }
     RemoveRandInts(altered_sql=''){
-        return altered_sql.replace(/-;¦\d{2}/gi, ' ')
+        return altered_sql.replace(/-;¦\d{2}/gi, ' ');
     }
 
     GenRandInt(min = 10_000, max = 100_000_000):number{

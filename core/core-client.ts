@@ -160,9 +160,13 @@ export class SocioClient extends LogHandler {
                     break;
                 case 'RECV_FILES':
                     this.#FindID(kind, data?.id);
-                    const files = ParseSocioFiles(data?.files as SocioFiles);
-                    //@ts-expect-error
-                    this.#queries[data.id](files);
+                    
+                    if (data?.result && data?.files){
+                        const files = ParseSocioFiles(data?.files as SocioFiles);
+                        //@ts-expect-error
+                        this.#queries[data.id](files);
+                    } else throw new E('File receive either bad result or no files.\nResult:', data?.result, '\nfiles received:', Object.keys(data?.files || {}).length);
+
                     delete this.#queries[data.id]; //clear memory
                     break;
                 // case '': break;
@@ -427,6 +431,7 @@ export class SocioClient extends LogHandler {
 }
 
 function ParseSocioFiles(files:SocioFiles){
+    if(!files) return [];
     const files_array: File[] = [];
     for(const [filename, filedata] of Object.entries(files))
         files_array.push(new File([b64.toByteArray(filedata.bin)], filename, { type: filedata.meta.type, lastModified: filedata.meta.lastModified }));
