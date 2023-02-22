@@ -30,3 +30,8 @@ export function ReadFilesFromDisk(file_paths: string[]): FS_Util_Response {
         return { result: 1, files };
     } catch (e:any) { return { result: 0, error:e }; }
 }
+
+export function MapPathsToFolder(folder_path:string[], relative_file_paths:string[]){
+    const fp = os_path.join(...folder_path);
+    return relative_file_paths.map(p => os_path.join(fp, p));
+}
