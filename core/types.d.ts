@@ -11,6 +11,7 @@ export type PropAssigner = (key: PropKey, new_val:PropValue) => boolean;
 //misc
 export type SocioFiles = { [filename: string]: { meta: { size: number, lastModified?: number,  type?: string }, bin: Base64String } }; //bin is a base64 string of the bytes of the raw file
 export type QueryMarker = 'socio' | 'auth' | 'perm';
+export type FS_Util_Response = { result: Bit, error?: string | Error | E | object | any, files?: SocioFiles }
 
 //msg kinds
 export type CoreMessageKind = 'SUB' | 'UNSUB' | 'SQL' | 'PING' | 'AUTH' | 'GET_PERM' | 'PROP_SUB' | 'PROP_UNSUB' | 'PROP_GET' | 'PROP_SET' | 'SERV' | 'ADMIN' | 'RECON' | 'UP_FILES' | 'GET_FILES';

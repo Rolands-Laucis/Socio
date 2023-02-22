@@ -411,8 +411,12 @@ export class SocioServer extends LogHandler {
                     }
                     break;
                 case 'GET_FILES':
-                    if (this.#lifecycle_hooks?.file_download)
-                        client.Send('RECV_FILES', { id: data.id, files: await this.#lifecycle_hooks.file_download(client, data?.data), result:1 });
+                    if (this.#lifecycle_hooks?.file_download){
+                        const response = await this.#lifecycle_hooks.file_download(client, data?.data);
+                        if (!response?.result)
+                            this.HandleError(new E('file_download hook returned unsuccessful result.', response?.error));
+                        client.Send('RECV_FILES', { id: data.id, files: response.files, result: response?.result });
+                    }
                     else {
                         this.HandleError('file_download hook not registered. [#no-file_download-hook]');
                         client.Send('RES', { id: data.id, result: 0 });
