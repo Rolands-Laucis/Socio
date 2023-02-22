@@ -99,7 +99,6 @@ As this is an open source project that i spend my free time on, perhaps someone 
 * Better SQL dependency distinguisher on queries
 * Threading paralization pipelines for async querry queues (perhaps offloading queries to another machine)
 * Caching and dedup UPD msg kind
-* File and blob sending and replacing on the client side
 * Redo the update dependency mechanism to serious data structures - dependency graph or tree or smth
 * Different solution for sql parsing. Perhaps the 40MB js lib... (but that seems insane to me)
 * plenty more
