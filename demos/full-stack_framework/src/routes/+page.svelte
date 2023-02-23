@@ -37,23 +37,23 @@
         ready = await sc.ready();
         toast.success('Socio Client connected!', {icon:'🥳',position: "bottom-center", duration:1000});
         
-        sc.subscribe({sql: "SELECT COUNT(*) AS RES FROM users WHERE name = :name;--socio",params: { name: "John" }}, (res) => {
+        sc.Subscribe({sql: "SELECT COUNT(*) AS RES FROM users WHERE name = :name;--socio",params: { name: "John" }}, (res) => {
                 //@ts-ignore
                 user_count = res[0].RES as number; //res is whatever object your particular DB interface lib returns from a raw query
             }
         );
 
-        sc.subscribe({ sql: "SELECT * FROM users;--socio" },(res) => {
+        sc.Subscribe({ sql: "SELECT * FROM users;--socio" },(res) => {
                 users = res as { userid: number; name: string; num: number }[]; //res is whatever object your particular DB interface lib returns from a raw query
             }
         );
 
-        sc.subscribeProp("color", (c) => (color_prop = c as string));
+        sc.SubscribeProp("color", (c) => (color_prop = c as string));
     });
 
     //cleanup for dev server reloads.
     onDestroy(() => {
-        sc.unsubscribeAll({props:true, queries:true}); //NB! this wipes the subscriptions on the SocioClient instance, not just the ones registered here. Subscriptions return id's to use for unsubscribing.
+        sc.UnsubscribeAll({props:true, queries:true}); //NB! this wipes the subscriptions on the SocioClient instance, not just the ones registered here. Subscriptions return id's to use for unsubscribing.
     })
 </script>
 
@@ -82,7 +82,7 @@
         <div class="horiz">
             <h6 class="darker_text bold">single sql query:</h6>
             <h4>SELECT 42+69 AS RESULT; =</h4>
-            {#await sc.query("SELECT 42+69 AS RESULT;--socio")}
+            {#await sc.Query("SELECT 42+69 AS RESULT;--socio")}
                 <Bloom><Spinner style="--h:24px;--t:6px;" /></Bloom>
             {:then res}
                 <h4 class="bold">{res[0].RESULT}</h4>
@@ -111,7 +111,7 @@
                 <Button
                     style="width:100%;"
                     on:click={async () =>
-                        await sc.query(
+                        await sc.Query(
                             "INSERT INTO users (name, num) VALUES(:name, :num);--socio",
                             insert_fields
                         )}
@@ -157,7 +157,7 @@
             <h6 class="darker_text bold">subscribed server prop:</h6>
             <Bloom style="--s_h:0.8;--b_h:8px;--c_h:1;">
                 <Button
-                    on:click={async () => await sc.setProp("color", color_prop)}
+                    on:click={async () => await sc.SetProp("color", color_prop)}
                     >SET</Button
                 >
             </Bloom>

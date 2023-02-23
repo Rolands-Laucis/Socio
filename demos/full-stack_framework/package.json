@@ -24,7 +24,7 @@
   "type": "module",
   "dependencies": {
     "sequelize": "^6.28.0",
-    "socio": "^0.4.13",
+    "socio": "^0.6.2",
     "sqlite3": "^5.1.4",
     "svelte-french-toast": "^1.0.3",
     "ws": "^8.11.0"
