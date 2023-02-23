@@ -210,7 +210,7 @@ export class SocioServer extends LogHandler {
                 case 'SUB':                    
                     if (QueryIsSelect(data.sql || '')) {
                         //set up hook
-                        const tables = ParseQueryTables(data.sql || '')
+                        const tables = ParseQueryTables(data.sql || '');
                         if (tables)
                             client.RegisterHook(tables, data.id as id, data.sql as string, data.params || null, data?.rate_limit || null);
 
@@ -218,14 +218,15 @@ export class SocioServer extends LogHandler {
                         client.Send('UPD', {
                             id: data.id,
                             result: await this.Query(client, data.id || 0, data.sql || '', data.params),
-                            status: 1
-                        })
+                            status: 'success'
+                        });
                     } else
                         //send response
                         client.Send('ERR', {
                             id: data.id,
-                            result: 'Only SELECT queries may be subscribed to! [#reg-not-select]'
-                        })
+                            result: 'Only SELECT queries may be subscribed to! [#reg-not-select]',
+                            status:'error'
+                        });
 
                     break;
                 case 'UNSUB':
