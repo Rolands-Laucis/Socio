@@ -441,50 +441,26 @@ export class SocioServer extends LogHandler {
             if (await this.#lifecycle_hooks.upd(this.#sessions, tables))
                 return;
 
-        //try the logic myself
+        //or go through each session's every hook and query the DB for its result, then send it to the client
         try{
-            //gather all sessions hooks sql queries that involve the altered tables, and who's ratelimit has not been exceeded
-            const queries: { [key: string]: QueryObject[]} = {}
-            Object.values(this.#sessions).forEach(s => {
-                s.GetHooksForTables(tables).forEach(h => { //GetHooksQueriesForTables always returns array. If empty, then the foreach wont run, so each sql guaranteed to have hooks array
+            Object.values(this.#sessions).forEach(client => { //for each session
+                client.GetHooksForTables(tables).forEach(hook => { //for each hook. GetHooksForTables always returns array. If empty, then the foreach wont run, so each sql guaranteed to have hooks array
                     //rate limit check
-                    if (h?.rate_limiter && h?.rate_limiter.CheckLimit()) return;
+                    if (hook?.rate_limiter && hook.rate_limiter.CheckLimit()) return;
 
-                    const obj: QueryObject = { id: h.id, params: h.params, session: s }
-                    if(h.sql in queries)
-                        queries[h.sql].push(obj)
-                    else
-                        queries[h.sql] = [obj]
-                })
-            })
-
-            //asyncronously bombard the DB with queries. When they resolve, send the client the result.
-            for (const [sql, hooks] of Object.entries(queries)){
-                try{
-                    //group the hooks based on SQL + PARAMS (to optimize DB mashing), since those queries would be identical, but the recipients most likely arent, so cant just dedup the array.
-                    for (const group_hooks of GroupHooks(sql, hooks)){ //not using for await, bcs there is no need to block the thread. Instead we can queue up all the queries and they will continue, once DB returns value.
-                        this.Query(group_hooks[0].session, group_hooks[0].id, sql, group_hooks[0].params) //grab the first ones params, since all params of hooks of a group should be the same. Seeing as this query is done on behalf of a bunch of sessions, then the other args cannot be provided. TODO bcs of auth, cant just use the first client
-                        .then(res => { //once the query completes, send out this result to all sessions that are subed to it
-                            group_hooks.forEach(h => {
-                                h.session.Send('UPD', {
-                                    id: h.id,
-                                    result: res,
-                                    status:'success'
-                                })
-                            })
-                        })
-                        .catch(err => { //otherwise an error occured with that particular query and we send that out
-                            group_hooks.forEach(h => {
-                                h.session.Send('UPD', {
-                                    id: h.id,
-                                    result: err,
-                                    status: 'error'
-                                })
-                            })
-                        })
-                    }
-                } catch (e:err) { this.HandleError(e) }
-            }
+                    this.Query(client, hook.id, hook.sql, hook.params)
+                        .then(res => client.Send('UPD', {
+                            id: hook.id,
+                            result: res,
+                            status: 'success'
+                        }))
+                        .catch(err => client.Send('UPD', {
+                            id: hook.id,
+                            result: err,
+                            status: 'error'
+                        }));
+                });
+            });
         } catch (e:err) { this.HandleError(e) }
     }
 
@@ -613,18 +589,4 @@ export class SocioServer extends LogHandler {
         this.#sessions[client_id].ClearHooks(); //clear query subs
         Object.values(this.#props).forEach(prop => { if (client_id in prop.updates) delete prop.updates[client_id]; }); //clear prop subs
     }
-}
-
-//group the hooks based on SQL + PARAMS (to optimize DB mashing), since those queries would be identical, but the recipients most likely arent, so cant just dedup the array.
-//the key is only needed for grouping into arrays. So returns just the values of the final object. Array of arrays (hooks).
-function GroupHooks(sql = '', hooks: QueryObject[]=[]){
-    const grouped: { [key: string]: QueryObject[] } = {}
-    for(const h of hooks){
-        const key = sql + JSON.stringify(h.params)
-        if(key in grouped)
-            grouped[key].push(h)
-        else
-            grouped[key] = [h]
-    }
-    return Object.values(grouped)
 }
