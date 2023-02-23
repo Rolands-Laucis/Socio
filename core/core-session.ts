@@ -79,8 +79,8 @@ export class SocioSession extends LogHandler {
     }
 
     get authenticated() { return this.#authenticated }
-    async Authenticate(auth_func:Function, ...params:any[]) { //auth func can return any truthy or falsy value, the client will only receive a boolean, so its safe to set it to some credential or id or smth, as this would be accessible and useful to you when checking the session access to tables
-        const auth:boolean = await auth_func(...params);
+    async Authenticate(auth_func:Function, params:object|null=null) { //auth func can return any truthy or falsy value, the client will only receive a boolean, so its safe to set it to some credential or id or smth, as this would be accessible and useful to you when checking the session access to tables
+        const auth:boolean = await auth_func(this, params);
         this.#authenticated = auth == true;
         return auth;
     }

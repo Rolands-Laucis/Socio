@@ -26,23 +26,47 @@ import { SocioServer } from 'socio/dist/core.js'
 import type { SocioSession } from 'socio/dist/core-session.js'
 import type { IncomingMessage } from 'http'
 import type { QueryFunction } from 'socio/dist/core';
+import type { id } from 'socio/dist/types';
 
 //SocioServer needs a "query" function that it can call to fetch data. This would usually be your preffered ORM lib interface raw query function, but really this function is as simple as input and output, so it can do whatever you want. Like read from a txt file or whatever. It should be async and Socio will always await its response to send back to the client.
 //id is a unique auto incrementing index for the query itself that is sent from the client - not really important for you, but perhaps for debugging.
-const QueryWrap = async ({ id = 0, sql = '', params = {} } = {}) => (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))[0]
+const QueryWrap = async (client:SocioSession, id:id, sql:string, params = {}) => (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))[0]
 
 //The actual instance of the manager on port 3000 using the created query function. Verbose will make it print all incoming and outgoing traffic from all sockets in a pretty printed look :)
 const socserv = new SocioServer({ port: 3000 }, {DB_query_function: QueryWrap as QueryFunction, verbose:true} )
 
 //This class has a few public fields that you can alter, as well as useful functions to call later in your program at any time. E.g. set up lifecycle hooks:
-manager.LifecycleHookNames //get an array of the hooks currently recognized in Socio. Or look them up yourself in the core lib :)
-socserv.RegisterLifecycleHookHandler("con", (ses:SocioSession, req:IncomingMessage) => {
+manager.LifecycleHookNames; //get an array of the hooks currently recognized in Socio. Or look them up yourself in the core lib :)
+socserv.RegisterLifecycleHookHandler("con", (client:SocioSession, req:IncomingMessage) => {
     //woohoo a new client connection!
-    //ses is the already created instance of Session class, that has useful properties and methods.
+    //client is the already created instance of Session class, that has useful properties and methods, like the ID and IP of the client.
 })
 
 //currently N/A, bcs found bug in it. More important features right now. But similar stuff can be done with Server Props right now!
 socserv.Emit({data:'literally data.', all:'currently connected clients will receive this object now!'}) //imagine using this to send a new css style sheet to change how a button looks for everyone without them refreshing the page - realtime madness aaaa!
+```
+
+#### Authentification hook - a simple mechanism
+```ts
+//server code
+import type { SocioSession } from 'socio/dist/core-session.js'
+
+//keep track of which SocioSession client_id's have which of your database user_id's.
+const auth_clients:{[client_id:string]: number} = {};
+socserv.RegisterLifecycleHookHandler("auth", (client:SocioSession, params:object|null) => {
+    const user_id = DB.get(params);//...do some DB stuff to get the user_id from params, that may contain like username and password
+    auth_clients[client.id] = user_id;
+    return true;
+})
+
+//then in your qeury function, add in the user_id dynamic param
+async function QueryWrap (client:SocioSession, id:id, sql:string, params = {}) {
+  if('user_id' in params) //replace the params client side dummy user_id with the real one. Because the client side user_id cannot be trusted.
+    params.user_id = auth_clients[client.id];
+
+  return (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))[0];
+}
+
 ```
 
 ### Setup of ``SocioClient``

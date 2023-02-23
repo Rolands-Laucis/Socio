@@ -21,7 +21,7 @@ import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessa
 import type { RateLimit } from './ratelimit.js'
 export type MessageDataObj = { id?: id, sql?: string, params?: object | null, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue, data?:any, rate_limit?:RateLimit, files?:SocioFiles };
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
-export type QueryFunction = (obj: QueryFuncParams | MessageDataObj) => Promise<object>;
+export type QueryFunction = (client:SocioSession, id:id, sql:string, params?:object|null) => Promise<object>;
 type QueryObject = { id: id, params: object | null, session: SocioSession }; //for grouping hooks
 type SocioServerOptions = { DB_query_function?: QueryFunction, socio_security?: SocioSecurity | null, verbose?: boolean, decrypt_sql?: boolean, decrypt_prop?: boolean, hard_crash?: boolean, session_delete_delay_ms?: number, recon_ttl_ms?:number }
 type AdminMessageDataObj = {function:string, args?:any[], secure_key:string}
@@ -217,7 +217,7 @@ export class SocioServer extends LogHandler {
                         //send response
                         client.Send('UPD', {
                             id: data.id,
-                            result: await this.Query(data),
+                            result: await this.Query(client, data.id || 0, data.sql || '', data.params),
                             status: 1
                         })
                     } else
@@ -234,7 +234,7 @@ export class SocioServer extends LogHandler {
                     break;
                 case 'SQL':
                     //have to do the query in every case
-                    const res = this.Query(data);
+                    const res = this.Query(client, data.id || 0, data.sql || '', data.params);
                     client.Send('RES', { id: data.id, result: await res }); //wait for result and send it back
 
                     //if the sql wasnt a SELECT, but altered some resource, then need to propogate that to other connection hooks
@@ -249,7 +249,7 @@ export class SocioServer extends LogHandler {
                     if (client.authenticated) //check if already has auth
                         client.Send('AUTH', { id: data.id, result: 1 });
                     else if (this.#lifecycle_hooks.auth){
-                        const res = await client.Authenticate(this.#lifecycle_hooks.auth, client, data.params) //bcs its a private class field, give this function the hook to call and params to it. It will set its field and give back the result. NOTE this is safer than adding a setter to a private field
+                        const res = await client.Authenticate(this.#lifecycle_hooks.auth, data.params) //bcs its a private class field, give this function the hook to call and params to it. It will set its field and give back the result. NOTE this is safer than adding a setter to a private field
                         client.Send('AUTH', { id: data.id, result: res == true ? 1 : 0 }) //authenticated can be any truthy or falsy value, but the client will only receive a boolean, so its safe to set this to like an ID or token or smth for your own use
                     }else{
                         this.HandleError('AUTH function hook not registered, so client not authenticated. [#no-auth-func]')
@@ -463,7 +463,7 @@ export class SocioServer extends LogHandler {
                 try{
                     //group the hooks based on SQL + PARAMS (to optimize DB mashing), since those queries would be identical, but the recipients most likely arent, so cant just dedup the array.
                     for (const group_hooks of GroupHooks(sql, hooks)){ //not using for await, bcs there is no need to block the thread. Instead we can queue up all the queries and they will continue, once DB returns value.
-                        this.Query({ sql: sql, params: group_hooks[0].params }) //grab the first ones params, since all params of hooks of a group should be the same. Seeing as this query is done on behalf of a bunch of sessions, then the other args cannot be provided.
+                        this.Query(group_hooks[0].session, group_hooks[0].id, sql, group_hooks[0].params) //grab the first ones params, since all params of hooks of a group should be the same. Seeing as this query is done on behalf of a bunch of sessions, then the other args cannot be provided. TODO bcs of auth, cant just use the first client
                         .then(res => { //once the query completes, send out this result to all sessions that are subed to it
                             group_hooks.forEach(h => {
                                 h.session.Send('UPD', {
