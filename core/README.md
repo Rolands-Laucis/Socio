@@ -39,8 +39,9 @@ Written in TypeScript, but of course can use the lib in JS scripts just the same
 import { SocioServer } from 'socio/dist/core'; //this way for both JS and TS
 import { SocioSecurity } from 'socio/dist/secure'; //this way for both JS and TS
 import type { QueryFunction, QueryFuncParams } from 'socio/dist/core';
-function QueryWrap({ id = undefined, sql = '', params = undefined }:QueryFuncParams = { sql: '' }){
+async function QueryWrap(client: SocioSession, id: id, sql: string, params: object | null = null):Promise<object> {
     //do whatever u need to run the sql on your DB and return its result
+    //sanatize dynamic params!
 }
 
 const socsec = new SocioSecurity({ secure_private_key: '...', verbose:true }); //for decrypting incoming queries. This same key is used for encrypting the source files when you build and bundle them.
@@ -54,13 +55,13 @@ const sc = new SocioClient('ws://localhost:3000', {verbose:true, name:'Main'}); 
 await sc.ready(); //wait to establish the connection
 
 //will recall the callback whenever the Users table data gets altered
-const id = sc.subscribe({sql:'SELECT * FROM Users;--socio'}, (res) => {
+const id = sc.Subscribe({sql:'SELECT * FROM Users;--socio'}, (res:object) => {
     console.log(res);
 });
 
 //send a single query and wait for its result
-console.log(await sc.query('INSERT INTO Users (name, num) VALUES(:name, :num);--socio', {name:'bob', num:42})); //sanatize dynamic data yourself!
-sc.unsubscribe(id); //notify the server, so it doesnt waste resources processing this.
+console.log(await sc.Query('INSERT INTO Users (name, num) VALUES(:name, :num);--socio', {name:'bob', num:42})); //sanatize dynamic data yourself in QueryWrap!
+sc.Unsubscribe(id); //notify the server.
 ```
 
 **Dont be shy to try this out on your small project. Feedback from real world use cases is much appreciated 🥰**
