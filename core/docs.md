@@ -32,18 +32,15 @@ import type { id } from 'socio/dist/types';
 //id is a unique auto incrementing index for the query itself that is sent from the client - not really important for you, but perhaps for debugging.
 const QueryWrap = async (client:SocioSession, id:id, sql:string, params = {}) => (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))[0]
 
-//The actual instance of the manager on port 3000 using the created query function. Verbose will make it print all incoming and outgoing traffic from all sockets in a pretty printed look :)
-const socserv = new SocioServer({ port: 3000 }, {DB_query_function: QueryWrap as QueryFunction, verbose:true} )
+//Instance of SocioServer on port 3000 using the created query function. Verbose will make it print all incoming and outgoing traffic from all sockets. The first object is WSS Options - https://github.com/websockets/ws/blob/master/doc/ws.md#new-websocketserveroptions-callback
+const socserv = new SocioServer({ port: 3000 }, {DB_query_function: QueryWrap as QueryFunction, verbose:true} ); //the clients can now interact with your backend DB!
 
 //This class has a few public fields that you can alter, as well as useful functions to call later in your program at any time. E.g. set up lifecycle hooks:
-manager.LifecycleHookNames; //get an array of the hooks currently recognized in Socio. Or look them up yourself in the core lib :)
+socserv.LifecycleHookNames; //get an array of the hooks currently recognized in Socio.
 socserv.RegisterLifecycleHookHandler("con", (client:SocioSession, req:IncomingMessage) => {
     //woohoo a new client connection!
     //client is the already created instance of Session class, that has useful properties and methods, like the ID and IP of the client.
-})
-
-//currently N/A, bcs found bug in it. More important features right now. But similar stuff can be done with Server Props right now!
-socserv.Emit({data:'literally data.', all:'currently connected clients will receive this object now!'}) //imagine using this to send a new css style sheet to change how a button looks for everyone without them refreshing the page - realtime madness aaaa!
+});
 ```
 
 #### Authentification hook - a simple mechanism
@@ -67,6 +64,7 @@ async function QueryWrap (client:SocioSession, id:id, sql:string, params = {}) {
   return (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))[0];
 }
 
+//*of course you can set your own properties on the client instances. However, they will not be copied to a reconnect instance, so it is still advised to do this as shown.
 ```
 
 ### Setup of ``SocioClient``
@@ -80,7 +78,7 @@ import {SocioClient} from 'socio/dist/core-client.js'
 const sc = new SocioClient(`ws://localhost:3000`, { verbose: true }) ;//each instance is going to be its own "session" on the server, but you can spawn and destroy these where ever in your code
 await sc.ready(); //wait until it has connected as confimed by the server
 
-sc.client_id //can take a look at its ID, if that interests you idk
+sc.client_id; //can take a look at its ID, if that interests you idk
 
 console.log((await sc.Query("SELECT 42+69 AS RESULT;"))[0].RESULT);//will imediately send a one-time query to the DB and print the response result
 
@@ -105,10 +103,10 @@ await sc.Query("SELECT COUNT(*) FROM users;--socio"); //postfix a literal '--soc
 await sc.Query("SELECT COUNT(*) FROM users;--socio-auth"); //the backend will only execute this, if the session is marked as authenticated. But how would that come to be? 
 
 //Fear not, after awaiting ready, just send an auth request:
-const auth_success = (await sc.Authenticate({username:'Bob', password:'pass123'}))?.result; //success = Promise<{ id: id, result: boolean }>. The params to the request are your free choice. This object will be passed to your auth hook callback, and it is there that you compute the decision yourself. Then you may execute --socio-auth queries. If this socket were to disconnect, you'd have to redo the auth, but that isnt very likely. You can also at any time check the instance sc.authenticated property to see the state.
+const auth_success = (await sc.Authenticate({username:'Bob', password:'pass123'}))?.result; //success = Promise<{ id: id, result: boolean }>. The params to the request are your free choice. This object will be passed to your auth hook callback, and it is there that you compute the decision yourself. Then you may execute --socio-auth queries. If this socket were to disconnect, you'd have to redo the auth, but that isnt very likely. You can also at any time check the instance sc.authenticated property to see the state. Persistant socio clients will stay authenticated.
 
 //Similar mechanism for table permissions:
-const perm_success = (await sc.AskPermission('SELECT', 'Users'))?.result; //The perm is asked and granted per VERB on a TABLE. This will be passed to your grant_perm hook callback, and it is there that you compute the decision yourself. Then you may execute --socio-perm queries. If this socket were to disconnect, you'd have to redo the perm, but that isnt very likely. If you want to later check, if an instance has a perm, then you'd do this same procedure, but the server already knows what perms you have, so its quicker.
+const perm_success = (await sc.AskPermission('SELECT', 'Users'))?.result; //The perm is asked and granted per VERB on a TABLE. This will be passed to your grant_perm hook callback, and it is there that you compute the decision yourself. Then you may execute --socio-perm queries. If this socket were to disconnect, you'd have to redo the perm, but that isnt very likely. If you want to later check, if an instance has a perm, then you'd do this same procedure, but the server already knows what perms you have, so its quicker. Persistant socio clients will keep perms.
 ```
 
 #### Client Sending Files
@@ -185,7 +183,7 @@ const socserv = new SocioServer({ port: ws_port }, { DB_query_function: QueryWra
 
 import { sveltekit } from '@sveltejs/kit/vite';
 import { viteCommonjs } from '@originjs/vite-plugin-commonjs'
-import { SocioSecurityPlugin } from 'socio/dist/dist/secure';
+import { SocioSecurityPlugin } from 'socio/dist/secure';
 
 /** @type {import('vite').UserConfig} */
 const config = {
@@ -326,7 +324,7 @@ socserv.RegisterLifecycleHookHandler('admin', (client:SocioSession, data:any) =>
 
 The neat thing is that, this mechanism just uses WebSockets, so you can implement your own admin client in any language, even from a remote computer and even on the browser! Imagine how simple it would be to create an admin dashboard with this! Just look at the wrapper code, and it should be clear how to make your own. Its not that long.
 
-### Client page navigation persistance (reconnect/keep alive)
+### Client page navigation persistence (reconnect/keep alive)
 
 Since page navigation/reload unloads the entire document from memory and a new document is loaded in place, all client websocket sessions get wiped as well. This would mean re-authenticating and regaining all perms every reload. No good. Setting the ``persistent`` flag on SocioClient construction will automagically setup a mechanism that keeps the session data between page reloads. Though not between multiple tabs.
 
