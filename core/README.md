@@ -118,6 +118,7 @@ As this is an open source project that i spend my free time on, perhaps someone 
 * [CRDT](https://crdt.tech/) "Conflict-free Replicated Data Type" a data structure that simplifies distributed data storage systems and multi-user applications.
 * [Yjs](https://docs.yjs.dev/) a general CRDT implementation for JS to power Live Collaboration webapps like editable documents.
 * [RocketRPC](https://github.com/akash-joshi/rocketrpc) an upcoming new project very similar to Socio.
+* [tRPC](https://github.com/trpc/trpc) allows you to easily build & consume fully typesafe APIs without schemas or code generation.
 
 ## Name:
 "Socio.js" comes from the latin verb "socio", which means to link or associate. Since this lib syncs your frontend and backend. Its also a play on words for "WebSockets" and "IO".
