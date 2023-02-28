@@ -3,11 +3,11 @@
 #### Only depends on having Node installed.
 
 * Download or clone this repo
-* ```cd demos/basic```
+* ```cd demos/full-stack_framework```
 * ```npm i```
-* ```npm run demo```
+* ```npm run dev```
 
-Should start the express webserver and print out its url, that you can visit on your fav browser to begin the interactive demo.
+Should start the SvelteKit Vite local webserver and print out its url, that you can visit on your browser to begin the interactive demo.
 Should also log some startup status messages upon the first http request.
 
 * Visi the URL on one or multiple tabs or browser instances. 
@@ -18,7 +18,7 @@ As you will notice, all instances of the browsers and their tabs update their va
 
 This is powerful because you nolonger need to write a REST API middle layer between front and back end and manually sync states and data, which in practice is often challenging and laborious. With Socio this is all done automatically for you. As well as no need to write DB query interfacing middle layers, since your SQL queries can just sit in one place - the front end - where their use sits. 
 
-In addition, this demo makes use of the included SocioSecure Vite plugin to encrypt the actual SQL queries on the front end. You can check the console logs, websocket messages in the Network panel or the svelte source code on the browser. The sent SQL messages are scrambled gibberish. However, the dynamic parameters are not.
+In addition, this demo makes use of the included SocioSecure Vite plugin to encrypt the actual SQL queries on the front end. You can check the console logs, websocket messages in the browser Network panel or the Svelte source code on the browser. The sent SQL messages are scrambled gibberish. However, the dynamic parameters are not.
 
 ## Next check out the [src/routes/+page.svelte](https://github.com/Rolands-Laucis/Socio/blob/master/demos/full-stack_framework/src/routes/%2Bpage.svelte) file to see how the magic is done on the frontend - its super simple ;)
 
