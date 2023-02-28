@@ -113,10 +113,11 @@ As this is an open source project that i spend my free time on, perhaps someone 
 * [PocketBase](https://pocketbase.io/) serverless database.
 * [SurrealDB](https://surrealdb.com/) serverless database.
 * [RethinkDB](https://rethinkdb.com/) distributed architecture serverless database.
-* [WebRTC standard](https://webrtc.org/) another web protocol, but aimed at realtime binary data transmission like audio and video.
+* [WebRTC standard](https://webrtc.org/) another web protocol, but aimed at realtime binary data transmission like audio and video over UDP.
 * [gRPC](https://grpc.io/) Google's Remote Procedure Call (RPC, another web protocol) framework, for interconnecting computers over a standardized data format between and inside data center machines and devices.
 * [CRDT](https://crdt.tech/) "Conflict-free Replicated Data Type" a data structure that simplifies distributed data storage systems and multi-user applications.
 * [Yjs](https://docs.yjs.dev/) a general CRDT implementation for JS to power Live Collaboration webapps like editable documents.
+* [RocketRPC](https://github.com/akash-joshi/rocketrpc) an upcoming new project very similar to Socio.
 
 ## Name:
 "Socio.js" comes from the latin verb "socio", which means to link or associate. Since this lib syncs your frontend and backend. Its also a play on words for "WebSockets" and "IO".
