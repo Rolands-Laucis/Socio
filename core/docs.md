@@ -3,11 +3,15 @@
 
 ### Overview
 
-The ``./core.js`` file contains logic to be run on a backend server. It exports the class ``SocioServer`` that you instantiate and work with mostly during just the setup initialization of your backend. It creates a websocket server on a port and listens for clients to connect. It is the transaction middle-man between your DB and the SocioClient on the frontend doing queries.
+* [WS](https://www.npmjs.com/package/ws) Socio uses on the server.
+* [The WebSocket API](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API) Socio uses on the browser.
 
-The ``./core-client.js`` file contains logic to be run on the frontend browser side of js. It exports the class ``SocioClient`` that you instantiate and work with during the entire lifetime of the page. Use it to make SQL queries to the backend that do some magic to keep your data realtime using WebSocket technology.
+The ``./core.ts`` file contains logic to be run on a backend server. It exports the class ``SocioServer`` that you instantiate and work with mostly during just the setup initialization of your backend. It creates a websocket server on a port and listens for clients to connect. It is the transaction middle-man between your DB and the SocioClient on the frontend doing queries.
 
-The ``./secure.js`` file contains logic to be run on a backend server. It exports the class ``SocioSecurity`` that you instantiate and work with mostly during just the setup initialization of your backend. There is also a Vite plugin (``SocioSecurityPlugin``) that wraps that class, that you can use instead in your Vite app config. Should also work as a Rollup plugin, but havent tested. This securely encrypts the socio SQL query strings before serving the production code to the client, such that the client cannot see nor alter the query string, protecting against SQL attacks and general fuckery. However, it is still up to you to sanitize and protect yourself from SQL injections when inserting dynamic data into a query string! An identical setup of this class should be created on the backend server and handed to the SocioServer instance, for it to be able to decrypt the incoming SQL queries. Use .env files to keep your project secrets safe and consistent!
+The ``./core-client.ts`` file contains logic to be run on the frontend browser side of js. It exports the class ``SocioClient`` that you instantiate and work with during the entire lifetime of the page. Use it to make SQL queries to the backend that do some magic to keep your data realtime using WebSocket technology.
+
+The ``./secure.ts`` file contains logic to be run on a backend server. It exports the class ``SocioSecurity`` that you instantiate and work with mostly during just the setup initialization of your backend. There is also a Vite plugin (``SocioSecurityPlugin``) that wraps that class, that you can use instead in your Vite app config. Should also work as a Rollup plugin, but havent tested. This securely encrypts the socio SQL query strings before serving the production code to the client, such that the client cannot see nor alter, nor impersonate the query string. However, it is still up to you to sanitize and protect yourself from SQL injections when inserting dynamic data into a query string! An identical setup of this class should be created on the backend server and handed to the SocioServer instance, for it to be able to decrypt the incoming SQL queries. Use .env files to keep your project secrets safe and consistent!
+**Use HTTPS and WSS secure protocols** to protect against snooping and man-in-the-middle attacks on the dynamic query data.
 
 ### SQL and NoSQL
 Currently the lib has been developed with a main focus on SQL queries being written on the frontend. This matters, bcs i parse the sent strings with the assumption that they are valid SQL syntax. However, the lib now also supports a NoSQL paradigm in the form of what i call "Server Props".
@@ -59,7 +63,8 @@ socserv.RegisterLifecycleHookHandler("auth", (client:SocioSession, params:object
 //then in your qeury function, add in the user_id dynamic param
 async function QueryWrap (client:SocioSession, id:id, sql:string, params = {}) {
   if('user_id' in params) //replace the params client side dummy user_id with the real one. Because the client side user_id cannot be trusted.
-    params.user_id = auth_clients[client.id];
+    params.user_id = auth_clients[client.id]; 
+  //you could also check if(client.authenticated) ... but that is unnecessary since the incoming msg wouldn't even get this far if the -auth flag is set and the user isnt authed.
 
   return (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))[0];
 }
