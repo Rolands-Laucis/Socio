@@ -17,17 +17,16 @@
   ],
   "types": "./dist/*.d.ts",
   "keywords": [
-    "DB",
+    "database",
     "sync",
     "realtime",
     "live",
     "SQL",
     "query",
     "frontend",
-    "backend",
     "websocket",
     "reactive",
-    "state"
+    "rtc"
   ],
   "author": "Rolands Laucis",
   "license": "ISC",
