@@ -8,7 +8,7 @@ export type SocioStringObj = { str: string, markers: string[] };
 export const socio_string_regex = /(?<str>.+?)(?<marker>--socio(?:-\w+?)*)?;?$/mi //markers currently support - auth, perm, \d+
 
 //query helper functions
-export function QueryIsSelect(sql: string):boolean {
+export function QueryIsSelect(sql: string): boolean {
     return /^SELECT/im.test(sql)
 }
 
@@ -22,12 +22,12 @@ export function ParseQueryTables(q: string): string[] {
 }
 
 //always returns uppercase verb if found
-export function ParseQueryVerb(q:string): string | null{
+export function ParseQueryVerb(q: string): string | null {
     return q.match(/^(?<verb>SELECT|INSERT|DROP|UPDATE|CREATE)/mi)?.groups?.verb.toUpperCase() || null
 }
 
 //socio string marker utils
-export function SocioStringParse(str:string): SocioStringObj {
+export function SocioStringParse(str: string): SocioStringObj {
     const m = str.match(socio_string_regex)?.groups
     return { str: m?.str || '', markers: m?.marker ? m.marker.slice(2).split('-') : [] } //the slice(2) is to remove the starting --
 }
@@ -37,8 +37,8 @@ export function SocioMarkerHas(marker: QueryMarker, { parsed = null, str = '' }:
 }
 
 //random
-export function sleep(seconds:number=2){
-    return new Promise(res => setTimeout(res, seconds *1000))
+export function sleep(seconds: number = 2) {
+    return new Promise(res => setTimeout(res, seconds * 1000))
 }
 
 //https://stackoverflow.com/a/40577337/8422448
@@ -53,4 +53,25 @@ export function GetAllMethodNamesOf(obj: any): string[] {
             ).forEach((k) => methods.add(k));
     }
     return [...methods];
+}
+
+//https://github.com/websockets/ws/blob/master/doc/ws.md#new-websocketserveroptions-callback:~:text=subprotocols%20is%20used.-,perMessageDeflate,-can%20be%20used
+export const perMessageDeflate = {
+    zlibDeflateOptions: {
+        // See zlib defaults.
+        chunkSize: 1024,
+        memLevel: 7,
+        level: 3
+    },
+    zlibInflateOptions: {
+        chunkSize: 10 * 1024
+    },
+    // Other options settable:
+    clientNoContextTakeover: true, // Defaults to negotiated value.
+    serverNoContextTakeover: true, // Defaults to negotiated value.
+    serverMaxWindowBits: 10, // Defaults to negotiated value.
+    // Below options specified as default values.
+    concurrencyLimit: 10, // Limits zlib concurrency for perf.
+    threshold: 1024 // Size (in bytes) below which messages
+    // should not be compressed if context takeover is disabled.
 }

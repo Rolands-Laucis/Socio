@@ -72,6 +72,14 @@ async function QueryWrap (client:SocioSession, id:id, sql:string, params = {}) {
 //*of course you can set your own properties on the client instances. However, they will not be copied to a reconnect instance, so it is still advised to do this as shown.
 ```
 
+#### WebSocket perMessageDeflate (Zlib Message Compression)
+You may want to compress incoming and outgoing messages of your WebSockets for less network traffic. However, note that the use of compression would obviously add to CPU and RAM loads. In addition, see other concerns - [slow speed and possible memory leaks](https://github.com/websockets/ws/issues/1369) [ws readme](https://github.com/websockets/ws#websocket-compression). I have provided the ``perMessageDeflate`` object for convenience, which is the default from the ws readme. From my investigation, this is enough to get it working. [See here](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket#instance_properties) and check on SocioClient.ws.extensions
+
+```ts
+import { perMessageDeflate } from 'socio/utils';
+const socserv = new SocioServer({ port: 3000, perMessageDeflate }, {...} );
+```
+
 ### Setup of ``SocioClient``
 
 ```ts
