@@ -3,30 +3,37 @@
 "use strict";
 
 import MagicString from 'magic-string'; //https://github.com/Rich-Harris/magic-string
-import { randomUUID, createCipheriv, createDecipheriv, getCiphers, randomBytes, createHash } from 'crypto'
-import type { CipherGCMTypes } from 'crypto'
-import { socio_string_regex } from './utils.js'
-import { LogHandler, E, log, info, done } from './logging.js'
+import { randomUUID, createCipheriv, createDecipheriv, getCiphers, randomBytes, createHash } from 'crypto'; //https://nodejs.org/api/crypto.html
+import { socio_string_regex } from './utils.js';
+import { LogHandler, E, log, info, done } from './logging.js';
+import { extname } from 'path';
+
+//types
+import type { CipherGCMTypes } from 'crypto';
+export type SocioSecurityOptions = { secure_private_key: Buffer | string, rand_int_gen?: ((min: number, max: number) => number), verbose: boolean };
+export type SocioSecurityPluginOptions = { include_file_types?: string[], exclude_file_types?: string[], exclude_svelte_server_files?: boolean };
 
 //it was recommended on a forum to use 256 bits, even though 128 is still perfectly safe
-const cipher_algorithm_bits = 256
-//GCM mode insures these properties of the cipher text - Confidentiality: cant read the msg, Integrity: cant alter the msg, Authenticity: the originator of the msg can be verified
+const cipher_algorithm_bits = 256;
+//GCM mode insures these properties of the cipher text - Confidentiality: cant read the msg, Integrity: cant alter the msg, Authenticity: the originator (your server) of the msg can be verified
 //https://nvlpubs.nist.gov/nistpubs/legacy/sp/nistspecialpublication800-38d.pdf
-const cipher_algorithm: CipherGCMTypes = `aes-${cipher_algorithm_bits}-gcm` //called "default", bcs i used to allow the user to choose the algo, but not anymore.
+const cipher_algorithm: CipherGCMTypes = `aes-${cipher_algorithm_bits}-gcm`; //called "default", bcs i used to allow the user to choose the algo, but not anymore.
 
 //https://vitejs.dev/guide/api-plugin.html
 //THE VITE PLUGIN - import into vite config and add into the plugins array with your params.
-//it will go over your source code and replace --socio strings with their encrypted versions, that will be sent to the server and there will be decrypted using the below class
-export function SocioSecurityPlugin({ secure_private_key = '', verbose = false } = {}){
-    const ss = new SocioSecurity({ secure_private_key, verbose})
+//it will go over your source code and replace --socio[-marker] strings with their encrypted versions, that will be sent to the server and there will be decrypted using the below class
+export function SocioSecurityPlugin(SocioSecurityOptions: SocioSecurityOptions, { include_file_types = ['js', 'svelte', 'vue', 'jsx', 'ts', 'tsx'], exclude_file_types = [], exclude_svelte_server_files=true }: SocioSecurityPluginOptions = {}){
+    const ss = new SocioSecurity(SocioSecurityOptions);
+    log('vite opts', SocioSecurityOptions, include_file_types, exclude_file_types)
     return{
         name:'vite-socio-security',
         enforce: 'pre',
         transform(code:string, id:string){
-            const ext = id.split('.').slice(-1)[0]
-            if (/.*\.server\.(js|ts)$/.test(id)) return undefined; //skip *.server.ts files
+            if (/.*\/node_modules\//.test(id)) return undefined; //skip node_modules files
+            if (exclude_svelte_server_files && /.*\.server\.(js|ts)$/.test(id)) return undefined; //skip *.server.ts files (svelte)
 
-            if (['js', 'svelte', 'vue', 'jsx', 'ts', 'tsx'].includes(ext) && !id.match(/\/(node_modules|socio\/(core|core-client|secure))\//)) { // , 'svelte' 
+            const ext = extname(id).slice(1); //remove the .
+            if (include_file_types.includes(ext) && !(exclude_file_types.includes(ext))) {
                 const s = ss.SecureSouceCode(code) //uses MagicString lib
                 return {
                     code: s.toString(),
@@ -40,12 +47,11 @@ export function SocioSecurityPlugin({ secure_private_key = '', verbose = false }
 
 export const string_regex = /(?<q>["'])(?<str>[^ ]+?.+?)\1/g // match all strings
 
-
 //The aim of the wise is not to secure pleasure, but to avoid pain. /Aristotle/
 export class SocioSecurity extends LogHandler {
     //private:
     #key: Buffer;
-    #rand_int_gen: ((min: number, max: number) => number) | null;
+    #rand_int_gen?: ((min: number, max: number) => number);
     static iv_counter: number = 1; //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures The Number type is a double-precision 64-bit binary format IEEE 754 value.
 
     //public:
@@ -56,7 +62,7 @@ export class SocioSecurity extends LogHandler {
     //https://www.youtube.com/watch?v=O4xNJsjtN6E&ab_channel=Computerphile
     //And a brief discussion on Cryptography Stack Exchange.
     //let me know if i am dumb.
-    constructor({ secure_private_key = '', rand_int_gen = null, verbose = false }: { secure_private_key: Buffer | string, rand_int_gen?: ((min: number, max: number) => number) | null, verbose: boolean } = { secure_private_key: '', verbose: false }){
+    constructor({ secure_private_key = '', rand_int_gen = undefined, verbose = false }: SocioSecurityOptions){
         super({ verbose, prefix: 'SocioSecurity' });
         
         if (!secure_private_key) throw new E(`Missing constructor arguments!`);
