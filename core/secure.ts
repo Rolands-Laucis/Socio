@@ -24,7 +24,6 @@ const cipher_algorithm: CipherGCMTypes = `aes-${cipher_algorithm_bits}-gcm`; //c
 //it will go over your source code and replace --socio[-marker] strings with their encrypted versions, that will be sent to the server and there will be decrypted using the below class
 export function SocioSecurityPlugin(SocioSecurityOptions: SocioSecurityOptions, { include_file_types = ['js', 'svelte', 'vue', 'jsx', 'ts', 'tsx'], exclude_file_types = [], exclude_svelte_server_files=true }: SocioSecurityPluginOptions = {}){
     const ss = new SocioSecurity(SocioSecurityOptions);
-    log('vite opts', SocioSecurityOptions, include_file_types, exclude_file_types)
     return{
         name:'vite-socio-security',
         enforce: 'pre',
