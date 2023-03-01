@@ -372,12 +372,7 @@ export class SocioClient extends LogHandler {
     
     //generates a unique key either via static counter or user provided key gen func
     get GenKey(): id {
-        if (this?.key_generator)
-            return this.key_generator()
-        else{
-            SocioClient.#key += 1
-            return SocioClient.#key
-        }
+        return this?.key_generator ? this.key_generator() : SocioClient.#key++;
     }
     //checks if the ID of a query exists, otherwise rejects and logs
     #FindID(kind: string, id: id) {

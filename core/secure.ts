@@ -28,12 +28,12 @@ export function SocioSecurityPlugin(SocioSecurityOptions: SocioSecurityOptions, 
         name:'vite-socio-security',
         enforce: 'pre',
         transform(code:string, id:string){
-            if (/.*\/node_modules\//.test(id)) return undefined; //skip node_modules files
+            if (/.*\/(node_modules|socio\/core)\//.test(id)) return undefined; //skip node_modules files
             if (exclude_svelte_server_files && /.*\.server\.(js|ts)$/.test(id)) return undefined; //skip *.server.ts files (svelte)
 
             const ext = extname(id).slice(1); //remove the .
             if (include_file_types.includes(ext) && !(exclude_file_types.includes(ext))) {
-                const s = ss.SecureSouceCode(code) //uses MagicString lib
+                const s = ss.SecureSouceCode(code); //uses MagicString lib
                 return {
                     code: s.toString(),
                     map: s.generateMap({source:id, includeContent:true})
@@ -54,7 +54,7 @@ export class SocioSecurity extends LogHandler {
     static iv_counter: number = 1; //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures The Number type is a double-precision 64-bit binary format IEEE 754 value.
 
     //public:
-    verbose=false
+    verbose=false;
 
     //the default algorithm was chosen by me given these two videos of information:
     //https://www.youtube.com/watch?v=Rk0NIQfEXBA&ab_channel=Computerphile
@@ -74,7 +74,7 @@ export class SocioSecurity extends LogHandler {
 
         this.verbose = verbose;
         this.#rand_int_gen = rand_int_gen;
-        if (this.verbose) this.done('Initialized SocioSecurity object succesfully!')
+        if (this.verbose) this.done('Initialized SocioSecurity object succesfully!');
     }
     
     //sql strings must be in single or double quotes and have an sql single line comment at the end with the socio marker, e.g. "--socio" etc. See the socio_string_regex pattern in core/utils
