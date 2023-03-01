@@ -10,7 +10,7 @@ No more API middleware and backend DB interfacing functions and wrappers and han
 
 [Secure Full-Stack Framework Demo](https://github.com/Rolands-Laucis/Socio/tree/master/demos/full-stack_framework#readme) - interactive demo project with SvelteKit and Vite.
 
-[Simple Documentation](https://github.com/Rolands-Laucis/Socio/blob/master/core/docs.md) page to see direct examples and explanations of how to use various parts of the lib.
+[Simple Documentation](https://github.com/Rolands-Laucis/Socio/blob/master/Documentation.md) page to see direct examples and explanations of how to use various parts of the lib.
 
 ### Instalation
 In your Node.js project root dir:
