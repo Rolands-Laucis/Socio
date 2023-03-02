@@ -1,3 +1,5 @@
+//Homo vitae commodatus non donatus est. - Man's life is lent, not given. /Syrus/
+
 import { LogHandler, E, log, info, done } from './logging.js'
 import { RateLimiter } from './ratelimit.js'
 
@@ -12,25 +14,21 @@ type HookObj = {
     params: object | null,
     rate_limiter: RateLimiter | null
 }
-type Perms = { [key: string]: string[]; };
+export type SocioSessionOptions = { verbose?: boolean, default_perms?: Map<string, string[]> };
 
-//NB! some fields in these variables are private for safety reasons, but also bcs u shouldnt be altering them, only if through my defined ways. They are mostly expected to be constants.
-//whereas public variables are free for you to alter freely at any time during runtime.
-
-//Homo vitae commodatus non donatus est. - Man's life is lent, not given. /Syrus/
 export class SocioSession extends LogHandler {
     //private:
     #ws: WebSocket;
-    #hooks: { [id: id]: HookObj ; } = {}//msg_id:[{table_name, sql, params}]
+    #hooks: Map<id, HookObj> = new Map();//msg_id:HookObj
     #authenticated = false //usually boolean, but can be any truthy or falsy value to show the state of the session. Can be a token or smth for your own use, bcs the client will only receive a boolean
-    #perms: Perms  = {} //verb:[tables strings] keeps a dict of access permissions of verb type and to which tables this session has been granted
+    #perms: Map<string, string[]> = new Map(); //verb:[tables strings] keeps a dict of access permissions of verb type and to which tables this session has been granted
     #destroyed:number = 0;
 
     //public:
     verbose = true
     last_seen: number = 0 //ms since epoch when this session was last active
 
-    constructor(client_id: string, ws_client: WebSocket, client_ipAddr:string, { verbose = true, default_perms = {} } = {}) {
+    constructor(client_id: string, ws_client: WebSocket, client_ipAddr: string, { verbose = true, default_perms = new Map() }: SocioSessionOptions  = {}) {
         super({ verbose, prefix: 'SocioSession' });
         
         //private:
@@ -61,19 +59,15 @@ export class SocioSession extends LogHandler {
 
     //TODO this used to be well optimized datastructures back in 0.2.1, but had to simplify down, bcs it gets complicated
     RegisterHook(tables: string[], id: id, sql:string, params: object | null, rate_limit:RateLimit | null) {
-        if (!(id in this.#hooks))
-            this.#hooks[id] = { tables, sql, params, rate_limiter: rate_limit ? new RateLimiter(rate_limit) : null };
+        if (!this.#hooks.has(id))
+            this.#hooks.set(id, { tables, sql, params, rate_limiter: rate_limit ? new RateLimiter(rate_limit) : null });
         else throw new E('MSG ID already registered as hook!', tables, id, sql, params);
     }
     UnRegisterHook(id: id) {
-        if (!id || !(id in this.#hooks)) return false; //check if it exists
-
-        delete this.#hooks[id];
-        // this.HandleInfo('unregistered hook', id);
-        return true;
+        return this.#hooks.delete(id);
     }
     GetHooksForTables(tables: string[]=[]){
-        return Object.entries(this.#hooks)
+        return [...this.#hooks.entries()]
             .filter(([key, h]) => h.tables.some(t => tables.includes(t)))
             .map(([key, h]) => { return {...h, id:key}})
     }
@@ -85,13 +79,14 @@ export class SocioSession extends LogHandler {
         return auth;
     }
 
-    HasPermFor(verb = '', key = '') { return verb in this.#perms && this.#perms[verb].includes(key) }
-    AddPermFor(verb = '', key = '') {
-        if (verb in this.#perms) {
-            if (!this.#perms[verb].includes(key))
-                this.#perms[verb].push(key);
+    HasPermFor(verb = '', table = '') { return this.#perms.has(verb) && this.#perms.get(verb)?.includes(table) }
+    AddPermFor(verb = '', table = '') {
+        if (this.#perms.has(verb)) {
+            //@ts-expect-error
+            if (!this.#perms.get(verb).includes(table))//@ts-expect-error
+                this.#perms.get(verb).push(table);
         }
-        else this.#perms[verb] = [key];
+        else this.#perms.set(verb, [table]);
     }
 
     last_seen_now(){this.last_seen = (new Date()).getTime()}
@@ -113,7 +108,7 @@ export class SocioSession extends LogHandler {
         this.#destroyed = 0;
     }
 
-    ClearHooks(){this.#hooks = {};}
+    ClearHooks(){this.#hooks.clear();}
     CopySessionFrom(old_client:SocioSession){
         this.#authenticated = old_client.#authenticated;
         this.#perms = old_client.#perms;
