@@ -306,13 +306,13 @@ export class SocioClient extends LogHandler {
                 throw new E('Cannot unsubscribe query, because provided prop_name is not currently tracked.', prop_name);
         } catch (e: err) { this.HandleError(e) }
     }
-    UnsubscribeAll({props=true, queries=true} = {}){
+    UnsubscribeAll({props=true, queries=true, force=false} = {}){
         if(props)
-            for (const p of this.#props.keys())
-                this.UnsubscribeProp(p, true);
+            for (const p of [...this.#props.keys()])
+                this.UnsubscribeProp(p, force);
         if(queries)
-            for (const q of this.#queries.keys())
-                this.Unsubscribe(q, true);
+            for (const q of [...this.#queries.keys()])
+                this.Unsubscribe(q, force);
     }
 
     Query(sql: string, params: object | null = null){
@@ -320,7 +320,7 @@ export class SocioClient extends LogHandler {
         const { id, prom } = this.CreateQueryPromise();
 
         //send off the request, which will be resolved in the message handler
-        this.Send('SQL', { id: id, sql: sql, params: params });
+        this.Send('SQL', { id, sql: sql, params: params });
         return prom;
     }
     SetProp(prop: PropKey, new_val:PropValue){
@@ -333,23 +333,23 @@ export class SocioClient extends LogHandler {
             const { id, prom } = this.CreateQueryPromise();
 
             //send off the request, which will be resolved in the message handler
-            this.Send('PROP_SET', { id: id, prop: prop, prop_val:new_val });
+            this.Send('PROP_SET', { id, prop: prop, prop_val:new_val });
             return prom;
         } catch (e: err) { this.HandleError(e); return null; }
     }
     GetProp(prop: PropKey) {
         const { id, prom } = this.CreateQueryPromise();
-        this.Send('PROP_GET', { id: id, prop: prop });
+        this.Send('PROP_GET', { id, prop: prop });
         return prom;
     }
     Serv(data: any){
         const { id, prom } = this.CreateQueryPromise();
-        this.Send('SERV', { id: id, data });
+        this.Send('SERV', { id, data });
         return prom;
     }
     GetFiles(data: any): Promise<File[]>{
         const { id, prom } = this.CreateQueryPromise();
-        this.Send('GET_FILES', { id: id, data });
+        this.Send('GET_FILES', { id, data });
         return prom as Promise<File[]>;
     }
     //sends a ping with either the user provided number or an auto generated number, for keeping track of packets and debugging
@@ -359,19 +359,19 @@ export class SocioClient extends LogHandler {
 
     async Authenticate(params:object={}){ //params here can be anything, like username and password stuff etc. The backend server auth function callback will receive this entire object
         const { id, prom } = this.CreateQueryPromise();
-        this.Send('AUTH', { id: id, params: params });
+        this.Send('AUTH', { id, params: params });
         return prom as Promise<{ id: id, result: Bit }>;
     }
     get authenticated() { return this.#authenticated === true }
     AskPermission(verb = '', table = '') {//ask the backend for a permission on a table with the SQL verb u want to perform on it, i.e. SELECT, INSERT etc.
         const { id, prom } = this.CreateQueryPromise();
-        this.Send('GET_PERM', { id: id, verb:verb, table:table })
+        this.Send('GET_PERM', { id, verb:verb, table:table })
         return prom as Promise<{ id: id, result: Bit }>;
     }
     
     //generates a unique key either via static counter or user provided key gen func
     get GenKey(): id {
-        return this?.key_generator ? this.key_generator() : SocioClient.#key++;
+        return this?.key_generator ? this.key_generator() : ++SocioClient.#key;
     }
     //checks if the ID of a query exists, otherwise rejects and logs
     #FindID(kind: string, id: id) {
@@ -394,7 +394,7 @@ export class SocioClient extends LogHandler {
         const { id, prom } = this.CreateQueryPromise();
 
         //ask the server for a one-time auth token
-        this.Send('RECON', { id: id, data: { type: 'GET' } });
+        this.Send('RECON', { id, data: { type: 'GET' } });
         const token = await prom as string; //await the token
 
         //save down the token. Name is used to map new instance to old instance by same name.
@@ -412,7 +412,7 @@ export class SocioClient extends LogHandler {
             const { id, prom } = this.CreateQueryPromise();
 
             //ask the server for a reconnection to an old session via our one-time token
-            this.Send('RECON', { id: id, data: { type: 'POST', token } });
+            this.Send('RECON', { id, data: { type: 'POST', token } });
             const res = await prom;
 
             //@ts-ignore
@@ -426,6 +426,11 @@ export class SocioClient extends LogHandler {
             else
                 this.HandleError(new E('Failed to reconnect', res));
         }
+    }
+
+    LogMaps(){
+        log('queries', [...this.#queries.entries()])
+        log('props', [...this.#props.entries()])
     }
 }
 

@@ -17,7 +17,7 @@ import { RateLimiter } from './ratelimit.js'
 //types
 import type { ServerOptions, WebSocket, AddressInfo } from 'ws';
 import type { IncomingMessage } from 'http'
-import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind, SocioFiles, ClientID } from './types.js'
+import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind, SocioFiles, ClientID, FS_Util_Response } from './types.js'
 import type { RateLimit } from './ratelimit.js'
 export type MessageDataObj = { id?: id, sql?: string, params?: object | null, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue, data?:any, rate_limit?:RateLimit, files?:SocioFiles };
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
@@ -228,8 +228,7 @@ export class SocioServer extends LogHandler {
 
                     break;
                 case 'UNSUB':
-                    const res_1 = client.UnRegisterHook(data.unreg_id || '');
-                    client.Send('RES', { id: data.id, result: res_1 === true })
+                    client.Send('RES', { id: data.id, result: client.UnRegisterHook(data?.unreg_id || '') });
                     break;
                 case 'SQL':
                     //have to do the query in every case
@@ -285,7 +284,7 @@ export class SocioServer extends LogHandler {
                     try{
                         client.Send('RES', {
                             id: data?.id,
-                            result: this.#props.get(data.prop as PropKey)?.updates.delete(client_id) == true
+                            result: this.#props.get(data.prop as PropKey)?.updates.delete(client_id) ? 1 : 0
                         });
                     } catch (e: err) {
                         //send response
@@ -307,7 +306,7 @@ export class SocioServer extends LogHandler {
                     this.#CheckPropExists(data?.prop, client, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
                     try {
                         this.UpdatePropVal(data.prop as string, data?.prop_val, client.id);
-                        client.Send('RES', { id: data.id, result:true}); //resolve this request to true, so the client knows everything went fine.
+                        client.Send('RES', { id: data.id, result:1}); //resolve this request to true, so the client knows everything went fine.
                     } catch (e: err) {
                         //send response
                         client.Send('ERR', {
@@ -338,7 +337,7 @@ export class SocioServer extends LogHandler {
                         //@ts-expect-error
                         const token = this.#secure.socio_security.EncryptString([this.#secure.socio_security?.GenRandInt(100_000, 1_000_000), client.ipAddr, client.id, (new Date()).getTime(), this.#secure.socio_security?.GenRandInt(100_000, 1_000_000)].join(' ')); //creates string in the format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where encrypted_text_base64 is a token of format "[rand] [ip] [client_id] [ms_since_epoch] [rand]"
                         this.#tokens.add(token);
-                        client.Send('RES', { id: data.id, result: token }); //send the token to the client for one-time use to reconnect to their established client session
+                        client.Send('RES', { id: data.id, result: token, status: 1 }); //send the token to the client for one-time use to reconnect to their established client session
                     }
                     else if (data?.data?.type == 'POST'){
                         //check for valid token to begin with
@@ -407,10 +406,10 @@ export class SocioServer extends LogHandler {
                     break;
                 case 'GET_FILES':
                     if (this.#lifecycle_hooks?.file_download){
-                        const response = await this.#lifecycle_hooks.file_download(client, data?.data);
+                        const response = await this.#lifecycle_hooks.file_download(client, data?.data) as FS_Util_Response;
                         if (!response?.result)
                             this.HandleError(new E('file_download hook returned unsuccessful result.', response?.error));
-                        client.Send('RECV_FILES', { id: data.id, files: response.files, result: response?.result });
+                        client.Send('RECV_FILES', { id: data.id, files: response.files, result: response.result });
                     }
                     else {
                         this.HandleError('file_download hook not registered. [#no-file_download-hook]');

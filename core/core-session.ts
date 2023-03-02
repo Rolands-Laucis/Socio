@@ -5,7 +5,7 @@ import { RateLimiter } from './ratelimit.js'
 
 //types
 import type { WebSocket } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
-import type { id, ClientMessageKind } from './types.js';
+import type { id, ClientMessageKind, Bit } from './types.js';
 import type { RateLimit } from './ratelimit.js'
 
 type HookObj = {
@@ -63,8 +63,8 @@ export class SocioSession extends LogHandler {
             this.#hooks.set(id, { tables, sql, params, rate_limiter: rate_limit ? new RateLimiter(rate_limit) : null });
         else throw new E('MSG ID already registered as hook!', tables, id, sql, params);
     }
-    UnRegisterHook(id: id) {
-        return this.#hooks.delete(id);
+    UnRegisterHook(id: id): Bit {
+        return this.#hooks.delete(id) ? 1 : 0;
     }
     GetHooksForTables(tables: string[]=[]){
         return [...this.#hooks.entries()]
