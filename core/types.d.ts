@@ -1,5 +1,6 @@
 //general types
 export type id = string | number;
+export type ClientID = string;
 export type Bit = 0 | 1;
 export type Base64String = string;
 

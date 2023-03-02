@@ -17,25 +17,24 @@ import { RateLimiter } from './ratelimit.js'
 //types
 import type { ServerOptions, WebSocket, AddressInfo } from 'ws';
 import type { IncomingMessage } from 'http'
-import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind, SocioFiles } from './types.js'
+import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind, SocioFiles, ClientID } from './types.js'
 import type { RateLimit } from './ratelimit.js'
 export type MessageDataObj = { id?: id, sql?: string, params?: object | null, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue, data?:any, rate_limit?:RateLimit, files?:SocioFiles };
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
 export type QueryFunction = (client:SocioSession, id:id, sql:string, params?:object|null) => Promise<object>;
-type QueryObject = { id: id, params: object | null, session: SocioSession }; //for grouping hooks
 type SocioServerOptions = { DB_query_function?: QueryFunction, socio_security?: SocioSecurity | null, verbose?: boolean, decrypt_sql?: boolean, decrypt_prop?: boolean, hard_crash?: boolean, session_delete_delay_ms?: number, recon_ttl_ms?:number }
 type AdminMessageDataObj = {function:string, args?:any[], secure_key:string}
 
 export class SocioServer extends LogHandler {
     // private:
     #wss: WebSocketServer;
-    #sessions: { [key: id]: SocioSession } = {}; //client_id:SocioSession
+    #sessions: Map<ClientID, SocioSession> = new Map(); //client_id:SocioSession. Maps are quite more performant than objects
 
     //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages, if the msg flag is set
     #secure: { socio_security: SocioSecurity | null, decrypt_sql: boolean, decrypt_prop:boolean};
 
     //backend props, e.g. strings for colors, that clients can subscribe to and alter
-    #props: { [key: PropKey]: { val: PropValue, assigner: PropAssigner, updates: { [client_id: string]: { id: id, rate_limiter?: RateLimiter | null }} } } = {};
+    #props: Map<PropKey, { val: PropValue, assigner: PropAssigner, updates: Map<ClientID, { id: id, rate_limiter?: RateLimiter | null }> }> = new Map();
 
     //rate limits server functions globally
     #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
@@ -49,7 +48,7 @@ export class SocioServer extends LogHandler {
     //the admin function will be called, when a socket attempts to use an ADMIN msg kind. It receives the SocioSession instance, that has id, ip and last seen fields you can use. Also the data it sent, so u can check your own secure key or smth. Return truthy to allow access
 
     //stores active reconnection tokens
-    #tokens: Set<string> = new Set()
+    #tokens: Set<string> = new Set();
 
     //public:
     Query: QueryFunction; //you can change this at any time
@@ -86,7 +85,7 @@ export class SocioServer extends LogHandler {
         try{
             //construct the new session with a unique client ID
             let client_id: string = (this.#lifecycle_hooks.gen_client_id ? this.#lifecycle_hooks.gen_client_id() : UUID())?.toString();
-            while (client_id in this.#sessions) //avoid id collisions
+            while (this.#sessions.has(client_id)) //avoid id collisions
                 client_id = (this.#lifecycle_hooks.gen_client_id ? this.#lifecycle_hooks.gen_client_id() : UUID())?.toString();
 
             //get the IP. Gets either from a reverse proxy header (like if u have nginx) or just straight off the http meta
@@ -95,7 +94,7 @@ export class SocioServer extends LogHandler {
 
             //create the socio session class and save down the client id ref for convenience later
             const client = new SocioSession(client_id, conn, client_ip, { verbose: this.verbose });
-            this.#sessions[client_id] = client;
+            this.#sessions.set(client_id, client);
 
             //pass the object to the connection hook, if it exists. It cant take over
             if (this.#lifecycle_hooks.con)
@@ -107,10 +106,9 @@ export class SocioServer extends LogHandler {
 
             //set this client websockets event handlers
             conn.on('message', (req: Buffer | ArrayBuffer | Buffer[], isBinary: Boolean) => {
-                if(client_id in this.#sessions)
-                    this.#Message.bind(this)(this.#sessions[client_id], req, isBinary);
-                else
-                    conn?.close();
+                if (this.#sessions.has(client_id))//@ts-expect-error
+                    this.#Message.bind(this)(this.#sessions.get(client_id), req, isBinary);
+                else conn?.close();
             });
             conn.on('close', async () => {
                 //trigger hook
@@ -119,16 +117,16 @@ export class SocioServer extends LogHandler {
 
                 client.Destroy(() => {
                     //for each prop itereate its update obj and delete the keys with this client_id
-                    Object.values(this.#props).forEach(p => {
-                        Object.keys(p.updates).forEach(c_id => {
+                    for (const p of this.#props.values()){
+                        for (const c_id of p.updates.keys()){
                             if (c_id == client_id)
-                                delete p.updates[c_id];
-                        })
-                    })
+                                p.updates.delete(c_id);
+                        }
+                    }
                     //Update() only works on session objects, and if we delete this one, then its query subscriptions should also be gone.
 
                     //delete the connection object and the subscriptions of this client
-                    delete this.#sessions[client_id];
+                    this.#sessions.delete(client_id);
                     this.HandleInfo('Session Destroyed', client_id);
                 }, this.session_delete_delay_ms);
 
@@ -272,7 +270,7 @@ export class SocioServer extends LogHandler {
                 case 'PROP_SUB':
                     this.#CheckPropExists(data?.prop, client, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
                     //set up hook
-                    this.#props[data.prop as PropKey].updates[client_id] = { id: data.id as id, rate_limiter: data?.rate_limit ? new RateLimiter(data.rate_limit) : null}
+                    this.#props.get(data.prop as PropKey)?.updates.set(client_id, { id: data.id as id, rate_limiter: data?.rate_limit ? new RateLimiter(data.rate_limit) : null })
 
                     //send response
                     client.Send('PROP_UPD', {
@@ -285,12 +283,9 @@ export class SocioServer extends LogHandler {
                     this.#CheckPropExists(data?.prop, client, data?.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
                     //remove hook
                     try{
-                        delete this.#props[data.prop as string].updates[client_id]
-
-                        //send response
                         client.Send('RES', {
                             id: data?.id,
-                            result: true
+                            result: this.#props.get(data.prop as PropKey)?.updates.delete(client_id) == true
                         });
                     } catch (e: err) {
                         //send response
@@ -312,8 +307,7 @@ export class SocioServer extends LogHandler {
                     this.#CheckPropExists(data?.prop, client, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
                     try {
                         this.UpdatePropVal(data.prop as string, data?.prop_val, client.id);
-                        if(client_id in this.#sessions)
-                            client.Send('RES', { id: data.id, result:true}); //resolve this request to true, so the client knows everything went fine.
+                        client.Send('RES', { id: data.id, result:true}); //resolve this request to true, so the client knows everything went fine.
                     } catch (e: err) {
                         //send response
                         client.Send('ERR', {
@@ -379,13 +373,13 @@ export class SocioServer extends LogHandler {
                             client.Send('RECON', { id: data.id, result: 'Token has expired', status: 0 });
                             return;
                         }
-                        else if (!(old_c_id in this.#sessions)) {
+                        else if (!(this.#sessions.has(old_c_id))) {
                             client.Send('RECON', { id: data.id, result: 'Old session ID was not found', status: 0 });
                             return;
                         }
 
                         //recon procedure
-                        const old_client = this.#sessions[old_c_id];
+                        const old_client = this.#sessions.get(old_c_id) as SocioSession;
                         old_client.Restore();//stop the old session deletion, since a reconnect was actually attempted
                         client.CopySessionFrom(old_client);
 
@@ -395,7 +389,7 @@ export class SocioServer extends LogHandler {
 
                         //delete old session for good
                         old_client.Destroy(() => {
-                            delete this.#sessions[old_c_id];
+                            this.#sessions.delete(old_c_id);
                         }, this.session_delete_delay_ms);
 
                         //notify the client 
@@ -444,7 +438,7 @@ export class SocioServer extends LogHandler {
 
         //or go through each session's every hook and query the DB for its result, then send it to the client
         try{
-            Object.values(this.#sessions).forEach(client => { //for each session
+            for (const client of this.#sessions.values()){
                 client.GetHooksForTables(tables).forEach(hook => { //for each hook. GetHooksForTables always returns array. If empty, then the foreach wont run, so each sql guaranteed to have hooks array
                     //rate limit check
                     if (hook?.rate_limiter && hook.rate_limiter.CheckLimit()) return;
@@ -461,12 +455,12 @@ export class SocioServer extends LogHandler {
                             status: 'error'
                         }));
                 });
-            });
+            }
         } catch (e:err) { this.HandleError(e) }
     }
 
     #CheckPropExists(prop: PropKey | undefined, client: SocioSession, msg_id:id, error_msg: string){
-        if (!prop || !(prop in this.#props)){
+        if (!prop || !(this.#props.has(prop))){
             client.Send('ERR', {
                 id: msg_id,
                 result: error_msg
@@ -511,68 +505,67 @@ export class SocioServer extends LogHandler {
     }
     get RateLimitNames() { return Object.keys(this.#ratelimits) }
 
-    GetClientSession(client_id=''): SocioSession | null{
-        return client_id in this.#sessions ? this.#sessions[client_id] : null
+    GetClientSession(client_id=''){
+        return this.#sessions.get(client_id);
     }
 
     //assigner defaults to basic setter
     RegisterProp(key: PropKey, val: PropValue, assigner: PropAssigner = (key: PropKey, new_val: PropValue) => this.SetPropVal(key, new_val)){
         try{
-            if (key in this.#props)
+            if (this.#props.has(key))
                 throw new E(`Prop key [${key}] has already been registered and for client continuity is forbiden to over-write at runtime. [#prop-key-exists]`)
             else
-                this.#props[key] = { val, assigner, updates: {} }
+                this.#props.set(key, { val, assigner, updates: new Map() });
         } catch (e: err) { this.HandleError(e) }
     }
     UnRegisterProp(key: PropKey){
         try {
             //TODO more graceful unregister, bcs the clients dont know about this, and their queries will just fail, which is needless traffic.
-            if (key in this.#props)
-                delete this.#props[key];
-            else
+            if (!this.#props.delete(key))
                 throw new E(`Prop key [${key}] hasnt been registered. [#prop-key-not-exists]`);
         } catch (e: err) { this.HandleError(e) }
     }
     GetPropVal(key: PropKey){
-        if (key in this.#props)
-            return this.#props[key].val || null
-        else return null;
+        return this.#props.get(key)?.val;
     }
     UpdatePropVal(key: PropKey, new_val: PropValue, client_id: id | null):void{//this will propogate the change, if it is assigned, to all subscriptions
-        if(key in this.#props){
-            if (this.#props[key].assigner(key, new_val)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
-                Object.entries(this.#props[key].updates).forEach(([client_id, args]) => {
-                    //ratelimit check
-                    if (args?.rate_limiter && args?.rate_limiter?.CheckLimit())
-                        return;
-                    
-                    //do the thing
-                    if (client_id in this.#sessions)
-                        this.#sessions[client_id].Send('PROP_UPD', { id: args.id, prop: key, result: this.GetPropVal(key) }); //should be GetPropVal, bcs i cant know how the assigner changed the val
-                    else {//the client_id doesnt exist anymore for some reason, so unsubscribe
-                        delete this.#props[key].updates[client_id];
-                        delete this.#sessions[client_id];
-                    }
-                });
-            } 
-            else
-                throw new E(`Prop key [${key}] tried to set an invalid value! [#prop-set-not-valid]. Key, val, client_id`, key, new_val, client_id);
-        }else
-            throw new E(`Prop key [${key}] not registered! [#prop-set-not-found]`);
+        const prop = this.#props.get(key);
+        if (!prop) throw new E(`Prop key [${key}] not registered! [#prop-update-not-found]`);
+
+        if (this.#props.get(key)?.assigner(key, new_val)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
+            for (const [client_id, args] of prop.updates.entries()) {
+                //ratelimit check
+                if (args?.rate_limiter && args.rate_limiter?.CheckLimit())
+                    return;
+
+                //do the thing
+                if (this.#sessions.has(client_id))
+                    this.#sessions.get(client_id)?.Send('PROP_UPD', { id: args.id, prop: key, result: this.GetPropVal(key) }); //should be GetPropVal, bcs i cant know how the assigner changed the val
+                else {//the client_id doesnt exist anymore for some reason, so unsubscribe
+                    prop.updates.delete(client_id);
+                    this.#sessions.delete(client_id);
+                }
+            }
+        }
+        else
+            throw new E(`Prop key [${key}] tried to set an invalid value! [#prop-set-not-valid]. Key, val, client_id`, key, new_val, client_id);
     }
     SetPropVal(key: PropKey, new_val: PropValue): boolean { //this hard sets the value without checks or updating clients
         try{
-            this.#props[key].val = new_val;
+            if (this.#props.has(key)) //@ts-expect-error
+                this.#props.get(key).val = new_val;
+            else throw new E(`Prop key [${key}] not registered! [#prop-set-not-found]`);
             return true;
         } catch (e: err) { this.HandleError(e); return false; }
     }
 
     //send some data to all clients by their ID. By default emits to all connected clients
-    SendToClients(client_ids: id[] = [], data: object = {}, kind: ClientMessageKind = 'CMD'){
+    SendToClients(client_ids: string[] = [], data: object = {}, kind: ClientMessageKind = 'CMD'){
         if(!client_ids.length)
-            Object.values(this.#sessions).forEach(s => s.Send(kind, data));
+            for (const s of this.#sessions.values())
+                s.Send(kind, data);
         else
-            client_ids.forEach(c_id => this.#sessions[c_id].Send(kind, data));
+            client_ids.forEach(c_id => this.#sessions.get(c_id)?.Send(kind, data));
     }
 
     //https://stackoverflow.com/a/54875979/8422448
@@ -586,8 +579,8 @@ export class SocioServer extends LogHandler {
     }
     get methods() { return GetAllMethodNamesOf(this) }
 
-    #ClearClientSessionSubs(client_id:id){
-        this.#sessions[client_id].ClearHooks(); //clear query subs
-        Object.values(this.#props).forEach(prop => { if (client_id in prop.updates) delete prop.updates[client_id]; }); //clear prop subs
+    #ClearClientSessionSubs(client_id:string){
+        this.#sessions.get(client_id)?.ClearHooks(); //clear query subs
+        for (const prop of this.#props.values()) { prop.updates.delete(client_id); }; //clear prop subs
     }
 }
