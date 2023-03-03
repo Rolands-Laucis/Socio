@@ -7,6 +7,7 @@ import { RateLimiter } from './ratelimit.js'
 import type { WebSocket } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
 import type { id, ClientMessageKind, Bit } from './types.js';
 import type { RateLimit } from './ratelimit.js'
+import { MapReplacer } from './utils.js';
 
 type HookObj = {
     tables: string[],
@@ -52,7 +53,7 @@ export class SocioSession extends LogHandler {
     Send(kind: ClientMessageKind, ...data) {//data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
         if(this.#destroyed) return; //if this session is marked for destruction
         if (data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, data); //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
-        this.#ws.send(JSON.stringify(Object.assign({}, { kind: kind, data: data[0] }, ...data.slice(1))));
+        this.#ws.send(JSON.stringify(Object.assign({}, { kind: kind, data: data[0] }, ...data.slice(1)), MapReplacer));
         this.HandleInfo('sent:', kind, ...(kind != 'RECV_FILES' ? data : []));
         this.last_seen_now();
     }

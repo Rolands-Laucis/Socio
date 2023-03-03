@@ -5,7 +5,7 @@
 import { WebSocketServer } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
 
 //mine
-import { QueryIsSelect, ParseQueryTables, SocioStringParse, ParseQueryVerb, sleep, GetAllMethodNamesOf } from './utils.js'
+import { QueryIsSelect, ParseQueryTables, SocioStringParse, ParseQueryVerb, sleep, GetAllMethodNamesOf, MapReviver } from './utils.js'
 import { E, LogHandler, err, log, info, done } from './logging.js'
 import { UUID, SocioSecurity } from './secure.js'
 import { SocioSession } from './core-session.js'
@@ -149,7 +149,7 @@ export class SocioServer extends LogHandler {
                 return;
             }
 
-            const { kind, data }: { kind: CoreMessageKind; data: MessageDataObj } = JSON.parse(req.toString());
+            const { kind, data }: { kind: CoreMessageKind; data: MessageDataObj } = JSON.parse(req.toString(), MapReviver);
             const client_id = client.id;
 
             //if the socio security instance exists and either sql or/and prop was recieved and they are to be decrypted, then do so here

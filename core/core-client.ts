@@ -7,6 +7,7 @@ import b64 from 'base64-js'
 import type { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind, Bit } from './types.js'
 import type { RateLimit } from './ratelimit.js'
 import type { SocioFiles } from './types.js';
+import { MapReplacer, MapReviver } from './utils.js';
 type MessageDataObj = { id: id, verb?: string, table?: string, status?:string|number, result?:string|object|boolean|PropValue|number, prop?:PropKey, data?:object, files?:SocioFiles };
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
 type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?: Function};
@@ -81,7 +82,7 @@ export class SocioClient extends LogHandler {
 
     async #message(event: MessageEvent) {
         try{
-            const { kind, data }: { kind: ClientMessageKind; data: MessageDataObj } = JSON.parse(event.data)
+            const { kind, data }: { kind: ClientMessageKind; data: MessageDataObj } = JSON.parse(event.data, MapReviver)
             this.HandleInfo('recv:', kind, data)
 
             //let the developer handle the msg
@@ -186,12 +187,12 @@ export class SocioClient extends LogHandler {
     Send(kind: CoreMessageKind, ...data){ //data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
         try{
             if (data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, ...data); //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
-            this.#ws?.send(JSON.stringify(Object.assign({}, { kind, data: data[0] }, ...data.slice(1))));
+            this.#ws?.send(JSON.stringify(Object.assign({}, { kind, data: data[0] }, ...data.slice(1)), MapReplacer));
             this.HandleInfo('sent:', kind, data);
         } catch (e: err) { this.HandleError(e); }
     }
     async SendFiles(files:File[], other_data:object|undefined=undefined){
-        const proc_files: SocioFiles = {}; //my own kind of FormData, specific for files, because FormData is actually a very riggid type
+        const proc_files: SocioFiles = new Map(); //my own kind of FormData, specific for files, because FormData is actually a very riggid type
 
         //add each file
         for(const file of files){
@@ -201,7 +202,7 @@ export class SocioClient extends LogHandler {
                 size: file.size,
                 type: file.type
             };
-            proc_files[file.name] = { meta, bin: b64.fromByteArray(new Uint8Array(await file.arrayBuffer()))}; //this is the best way that i could find. JS is really unhappy about binary data
+            proc_files.set(file.name, { meta, bin: b64.fromByteArray(new Uint8Array(await file.arrayBuffer())) }); //this is the best way that i could find. JS is really unhappy about binary data
         }
 
         //create the server request as usual
@@ -211,7 +212,7 @@ export class SocioClient extends LogHandler {
             socio_form_data['data'] = other_data; //add the other data if exists
         this.Send('UP_FILES', socio_form_data);
 
-        return prom;
+        return prom as Promise<{ id: id, result: Bit }>;
     }
     SendBinary(blob: Blob | ArrayBuffer | ArrayBufferView) { //send binary. Unfortunately, it is not useful for me to invent my own byte formats and build functionality. You can tho. This is just low level access.
         if (this.#queries.get('BLOB')) throw new E('BLOB already being uploaded. Wait until the last query completes!');
@@ -347,7 +348,7 @@ export class SocioClient extends LogHandler {
         this.Send('SERV', { id, data });
         return prom;
     }
-    GetFiles(data: any): Promise<File[]>{
+    GetFiles(data: any){
         const { id, prom } = this.CreateQueryPromise();
         this.Send('GET_FILES', { id, data });
         return prom as Promise<File[]>;
@@ -437,7 +438,7 @@ export class SocioClient extends LogHandler {
 function ParseSocioFiles(files:SocioFiles){
     if(!files) return [];
     const files_array: File[] = [];
-    for(const [filename, filedata] of Object.entries(files))
+    for (const [filename, filedata] of files.entries())
         files_array.push(new File([b64.toByteArray(filedata.bin)], filename, { type: filedata.meta.type, lastModified: filedata.meta.lastModified }));
     return files_array;
 }
