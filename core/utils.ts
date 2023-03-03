@@ -76,7 +76,7 @@ export const perMessageDeflate = {
     // should not be compressed if context takeover is disabled.
 }
 
-//JSON utils for Maps -------------
+//JSON utils for Maps ------------- credit: STEVE SEWELL https://www.builder.io/blog/maps
 export function MapReplacer(key: string, value: any) {
     if (value instanceof Map) {
         return { __type: 'Map', value: Object.fromEntries(value) }
