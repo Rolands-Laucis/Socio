@@ -28,7 +28,7 @@ export function SocioSecurityPlugin(SocioSecurityOptions: SocioSecurityOptions, 
         name:'vite-socio-security',
         enforce: 'pre',
         transform(code:string, id:string){
-            if (/.*\/(node_modules|socio\/core|socio\/dist)\//.test(id)) return undefined; //skip node_modules files
+            if (/.*[\/\\](node_modules|socio\1core|socio\1dist)\1/.test(id)) return undefined; //skip node_modules files
             if (exclude_svelte_server_files && /.*\.server\.(js|ts)$/.test(id)) return undefined; //skip *.server.ts files (svelte)
 
             const ext = extname(id).slice(1); //remove the .
