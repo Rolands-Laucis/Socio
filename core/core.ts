@@ -39,7 +39,7 @@ export class SocioServer extends LogHandler {
     //rate limits server functions globally
     #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
 
-    #lifecycle_hooks: { [key: string]: Function | null; } = { con: null, discon: null, msg: null, upd: null, auth: null, gen_client_id:null, grant_perm:null, serv:null, admin:null, blob:null, file_upload:null, file_download:null } //call the register function to hook on these. They will be called if they exist
+    #lifecycle_hooks: { [key: string]: Function | null; } = { con: null, discon: null, msg: null, sub:null, unsub:null, upd: null, auth: null, gen_client_id:null, grant_perm:null, serv:null, admin:null, blob:null, file_upload:null, file_download:null } //call the register function to hook on these. They will be called if they exist
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //msg hook receives all incomming msgs to the server. 
     //upd works the same as msg, but for everytime updates need to be propogated to all the sockets.
@@ -201,11 +201,15 @@ export class SocioServer extends LogHandler {
 
             //let the developer handle the msg
             if (this.#lifecycle_hooks.msg)
-                if(await this.#lifecycle_hooks.msg(client, kind, data, isBinary))
+                if(await this.#lifecycle_hooks.msg(client, kind, data))
                     return;
 
             switch (kind) {
-                case 'SUB':                    
+                case 'SUB':
+                    if (this.#lifecycle_hooks.sub)
+                        if (await this.#lifecycle_hooks.sub(client, kind, data))
+                            return;
+
                     if (QueryIsSelect(data.sql || '')) {
                         //set up hook
                         const tables = ParseQueryTables(data.sql || '');
@@ -228,6 +232,10 @@ export class SocioServer extends LogHandler {
 
                     break;
                 case 'UNSUB':
+                    if (this.#lifecycle_hooks.unsub)
+                        if (await this.#lifecycle_hooks.unsub(client, kind, data))
+                            return;
+
                     client.Send('RES', { id: data.id, result: client.UnRegisterHook(data?.unreg_id || '') });
                     break;
                 case 'SQL':
@@ -268,6 +276,11 @@ export class SocioServer extends LogHandler {
                     break;
                 case 'PROP_SUB':
                     this.#CheckPropExists(data?.prop, client, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
+                    
+                    if (this.#lifecycle_hooks.sub)
+                        if (await this.#lifecycle_hooks.sub(client, kind, data))
+                            return;
+                    
                     //set up hook
                     this.#props.get(data.prop as PropKey)?.updates.set(client_id, { id: data.id as id, rate_limiter: data?.rate_limit ? new RateLimiter(data.rate_limit) : null })
 
@@ -280,6 +293,11 @@ export class SocioServer extends LogHandler {
                     break;
                 case 'PROP_UNSUB':
                     this.#CheckPropExists(data?.prop, client, data?.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
+                    
+                    if (this.#lifecycle_hooks.unsub)
+                        if (await this.#lifecycle_hooks.unsub(client, kind, data))
+                            return;
+
                     //remove hook
                     try{
                         client.Send('RES', {
