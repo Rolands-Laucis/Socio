@@ -1,7 +1,7 @@
 {
   "name": "socio",
   "version": "0.6.8",
-  "description": "A WebSocket based realtime duplex Front-End and Back-End syncing API paradigm framework.",
+  "description": "A WebSocket Real-Time Communication (RTC) API framework.",
   "main": "./dist/core.js",
   "type": "module",
   "module": "core.ts",
@@ -17,16 +17,16 @@
   ],
   "types": "./dist/*.d.ts",
   "keywords": [
+    "websocket", 
+    "rtc", 
+    "api", 
+    "framework",
+    "reactive",
     "database",
     "sync",
-    "realtime",
     "live",
     "SQL",
-    "query",
-    "frontend",
-    "websocket",
-    "reactive",
-    "rtc"
+    "query"
   ],
   "author": "Rolands Laucis",
   "license": "ISC",
