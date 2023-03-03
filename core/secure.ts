@@ -22,13 +22,13 @@ const cipher_algorithm: CipherGCMTypes = `aes-${cipher_algorithm_bits}-gcm`; //c
 //https://vitejs.dev/guide/api-plugin.html
 //THE VITE PLUGIN - import into vite config and add into the plugins array with your params.
 //it will go over your source code and replace --socio[-marker] strings with their encrypted versions, that will be sent to the server and there will be decrypted using the below class
-export function SocioSecurityPlugin(SocioSecurityOptions: SocioSecurityOptions, { include_file_types = ['js', 'svelte', 'vue', 'jsx', 'ts', 'tsx'], exclude_file_types = [], exclude_svelte_server_files=true }: SocioSecurityPluginOptions = {}){
+export function SocioSecurityVitePlugin(SocioSecurityOptions: SocioSecurityOptions, { include_file_types = ['js', 'svelte', 'vue', 'jsx', 'ts', 'tsx'], exclude_file_types = [], exclude_svelte_server_files = true }: SocioSecurityPluginOptions = {}) {
     const ss = new SocioSecurity(SocioSecurityOptions);
-    return{
-        name:'vite-socio-security',
+    return {
+        name: 'vite-socio-security',
         enforce: 'pre',
-        transform(code:string, id:string){
-            if (/.*[\/\\](node_modules|socio\1core|socio\1dist)\1/.test(id)) return undefined; //skip node_modules files
+        transform(code: string, id: string) {
+            if (/.*\/(node_modules|socio\/core|socio\/dist)\//.test(id)) return undefined; //skip node_modules files
             if (exclude_svelte_server_files && /.*\.server\.(js|ts)$/.test(id)) return undefined; //skip *.server.ts files (svelte)
 
             const ext = extname(id).slice(1); //remove the .
@@ -36,11 +36,11 @@ export function SocioSecurityPlugin(SocioSecurityOptions: SocioSecurityOptions, 
                 const s = ss.SecureSouceCode(code); //uses MagicString lib
                 return {
                     code: s.toString(),
-                    map: s.generateMap({source:id, includeContent:true})
+                    map: s.generateMap({ source: id, includeContent: true })
                 }
             }
             else return undefined;
-        }
+        },
     }
 }
 
