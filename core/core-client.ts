@@ -8,7 +8,7 @@ import type { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind, Bit } 
 import type { RateLimit } from './ratelimit.js'
 import type { SocioFiles } from './types.js';
 import { MapReplacer, MapReviver } from './utils.js';
-type MessageDataObj = { id: id, verb?: string, table?: string, status?:string|number, result?:string|object|boolean|PropValue|number, prop?:PropKey, data?:object, files?:SocioFiles };
+export type ClientMessageDataObj = { id: id, verb?: string, table?: string, status?:string|number, result?:string|object|boolean|PropValue|number, prop?:PropKey, data?:any, files?:SocioFiles };
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
 type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?: Function};
 type QueryObject = { sql: string, params?: object | null, onUpdate: SubscribeCallbackObject }
@@ -82,7 +82,7 @@ export class SocioClient extends LogHandler {
 
     async #message(event: MessageEvent) {
         try{
-            const { kind, data }: { kind: ClientMessageKind; data: MessageDataObj } = JSON.parse(event.data, MapReviver)
+            const { kind, data }: { kind: ClientMessageKind; data: ClientMessageDataObj } = JSON.parse(event.data, MapReviver)
             this.HandleInfo('recv:', kind, data)
 
             //let the developer handle the msg
@@ -149,7 +149,7 @@ export class SocioClient extends LogHandler {
                             (this.#queries.get(data.id) as Function)(data.result); //resolve the promise
                     }else throw new E('Not enough prop info sent from server to perform prop update.', data)
                     break;
-                case 'CMD': if(this.lifecycle_hooks?.cmd) this.lifecycle_hooks.cmd(data?.data); break; //the server pushed some data to this client, let the dev handle it
+                case 'CMD': if(this.lifecycle_hooks.cmd) this.lifecycle_hooks.cmd(data); break; //the server pushed some data to this client, let the dev handle it
                 case 'ERR'://The result field is sometimes used as a cause of error msg on the backend
                     if (typeof this.#queries.get(data.id) == 'function')
                         (this.#queries.get(data.id) as Function)();
@@ -379,7 +379,7 @@ export class SocioClient extends LogHandler {
         if (!this.#queries.has(id))
             throw new E(`${kind} message for unregistered SQL query! msg_id -`, id);
     }
-    #HandleBasicPromiseMessage(kind:string, data:MessageDataObj){
+    #HandleBasicPromiseMessage(kind:string, data:ClientMessageDataObj){
         this.#FindID(kind, data?.id);
         //@ts-expect-error
         this.#queries.get(data.id)(data?.result as Bit);
