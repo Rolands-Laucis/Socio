@@ -283,10 +283,10 @@ import type { SocioSession } from 'socio/dist/core-session.js'
 import { ServerChatRoom, HandleChatRoomServ } from 'socio/dist/chat.js'; //safe to import on both server and browser
 
 const socserv = new SocioServer(...);
-const chat = new ServerChatRoom(socserv.SendToClients.bind(socserv), 10); //create a chat room, that will use the SocioServer "emit" function to send to clients. Also specifies msg history length
+const chat_room = new ServerChatRoom(socserv.SendToClients.bind(socserv), 10); //create a chat room, that will use the SocioServer "emit" function to send to clients. Also specifies msg history length
 
 socserv.RegisterLifecycleHookHandler('serv', (client: SocioSession, data: MessageDataObj) => {
-    HandleChatRoomServ(client, data, [chat]); //convenience, if you use the socio CMD protocol. Will handle taking in new msgs from clients and emit to others in the room.
+    HandleChatRoomServ(client, data, [chat_room]); //convenience, if you use the socio CMD protocol. Will handle taking in new msgs from clients and emit to others in the room.
     //an array of chats, because this handles all rooms. Here we have 1 room.
 })
 ```
@@ -296,6 +296,9 @@ socserv.RegisterLifecycleHookHandler('serv', (client: SocioSession, data: Messag
 import {SocioClient, type ClientMessageDataObj} from 'socio/dist/core-client.js'
 import { ChatRoomClient, type ChatRoomMessage, HandleChatRoomCMD } from 'socio/dist/chat.js'; //safe to import on both server and browser
 const sc = new SocioClient(...);
+
+//variable to hold state
+let chat_messages:ChatRoomMessage[] = [];
 
 //create a chat room connection client, that will use the SocioClient SERV protocol for communication.
 const chat = new ChatRoomClient(sc.Serv.bind(sc), (msgs:ChatRoomMessage[]) => {
