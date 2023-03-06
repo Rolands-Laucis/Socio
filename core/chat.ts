@@ -8,7 +8,7 @@ type ClientInterfaceFunction  = (data: any) => void;
 import type { SocioSession } from "./core-session.js";
 import type { MessageDataObj } from "./core.js";
 import type { ClientMessageDataObj } from "./core-client.js";
-import { log } from "./logging.js";
+import { E, log } from "./logging.js";
 
 export class ServerChatRoom{
     //private
@@ -47,7 +47,7 @@ export class ServerChatRoom{
         
         //send new message to clients
         const clients = [...this.#users.values()].map(c => c.client_id); //could filter out the current client as well, but that actually complicates things more than solves
-        this.server_interface(clients, { rel: 'SocioChatRoom', type: 'new_msg', msgs: [new_message]});
+        this.server_interface(clients, { rel: 'SocioChatRoom', type: 'new_msg', msgs: new Set([new_message])});
     }
 }
 
@@ -57,9 +57,9 @@ export class ChatRoomClient{
 
     //public
     serv: ClientInterfaceFunction;
-    msg_hook: (msg: ChatRoomMessage[]) => void;
+    msg_hook: (msg: Set<ChatRoomMessage>) => void;
 
-    constructor(ClientSendToServer: ClientInterfaceFunction, msg_hook: (msg:ChatRoomMessage[]) => void){
+    constructor(ClientSendToServer: ClientInterfaceFunction, msg_hook: (msg: Set<ChatRoomMessage>) => void){
         this.serv = ClientSendToServer;
         this.msg_hook = msg_hook;
     }
@@ -71,7 +71,7 @@ export class ChatRoomClient{
     Leave() { this.serv({ rel: 'SocioChatRoom', type: 'leave', room_id: this.#current_room_id }); }
 
     Post(text: string) { this.serv({ rel: 'SocioChatRoom', type: 'new_msg', text, room_id: this.#current_room_id });}
-    Receive(msgs:ChatRoomMessage[]){this.msg_hook(msgs);}
+    Receive(msgs: Set<ChatRoomMessage>){this.msg_hook(msgs);}
 }
 
 export function HandleChatRoomServ(client: SocioSession, data: MessageDataObj, chat_rooms:ServerChatRoom[]){
@@ -82,6 +82,7 @@ export function HandleChatRoomServ(client: SocioSession, data: MessageDataObj, c
             case 'join': chat.Join(client.id); break;
             case 'leave': chat.Leave(client.id); break;
             case 'new_msg': chat.Post(client.id, data.data?.text); break;
+            default: throw new E('Unknown SocioChatRoom SERV msg type!');
         }
     }
 }
@@ -89,8 +90,9 @@ export function HandleChatRoomServ(client: SocioSession, data: MessageDataObj, c
 export function HandleChatRoomCMD(data:any, chat:ChatRoomClient) {
     if (data?.rel == 'SocioChatRoom') {
         switch (data?.type) {
-            case 'msg_history': chat.Receive(Array.from(data?.msgs)); break;
+            case 'msg_history': chat.Receive(data?.msgs); break;
             case 'new_msg': chat.Receive(data?.msgs); break;
+            default: throw new E('Unknown SocioChatRoom CMD msg type!');
         }
     }
 }
