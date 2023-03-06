@@ -248,12 +248,11 @@ import type { MessageDataObj } from 'socio/dist/core.js'
 import type { SocioSession } from 'socio/dist/core-session.js'
 const socserv = new SocioServer(...)
 
-socserv.LifecycleHookNames; //all the hook names for convenience
-socserv.RegisterLifecycleHookHandler('serv', (ses:SocioSession, data:MessageDataObj) => {
+socserv.RegisterLifecycleHookHandler('serv', (client:SocioSession, data:MessageDataObj) => {
   //data has field "id" and "data" that is the literal param to the client-side serv() function
 
   //respond, bcs the client always awaits some answer
-  ses.Send('RES', {id:data.id, result:1}) //result is optional
+  client.Send('RES', {id:data.id, result:1}) //result is optional
 })
 ```
 
@@ -272,6 +271,47 @@ socserv.SendToClients([], {some:"data"}); //empty array of client_id's will emit
 const sc = new SocioClient(...)
 sc.lifecycle_hooks.cmd = (data:any) => { console.log(data) }
 ```
+
+### Basic Real-Time Chat Mechanism
+WebSockets were pretty much made to solve the issue of chats for the web. As Socio uses WebSockets for a much grander purpose, still I provide a convenient basic setup of chat rooms.
+
+```ts
+//server code
+import { SocioServer } from 'socio/dist/core.js'
+import type { MessageDataObj } from 'socio/dist/core.js'
+import type { SocioSession } from 'socio/dist/core-session.js'
+import { ServerChatRoom, HandleChatRoomServ } from 'socio/dist/chat.js'; //safe to import on both server and browser
+
+const socserv = new SocioServer(...);
+const chat = new ServerChatRoom(socserv.SendToClients.bind(socserv), 10); //create a chat room, that will use the SocioServer "emit" function to send to clients. Also specifies msg history length
+
+socserv.RegisterLifecycleHookHandler('serv', (client: SocioSession, data: MessageDataObj) => {
+    HandleChatRoomServ(client, data, [chat]); //convenience, if you use the socio CMD protocol. Will handle taking in new msgs from clients and emit to others in the room.
+    //an array of chats, because this handles all rooms. Here we have 1 room.
+})
+```
+
+```ts
+//browser code
+import {SocioClient, type ClientMessageDataObj} from 'socio/dist/core-client.js'
+import { ChatRoomClient, type ChatRoomMessage, HandleChatRoomCMD } from 'socio/dist/chat.js'; //safe to import on both server and browser
+const sc = new SocioClient(...);
+
+//create a chat room connection client, that will use the SocioClient SERV protocol for communication.
+const chat = new ChatRoomClient(sc.Serv.bind(sc), (msgs:ChatRoomMessage[]) => {
+    chat_messages.push(...msgs);
+    chat_messages = chat_messages; //Svelte reactive statement. Ignore, if not using Svelte.
+});
+//setup the CMD hook to handle incoming msgs, using the convenience handler
+sc.lifecycle_hooks.cmd = (data:ClientMessageDataObj) => {HandleChatRoomCMD(data, chat)}
+
+await sc.ready();
+chat.Join(1); //room_id = 1
+chat.Post('hello, world');
+chat.Leave(); //will leave the current room
+//note that these are not async functions and cannot be awaited. (bcs i was lazy) Thus, they might execute in unexpected order. Leave all else to the TCP packet gods.
+```
+However, this is a very basic implementation. It exposes client_id to all room members and room_id is sent with each msg, so users can pretty much hop rooms without regulation. There are also no private rooms or passwords and many other modern features, that chat rooms should have. Take a look at the convenience functions; I'm sure you can easily create better :)
 
 ### Rate-limiting
 
