@@ -47,9 +47,8 @@ async function QueryWrap(client: SocioSession, id: id, sql: string, params: obje
 const socsec = new SocioSecurity({ secure_private_key: '...', verbose:true }); //for decrypting incoming queries. This same key is used for encrypting the source files when you build and bundle them.
 const socserv = new SocioServer({ port: 3000 }, { DB_query_function: QueryWrap as QueryFunction, verbose: true, socio_security: socsec }); //creates localhost:3000 web socket server
 ```
-
 ```ts
-//client side browser code
+//client side browser code. For SvelteKit, this can be in proj_root/src/hooks.server.ts .Check the Framework Demo for an example.
 import {SocioClient} from 'socio/dist/core-client' //this way for both JS and TS
 const sc = new SocioClient('ws://localhost:3000', {verbose:true, name:'Main'}); //create as many as you like
 await sc.ready(); //wait to establish the connection
@@ -62,6 +61,22 @@ const id = sc.Subscribe({sql:'SELECT * FROM Users;--socio'}, (res:object) => {
 //send a single query and wait for its result
 console.log(await sc.Query('INSERT INTO Users (name, num) VALUES(:name, :num);--socio', {name:'bob', num:42})); //sanatize dynamic data yourself in QueryWrap!
 sc.Unsubscribe(id); //notify the server.
+```
+```ts
+//vite.config.ts when using SvelteKit.
+import { viteCommonjs } from '@originjs/vite-plugin-commonjs'
+import { SocioSecurityVitePlugin } from 'socio/dist/secure';
+
+/** @type {import('vite').UserConfig} */
+const config = {
+	plugins: [
+        SocioSecurityVitePlugin({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', verbose: true }), 
+        viteCommonjs(), 
+        sveltekit()
+    ],
+};
+
+export default config;
 ```
 
 **Dont be shy to try this out on your small project. Feedback from real world use cases is much appreciated 🥰**
