@@ -42,11 +42,9 @@ export class SocioSession extends LogHandler {
         this.verbose = verbose;
 
         this.last_seen_now();
-        // this.HandleInfo('New session created', client_id)
     }
 
     get id(): string { return this.#ws['socio_client_id'] }
-    // set id(new_id:string) { this.#ws['socio_client_id'] = new_id }
     get ipAddr(): string { return this.#ws['socio_client_ipAddr'] }
 
     //accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
