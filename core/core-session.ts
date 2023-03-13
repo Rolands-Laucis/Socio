@@ -52,7 +52,7 @@ export class SocioSession extends LogHandler {
         if(this.#destroyed) return; //if this session is marked for destruction
         if (data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, data); //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
         this.#ws.send(JSON.stringify(Object.assign({}, { kind: kind, data: data[0] }, ...data.slice(1)), MapReplacer));
-        this.HandleInfo('sent:', kind, ...(kind != 'RECV_FILES' ? data : []));
+        this.HandleInfo('sent:', kind, 'to', this.id, ...(kind != 'RECV_FILES' ? data : []));
         this.last_seen_now();
     }
 
