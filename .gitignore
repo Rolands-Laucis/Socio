@@ -15,6 +15,8 @@ core/dev_serv.ts
 core/admin.js
 core/admin2.js
 test
+getting_started.md
+demos/socio
 
 ### Database ###
 *.accdb
