@@ -10,7 +10,7 @@ import { extname } from 'path';
 
 //types
 import type { CipherGCMTypes } from 'crypto';
-export type SocioSecurityOptions = { secure_private_key: Buffer | string, rand_int_gen?: ((min: number, max: number) => number), verbose: boolean };
+export type SocioSecurityOptions = { secure_private_key: Buffer | string, rand_int_gen?: ((min: number, max: number) => number), verbose?: boolean };
 export type SocioSecurityPluginOptions = { include_file_types?: string[], exclude_file_types?: string[], exclude_svelte_server_files?: boolean };
 
 //it was recommended on a forum to use 256 bits, even though 128 is still perfectly safe
@@ -70,7 +70,7 @@ export class SocioSecurity extends LogHandler {
         if (secure_private_key.byteLength < cipher_algorithm_bytes) throw new E(`secure_private_key has to be at least ${cipher_algorithm_bytes} bytes length! Got ${secure_private_key.byteLength}`);
         // if (!(getCiphers().includes(cipher_algorithm))) throw new E(`Unsupported algorithm [${cipher_algorithm}] by the Node.js Crypto module!`);
 
-        this.#key = createHash('sha256').update(secure_private_key).digest().subarray(0, 32); //hash the key just to make sure to complicate the input key, if it is weak
+        this.#key = createHash('sha256').update(secure_private_key).digest().subarray(0, cipher_algorithm_bytes); //hash the key just to make sure to complicate the input key, if it is weak
 
         this.verbose = verbose;
         this.#rand_int_gen = rand_int_gen;
