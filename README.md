@@ -2,14 +2,13 @@
 
 ## Connecting your Front-End logic to Back-End Database reactively! ⇄
 
-<a href="https://www.youtube.com/watch?v=iJIC9B3cKME&ab_channel=CepuminsLV" target="_blank">3 min Youtube video Demo</a>
+<a href="https://www.youtube.com/watch?v=iJIC9B3cKME&ab_channel=CepuminsLV" target="_blank">3 min - Youtube video demo.</a>
+<a href="https://www.youtube.com/watch?v=t8_QBzk5bUk" target="_blank">16 min - Getting started with Socio 0.7, SvelteKit, Vite.</a>
 
 No more API middleware and backend DB interfacing functions and wrappers and handlers. Write your SQL queries on the frontend and have their results be automagically refreshed on all clients when a resource is changed on the server DB. This is secure.
 
 [Basic Demo](https://github.com/Rolands-Laucis/Socio/blob/master/demos/basic/readme.md) - interactive bare-bones demo project.
-
 [Secure Full-Stack Framework Demo](https://github.com/Rolands-Laucis/Socio/tree/master/demos/full-stack_framework#readme) - interactive demo project with SvelteKit and Vite.
-
 [Simple Documentation](https://github.com/Rolands-Laucis/Socio/blob/master/Documentation.md) page to see direct examples and explanations of how to use various parts of the lib.
 
 ### Instalation
@@ -64,19 +63,16 @@ sc.Unsubscribe(id); //notify the server.
 ```
 ```ts
 //vite.config.ts when using SvelteKit.
-import { viteCommonjs } from '@originjs/vite-plugin-commonjs'
+import { sveltekit } from '@sveltejs/kit/vite';
+import { defineConfig } from 'vite';
 import { SocioSecurityVitePlugin } from 'socio/dist/secure';
 
-/** @type {import('vite').UserConfig} */
-const config = {
+export default defineConfig({
 	plugins: [
         SocioSecurityVitePlugin({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', verbose: true }), 
-        viteCommonjs(), 
         sveltekit()
-    ],
-};
-
-export default config;
+    ]
+});
 ```
 
 **Dont be shy to try this out on your small project. Feedback from real world use cases is much appreciated 🥰**
@@ -91,13 +87,11 @@ The use of the Socio lib **does not** prohibit the use of standard HTTP technolo
 
 ## Caveats
 
-For SQL queries the automagic happens because i regex parse the strings myself with simple patterns. The most basic usecases should be covered, but more complex SQL queries are not. Situations like: nested queries; multiple queries in a single string. Only table names are extracted, so sometimes subscriptions would receive an update, even though for its specific WHERE clauses it would logically not have changed data. E.g. if you alter a specific users info on a Users table, all subscribed users would get an update. I am planning to fix these, but there are no great solutions.
+For SQL queries the automagic happens because i regex parse the strings myself with simple patterns. The most basic usecases should be covered, but more complex SQL queries are not. Situations like: nested queries; multiple queries in a single string. Only table names are extracted, so sometimes subscriptions would receive an update, even though for its specific WHERE clauses it would logically not have changed data. E.g. if you alter a specific users info on a Users table, all subscribed users would get an update.
 
-HTTP has well established session patterns using cookies. WebSockets do not. They are identified only by the TCP pipes id's, which i keep track of. You can quite easily mimic cookie sessions on whatever backend by using SocioServer hooks with SocioSession id's.
+HTTP has well established session patterns using cookies. WebSockets do not. They are identified only by the TCP pipes id's, which i have. You can quite easily mimic cookie sessions on whatever backend by using SocioServer hooks with SocioSession id's.
 
-I cannot guarantee perfect safety of the query encryption. Neither can anyone, though. And neither can traditional HTTP backends. Every year new scientific papers come out breaking previously thought "unbreakable, future-proof" cryptographic algorithms. You may use SocioServer hooks to double check the incoming data yourself for your peace of mind.
-
-The SocioSecurity Vite plugin searches many types of frontend script file extensions and will encrypt any string that ends with --socio[-args]. Careful.
+I cannot guarantee perfect safety of the query encryption. Neither can anyone, though. And neither can traditional HTTP backends. You may use SocioServer hooks to double check the incoming data yourself for your peace of mind.
 
 You should be using WSS:// and HTTPS:// protocols for everything, so that the data is secure over the network. But that's easier said than done.
 
@@ -109,15 +103,6 @@ As this is an open source project that i spend my free time on, perhaps someone 
 * Socio-HTTP cookie session plugin, that stitches the two together in some useful way. Express.js has popular plugins for session management, perhaps we can integrate SocioSession.client_id on the session object.
 * Starter template projects for various front-end and back-end tech stacks with Socio setup
 * Web bundler HMR mechanisms seem pretty complex, perhaps someone wants to make a plugin or recommend some basic solution? The idea is for the server to push new css, js, html files or chunks to be replaced on all clients live - CI/CD automation.
-
-## TODOs 📝
-* Database hook function integration instead of manually parsing SQL and updating clients.
-* Better SQL dependency distinguisher on queries
-* Threading paralization pipelines for async querry queues (perhaps offloading queries to another machine)
-* Caching and dedup UPD msg kind
-* Redo the update dependency mechanism to serious data structures - dependency graph or tree or smth
-* Different solution for sql parsing. Perhaps the 40MB js lib... (but that seems insane to me)
-* plenty more
 
 ## Related lib and tech 🔗
 * [WS](https://www.npmjs.com/package/ws) *Socio uses on the server*
@@ -137,5 +122,3 @@ As this is an open source project that i spend my free time on, perhaps someone 
 
 ## Name:
 "Socio.js" comes from the latin verb "socio", which means to link or associate. Since this lib syncs your frontend and backend. Its also a play on words for "WebSockets" and "IO".
-
-I also have no idea how to describe this lib with technical terms, so let me know if you know :) also before starting this lib, i researched for something similar, but didnt find anything that does exactly this. Let me know if you are aware of a similar lib and i will include a link to it here!
