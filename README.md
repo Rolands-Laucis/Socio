@@ -3,12 +3,15 @@
 ## Connecting your Front-End logic to Back-End Database reactively! ⇄
 
 <a href="https://www.youtube.com/watch?v=iJIC9B3cKME&ab_channel=CepuminsLV" target="_blank">3 min - Youtube video demo.</a>
+
 <a href="https://www.youtube.com/watch?v=t8_QBzk5bUk" target="_blank">16 min - Getting started with Socio 0.7, SvelteKit, Vite.</a>
 
 No more API middleware and backend DB interfacing functions and wrappers and handlers. Write your SQL queries on the frontend and have their results be automagically refreshed on all clients when a resource is changed on the server DB. This is secure.
 
 [Basic Demo](https://github.com/Rolands-Laucis/Socio/blob/master/demos/basic/readme.md) - interactive bare-bones demo project.
+
 [Secure Full-Stack Framework Demo](https://github.com/Rolands-Laucis/Socio/tree/master/demos/full-stack_framework#readme) - interactive demo project with SvelteKit and Vite.
+
 [Simple Documentation](https://github.com/Rolands-Laucis/Socio/blob/master/Documentation.md) page to see direct examples and explanations of how to use various parts of the lib.
 
 ### Instalation
