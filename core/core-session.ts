@@ -26,10 +26,10 @@ export class SocioSession extends LogHandler {
     #destroyed:number = 0;
 
     //public:
-    verbose = true
+    verbose = false
     last_seen: number = 0 //ms since epoch when this session was last active
 
-    constructor(client_id: string, ws_client: WebSocket, client_ipAddr: string, { verbose = true, default_perms = new Map() }: SocioSessionOptions  = {}) {
+    constructor(client_id: string, ws_client: WebSocket, client_ipAddr: string, { verbose = false, default_perms = new Map() }: SocioSessionOptions  = {}) {
         super({ verbose, prefix: 'SocioSession' });
         
         //private:

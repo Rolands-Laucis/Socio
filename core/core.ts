@@ -55,7 +55,7 @@ export class SocioServer extends LogHandler {
     session_delete_delay_ms:number;
     recon_ttl_ms:number;
 
-    constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, decrypt_sql = true, decrypt_prop = false, verbose = true, hard_crash = false, session_delete_delay_ms = 1000 * 5, recon_ttl_ms=1000*60*60 }: SocioServerOptions){
+    constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, decrypt_sql = true, decrypt_prop = false, verbose = false, hard_crash = false, session_delete_delay_ms = 1000 * 5, recon_ttl_ms=1000*60*60 }: SocioServerOptions){
         super({ verbose, hard_crash, prefix:'SocioServer'});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
         //hard_crash will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
