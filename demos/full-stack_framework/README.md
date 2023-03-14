@@ -18,9 +18,8 @@ As you will notice, all instances of the browsers and their tabs update their va
 
 This is powerful because you nolonger need to write a REST API middle layer between front and back end and manually sync states and data, which in practice is often challenging and laborious. With Socio this is all done automatically for you. As well as no need to write DB query interfacing middle layers, since your SQL queries can just sit in one place - the front end - where their use sits. 
 
-In addition, this demo makes use of the included SocioSecure Vite plugin to encrypt the actual SQL queries on the front end. You can check the console logs, websocket messages in the browser Network panel or the Svelte source code on the browser. The sent SQL messages are scrambled gibberish. However, the dynamic parameters are not.
+In addition, this demo makes use of the included SocioSecure Vite plugin to encrypt the actual SQL queries on the front end source code. You can check the console logs, websocket messages in the browser Network panel or the Svelte source code on the browser. The sent SQL messages are scrambled gibberish. However, the dynamic parameters are not.
 
 ## Next check out the [src/routes/+page.svelte](https://github.com/Rolands-Laucis/Socio/blob/master/demos/full-stack_framework/src/routes/%2Bpage.svelte) file to see how the magic is done on the frontend - its super simple ;)
 
-## Note that this demo project has some specific setup and configuration rules to get everything working. Notably, the use of ``@originjs/vite-plugin-commonjs`` plugin in the Vite config.
 This is because im new to TypeScript and am not yet aware of the configuration options i need to get stuff working for everyone. Would be nice, if someone could help with this :)
