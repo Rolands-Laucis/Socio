@@ -14,6 +14,8 @@ No more API middleware and backend DB interfacing functions and wrappers and han
 
 [Simple Documentation](https://github.com/Rolands-Laucis/Socio/blob/master/Documentation.md) page to see direct examples and explanations of how to use various parts of the lib.
 
+Ready for use in your small to mid sized web app 🥰 feedback is welcome.
+
 ### Instalation
 In your Node.js project root dir:
 ```bash
@@ -24,13 +26,10 @@ npm i socio
 
 On the backend instantiate the ``SocioServer`` class and provide it a single DB (of your choice) raw query function, that will receive the SQL string and dynamic parameters object. The raw result of that is passed back to the caller on the client side, where the SQL and params sit - where an instance of ``SocioClient`` has made a .query() call. Using the same mechanism, an automagical subscription to that SQL resource can be registered via the .subscribe() method, that runs your callback function whenever the data this query relies upon has changed on the backend DB.
 
-## What about SQL injections and overall data safety? 💉
+## SQL injections and overall data safety? 💉
 
-Included is a class for auto securing the SQL via server-side string symetric encryption run at build time using the AES-256-GCM algorithm.
-Preventing the client seeing or altering the query string. Dynamic data inserted as query parameters should be sanitized by your DB interface function, since Socio passes the SQL and params to you seperately. Or you can wrap the DB interface function and sanatize them yourself.
-In addition, all queries have opt-in flags for authentification and table permissions requirements, that are managed on the backend.
-
-And even a simple Vite plugin that wraps this functionality for all of your front-end souce code 🥳
+Client-side JS source files contain only encrypted strings of your SQL. The AES-256-GCM algorithm guarantees Confidentiality (cannot be read), Integrity (cannot be altered) and Authenticity (server can verify the author of the created cypher text). Dynamic data inserted as query parameters should be server side sanitized by you as usual. In addition, all queries can use opt-in markers for authentification and table permissions requirements, that are managed by Socio Server for you.
+This is all done with the ``SocioSecurity`` class manually or automagically with the included Vite plugin ``SocioSecurityVitePlugin``.
 
 ## Code snippets
 
@@ -78,11 +77,9 @@ export default defineConfig({
 });
 ```
 
-**Dont be shy to try this out on your small project. Feedback from real world use cases is much appreciated 🥰**
-
 ## Does it scale? ⚖️
 
-Currently the performance is neglegable for small projects. I havent stress tested yet, as its still early dev, but i optimize my data structures, where i can as i go. Current estimate is about 100 concurrent users should be a breeze on a cheap Linode server. There are plans for more optimizations for less traffic, but i also expect your backend DB to be set up properly with table indexing and caching queries.
+Currently the performance is neglegable for small projects. I havent stress tested yet, as its still early dev, but i optimize my data structures, where i can as i go. Current estimate is about 100 concurrent users should be a breeze on a cheap Linode server. I expect your backend DB to be set up properly with table indexing and caching queries.
 
 ## Sportsmanship 🤝
 
@@ -90,11 +87,11 @@ The use of the Socio lib **does not** prohibit the use of standard HTTP technolo
 
 ## Caveats
 
-For SQL queries the automagic happens because i regex parse the strings myself with simple patterns. The most basic usecases should be covered, but more complex SQL queries are not. Situations like: nested queries; multiple queries in a single string. Only table names are extracted, so sometimes subscriptions would receive an update, even though for its specific WHERE clauses it would logically not have changed data. E.g. if you alter a specific users info on a Users table, all subscribed users would get an update.
+For SQL queries, the automagic happens because i regex parse the strings myself with simple patterns. The most basic usecases should be covered, but more complex SQL queries are not - situations like: nested queries and multiple queries in a single string. Only table names are extracted, so sometimes subscriptions would receive an update, even though for its specific WHERE clauses it would logically not have changed data. E.g. if you alter a specific users info on a Users table, all subscribed users would get an update.
 
-HTTP has well established session patterns using cookies. WebSockets do not. They are identified only by the TCP pipes id's, which i have. You can quite easily mimic cookie sessions on whatever backend by using SocioServer hooks with SocioSession id's.
+You can quite easily mimic HTTP cookie sessions on whatever backend by using SocioServer hooks with SocioSession id's.
 
-I cannot guarantee perfect safety of the query encryption. Neither can anyone, though. And neither can traditional HTTP backends. You may use SocioServer hooks to double check the incoming data yourself for your peace of mind.
+I cannot guarantee perfect safety of the query encryption. Neither can traditional HTTP backends. You may use SocioServer hooks to double check the incoming data yourself for your peace of mind.
 
 You should be using WSS:// and HTTPS:// protocols for everything, so that the data is secure over the network. But that's easier said than done.
 
