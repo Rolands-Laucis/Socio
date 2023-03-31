@@ -43,7 +43,7 @@ export class SocioClient extends LogHandler {
         super({ verbose, prefix: 'SocioClient' });
 
         if (window || undefined && url.startsWith('ws://'))
-            this.info('UNSECURE WEBSOCKET URL CONNECTION! Please use wss:// and https:// protocols in production to protect against man-in-the-middle attacks.')
+            this.HandleInfo('UNSECURE WEBSOCKET URL CONNECTION! Please use wss:// and https:// protocols in production to protect against man-in-the-middle attacks.');
 
         //public:
         this.name = name
