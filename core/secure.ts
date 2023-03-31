@@ -33,7 +33,7 @@ export function SocioSecurityVitePlugin(SocioSecurityOptions: SocioSecurityOptio
 
             const ext = extname(id).slice(1); //remove the .
             if (include_file_types.includes(ext) && !(exclude_file_types.includes(ext))) {
-                const s = ss.SecureSouceCode(code); //uses MagicString lib
+                const s = ss.SecureSouceCode(code, id); //uses MagicString lib
                 return {
                     code: s.toString(),
                     map: s.generateMap({ source: id, includeContent: true })
@@ -78,7 +78,8 @@ export class SocioSecurity extends LogHandler {
     }
     
     //sql strings must be in single or double quotes and have an sql single line comment at the end with the socio marker, e.g. "--socio" etc. See the socio_string_regex pattern in core/utils
-    SecureSouceCode(source_code = '') {
+    //file_path is optional - for debugging.
+    SecureSouceCode(source_code = '', file_path='') {
         //@ts-ignore
         const s = new MagicString(source_code);
 
