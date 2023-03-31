@@ -44,7 +44,7 @@ export function SocioSecurityVitePlugin(SocioSecurityOptions: SocioSecurityOptio
     }
 }
 
-export const string_regex = /(?<q>["'])(?<str>[^ ]+?.+?)\1/g // match all strings
+export const string_regex = /(?<q>["'`])(?<str>[^ ]+?.+?)\1/g // match all strings
 
 //The aim of the wise is not to secure pleasure, but to avoid pain. /Aristotle/
 export class SocioSecurity extends LogHandler {
