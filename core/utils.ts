@@ -5,7 +5,7 @@ import type { QueryMarker } from "./types.js"
 export type SocioStringObj = { str: string, markers: string[] };
 
 //regex
-export const socio_string_regex = /(?<str>.+?)(?<marker>--socio(?:-\w+?)*)?;?$/mi //markers currently support - auth, perm, \d+
+export const socio_string_regex = /(?<str>.+?)(?<marker>--socio(?:-\w+?)*)?([;\s]+)?$/mi; //markers currently support - auth, perm, \d+
 
 //query helper functions
 export function QueryIsSelect(sql: string): boolean {
