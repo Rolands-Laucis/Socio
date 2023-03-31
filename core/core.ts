@@ -159,7 +159,7 @@ export class SocioServer extends LogHandler {
 
                 //check crypt format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where each part is base64 encoded
                 if (!str.includes(' '))
-                    throw new E('encrypted query string does not contain a space, therefor is not of format "iv_base64 original_query_base64" and cannot be processed. [#enc-wrong-format]', client_id, kind, data);
+                    throw new E('encrypted query string does not contain a space, therefor is not of format "iv_base64 original_query_base64 auth_tag_base64" and cannot be processed. [#enc-wrong-format]', client_id, kind, data);
 
                 const parts = str.split(' '); 
                 if (parts.length != 3)
@@ -197,6 +197,7 @@ export class SocioServer extends LogHandler {
                     }else if (data?.prop) throw new E('Perm checking for server props is currently unsupported! #[unsupported-feature]', data, markers)
                 }
             }
+            
             this.HandleInfo(`recv: ${kind} from ${client_id}`, kind != 'UP_FILES' ? data : true);
 
             //let the developer handle the msg
