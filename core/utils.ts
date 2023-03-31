@@ -9,7 +9,7 @@ export const socio_string_regex = /(?<str>.+?)(?<marker>--socio(?:-\w+?)*)?;?$/m
 
 //query helper functions
 export function QueryIsSelect(sql: string): boolean {
-    return /^SELECT/im.test(sql)
+    return /^(\s+)?SELECT/im.test(sql)
 }
 
 // /(?:FROM|INTO)[\s\n\t](?<tables>[\w,\s\n\t]+?)[\s\n\t]?(?:\([\w\s,]+\)|WHERE|VALUES|;|LIMIT|GROUP|ORDER)/mi
@@ -23,7 +23,7 @@ export function ParseQueryTables(q: string): string[] {
 
 //always returns uppercase verb if found
 export function ParseQueryVerb(q: string): string | null {
-    return q.match(/^(?<verb>SELECT|INSERT|DROP|UPDATE|CREATE)/mi)?.groups?.verb.toUpperCase() || null
+    return q.match(/^(\s+)?(?<verb>SELECT|INSERT|DROP|UPDATE|CREATE)/mi)?.groups?.verb.toUpperCase() || null
 }
 
 //socio string marker utils
