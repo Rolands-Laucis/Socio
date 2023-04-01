@@ -10,7 +10,7 @@
     "pub": "npm run build && npm publish",
     "watch": "tsc --watch",
     "admin": "node admin2.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "tsc && node tests"
   },
   "files": [
     "./dist"
