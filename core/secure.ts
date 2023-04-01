@@ -4,7 +4,7 @@
 
 import MagicString from 'magic-string'; //https://github.com/Rich-Harris/magic-string
 import { randomUUID, createCipheriv, createDecipheriv, getCiphers, randomBytes, createHash } from 'crypto'; //https://nodejs.org/api/crypto.html
-import { socio_string_regex } from './utils.js';
+import { string_regex, socio_string_regex } from './utils.js';
 import { LogHandler, E, log, info, done } from './logging.js';
 import { extname } from 'path';
 
@@ -44,8 +44,6 @@ export function SocioSecurityVitePlugin(SocioSecurityOptions: SocioSecurityOptio
     }
 }
 
-export const string_regex = /(?<q>["'`])(?<str>[^\1]*?)\1/g // match all strings
-
 //The aim of the wise is not to secure pleasure, but to avoid pain. /Aristotle/
 export class SocioSecurity extends LogHandler {
     //private:
@@ -64,7 +62,7 @@ export class SocioSecurity extends LogHandler {
     constructor({ secure_private_key = '', rand_int_gen = undefined, verbose = false }: SocioSecurityOptions){
         super({ verbose, prefix: 'SocioSecurity' });
         
-        if (!secure_private_key) throw new E(`Missing constructor arguments!`);
+        if (!secure_private_key) throw new E(`Missing secure_private_key constructor argument!`);
         if (typeof secure_private_key == 'string') secure_private_key = StringToByteBuffer(secure_private_key); //cast to buffer, if string was passed
         const cipher_algorithm_bytes = cipher_algorithm_bits / 8;
         if (secure_private_key.byteLength < cipher_algorithm_bytes) throw new E(`secure_private_key has to be at least ${cipher_algorithm_bytes} bytes length! Got ${secure_private_key.byteLength}`);

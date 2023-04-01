@@ -5,7 +5,8 @@ import type { QueryMarker } from "./types.js"
 export type SocioStringObj = { str: string, markers: string[] };
 
 //regex
-export const socio_string_regex = /(?<str>.+?)(?<marker>--socio(?:-\w+?)*)?([;\s]+)?$/mi; //markers currently support - auth, perm, \d+
+export const string_regex = /(?<q>["'`])(?<str>[^\1]*?)\1/g // match all strings
+export const socio_string_regex = /(?<str>[^]+?)(?<marker>--socio(?:-\w+?)*)([;\s]+)?$/mi; //markers currently support - auth, perm, \d+
 
 //query helper functions
 export function QueryIsSelect(sql: string): boolean {
@@ -15,10 +16,10 @@ export function QueryIsSelect(sql: string): boolean {
 // /(?:FROM|INTO)[\s\n\t](?<tables>[\w,\s\n\t]+?)[\s\n\t]?(?:\([\w\s,]+\)|WHERE|VALUES|;|LIMIT|GROUP|ORDER)/mi
 export function ParseQueryTables(q: string): string[] {
     return q
-        .match(/(?:FROM|INTO)[\s\n\r\t]+(?<tables>[\w,\s\n\t]+?)([\s\n\r\t]+)?(?:\(|WHERE|VALUES|;|LIMIT|GROUP|ORDER)/mi)
+        .match(/(?:FROM|INTO)[\s]+(?<tables>[\w,\s]+?)([\s]+)?(?:\(|WHERE|VALUES|;|LIMIT|GROUP|ORDER)/mi)
         ?.groups?.tables
-        .split(/,[\s\n\t\r]*/mig)
-        .map((t) => t.split(/[\s\n\t\r]/mi)[0].trim()) || []
+        .split(/,[\s]*/mig)
+        .map((t) => t.split(/[\s]/mi)[0].trim()) || []
 }
 
 //always returns uppercase verb if found
