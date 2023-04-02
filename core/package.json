@@ -1,6 +1,6 @@
 {
   "name": "socio",
-  "version": "0.7.8",
+  "version": "0.7.9",
   "description": "A WebSocket Real-Time Communication (RTC) API framework.",
   "main": "./dist/core.js",
   "type": "module",
@@ -29,7 +29,7 @@
     "query"
   ],
   "author": "Rolands Laucis",
-  "license": "ISC",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Rolands-Laucis/Socio.git"
