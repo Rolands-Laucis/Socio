@@ -95,14 +95,8 @@ I cannot guarantee perfect safety of the query encryption. Neither can tradition
 
 You should be using WSS:// and HTTPS:// protocols for everything, so that the data is secure over the network. But that's easier said than done.
 
-## Contributing 🥰
-As this is an open source project that i spend my free time on, perhaps someone else would like to help with various things:
-* Ideas for better parsing of the SQL to also extract WHERE clause info, that would help minimize DB calls and websocket traffic, and improve performance overall
-* Ideas for serious data structures of subscription dependency tracking - directional graph or tree or smth. Currently a custom format dictionary object.
-* "Socio Rooms": a plugin that creates and manages general WebSocket "rooms", such that the sockets are isolated and synced with each other, but not the whole backend. For party games like Kahoot, or Live Collaboration setups etc. (Yjs CRDT integration could be used for this)
-* Socio-HTTP cookie session plugin, that stitches the two together in some useful way. Express.js has popular plugins for session management, perhaps we can integrate SocioSession.client_id on the session object.
-* Starter template projects for various front-end and back-end tech stacks with Socio setup
-* Web bundler HMR mechanisms seem pretty complex, perhaps someone wants to make a plugin or recommend some basic solution? The idea is for the server to push new css, js, html files or chunks to be replaced on all clients live - CI/CD automation.
+## Socio in Production
+* [Real-time rent prices in Riga, Latvia](http://riga.rolandslaucis.lv/) made by me. SvelteKit, Vite, Socio, NginX, Ubuntu server.
 
 ## Related lib and tech 🔗
 * [WS](https://www.npmjs.com/package/ws) *Socio uses on the server*
