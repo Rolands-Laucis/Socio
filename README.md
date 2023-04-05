@@ -24,11 +24,11 @@ npm i socio
 
 ## How? ✨
 
-On the backend instantiate the ``SocioServer`` class and provide it a single DB (of your choice) raw query function, that will receive the SQL string and dynamic parameters object. The raw result of that is passed back to the caller on the client side, where the SQL and params sit - where an instance of ``SocioClient`` has made a .query() call. Using the same mechanism, an automagical subscription to that SQL resource can be registered via the .subscribe() method, that runs your callback function whenever the data this query relies upon has changed on the backend DB.
+Socio is a "middle man" framework. The ``SocioServer`` creates a WebSocket server on your backend, that is hooked up to any DB. The ``SocioClient`` sits on the browser and communicates with your server through WebSockets and socios protocols and mechanisms. E.g. ``SocioClient``.query() or .subscribe() with raw SQL strings. Additionally, the server can also at any time push information to clients, creating a duplex real-time connection. Pretty much everything you'd need, including file transfer, is supported.
 
 ## SQL injections and overall data safety? 💉
 
-Client-side JS source files contain only encrypted strings of your SQL. The AES-256-GCM algorithm guarantees Confidentiality (cannot be read), Integrity (cannot be altered) and Authenticity (server can verify the author of the created cypher text). Dynamic data inserted as query parameters should be server side sanitized by you as usual. In addition, all queries can use opt-in markers for authentification and table permissions requirements, that are managed by Socio Server for you.
+Client-side JS source files contain only encrypted strings of your SQL. The AES-256-GCM algorithm guarantees Confidentiality (cannot be read), Integrity (cannot be altered) and Authenticity (server can verify the author of the created cypher text). Dynamic data inserted as query parameters should be server-side sanitized by you as usual. In addition, all queries can use opt-in markers for authentification and table permissions requirements, that are managed by Socio Server for you.
 This is all done with the ``SocioSecurity`` class manually or automagically with the included Vite plugin ``SocioSecurityVitePlugin``.
 
 ## Code snippets
