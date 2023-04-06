@@ -11,7 +11,7 @@ import { extname } from 'path';
 //types
 import type { CipherGCMTypes } from 'crypto';
 export type SocioSecurityOptions = { secure_private_key: Buffer | string, rand_int_gen?: ((min: number, max: number) => number), verbose?: boolean };
-export type SocioSecurityPluginOptions = { include_file_types?: string[], exclude_file_types?: string[], exclude_svelte_server_files?: boolean };
+export type SocioSecurityPluginOptions = { include_file_types?: string[], exclude_file_types?: string[], exclude_svelte_server_files?: boolean, exclude_regex?:RegExp };
 
 //it was recommended on a forum to use 256 bits, even though 128 is still perfectly safe
 const cipher_algorithm_bits = 256;
@@ -22,7 +22,7 @@ const cipher_algorithm: CipherGCMTypes = `aes-${cipher_algorithm_bits}-gcm`; //c
 //https://vitejs.dev/guide/api-plugin.html
 //THE VITE PLUGIN - import into vite config and add into the plugins array with your params.
 //it will go over your source code and replace --socio[-marker] strings with their encrypted versions, that will be sent to the server and there will be decrypted using the below class
-export function SocioSecurityVitePlugin(SocioSecurityOptions: SocioSecurityOptions, { include_file_types = ['js', 'svelte', 'vue', 'jsx', 'ts', 'tsx'], exclude_file_types = [], exclude_svelte_server_files = true }: SocioSecurityPluginOptions = {}) {
+export function SocioSecurityVitePlugin(SocioSecurityOptions: SocioSecurityOptions, { include_file_types = ['js', 'svelte', 'vue', 'jsx', 'ts', 'tsx'], exclude_file_types = [], exclude_svelte_server_files = true, exclude_regex }: SocioSecurityPluginOptions = {}) {
     const ss = new SocioSecurity(SocioSecurityOptions);
     return {
         name: 'vite-socio-security',
@@ -32,14 +32,14 @@ export function SocioSecurityVitePlugin(SocioSecurityOptions: SocioSecurityOptio
             if (exclude_svelte_server_files && /.*\.server\.(js|ts)$/.test(id)) return undefined; //skip *.server.ts files (svelte)
 
             const ext = extname(id).slice(1); //remove the .
-            if (include_file_types.includes(ext) && !(exclude_file_types.includes(ext))) {
-                const s = ss.SecureSouceCode(code, id); //uses MagicString lib
-                return {
-                    code: s.toString(),
-                    map: s.generateMap({ source: id, includeContent: true })
-                }
+            if (exclude_file_types.includes(ext) || (exclude_regex && exclude_regex.test(id))) return undefined; //skip excluded
+            if (!(include_file_types.includes(ext))) return undefined; //skip if not included
+
+            const s = ss.SecureSouceCode(code, id); //uses MagicString lib
+            return {
+                code: s.toString(),
+                map: s.generateMap({ source: id, includeContent: true })
             }
-            else return undefined;
         },
     }
 }
@@ -77,13 +77,14 @@ export class SocioSecurity extends LogHandler {
     
     //sql strings must be in single or double quotes and have an sql single line comment at the end with the socio marker, e.g. "--socio" etc. See the socio_string_regex pattern in core/utils
     //file_path is optional - for debugging.
-    SecureSouceCode(source_code = '', file_path='') {
+    SecureSouceCode(source_code: string = '', file_path:string='') {
         //@ts-ignore
         const s = new MagicString(source_code);
 
         //loop over match iterator f
         for (const m of source_code.matchAll(string_regex)){ //loop over all strings in either '' or ""
-            const found = m?.groups?.str?.match(socio_string_regex)?.groups || {}
+            const found = m?.groups?.str?.match(socio_string_regex)?.groups || {};
+
             if (found?.str && found?.marker && m.groups?.q && m.index)
                 s.update(m.index, m.index + m[0].length, this.EncryptSocioString(m.groups.q, found.str, found.marker));
         }
@@ -92,7 +93,7 @@ export class SocioSecurity extends LogHandler {
     }
 
     //returns a string in the format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where each part is base64 encoded
-    EncryptString(str = ''): string {
+    EncryptString(str:string = ''): string {
         const iv = this.get_next_iv();
         const cipher = createCipheriv(cipher_algorithm, this.#key, iv);
         const cipher_text = cipher.update(str, 'utf-8', 'base64') + cipher.final('base64');
@@ -110,7 +111,7 @@ export class SocioSecurity extends LogHandler {
 
     //surrouded by the same quotes as original, the sql gets encrypted along with its marker, so neither can be altered on the front end.
     //to mitigate known plaintext attacks, all spaces are replaced with random ints 
-    EncryptSocioString(q='', sql='', marker=''){
+    EncryptSocioString(q: string = '', sql: string = '', marker: string =''){
         let sql_alter = ''
         for(const l of sql){
             if (l == ' ') sql_alter += `-;¦${this.GenRandInt(10,99)}`;
@@ -118,11 +119,11 @@ export class SocioSecurity extends LogHandler {
         }
         return q + this.EncryptString(sql_alter + (marker || '--socio')) + q;
     }
-    RemoveRandInts(altered_sql=''){
+    RemoveRandInts(altered_sql: string =''){
         return altered_sql.replace(/-;¦\d{2}/gi, ' ');
     }
 
-    GenRandInt(min = 10_000, max = 100_000_000):number{
+    GenRandInt(min:number = 10_000, max:number = 100_000_000):number{
         return this.#rand_int_gen ? this.#rand_int_gen(min, max) : Math.floor((Math.random() * (max - min)) + min);
     }
 
