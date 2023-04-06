@@ -34,7 +34,8 @@ import type { id } from 'socio/dist/types';
 
 //SocioServer needs a "query" function that it can call to fetch data. This would usually be your preffered ORM lib interface raw query function, but really this function is as simple as input and output, so it can do whatever you want. Like read from a txt file or whatever. It should be async and Socio will always await its response to send back to the client.
 //id is a unique auto incrementing index for the query itself that is sent from the client - not really important for you, but perhaps for debugging.
-const QueryWrap = async (client:SocioSession, id:id, sql:string, params = {}) => (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))[0]
+const QueryWrap = async (client:SocioSession, id:id, sql:string, params: object | null | Array<any> = {}) => (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))[0]
+//https://sequelize.org/docs/v6/core-concepts/raw-queries/#replacements how replacements work
 
 //Instance of SocioServer on port 3000 using the created query function. Verbose will make it print all incoming and outgoing traffic from all sockets. The first object is WSS Options - https://github.com/websockets/ws/blob/master/doc/ws.md#new-websocketserveroptions-callback
 const socserv = new SocioServer({ port: 3000 }, {DB_query_function: QueryWrap as QueryFunction, verbose:true} ); //the clients can now interact with your backend DB!
@@ -54,14 +55,14 @@ import type { SocioSession } from 'socio/dist/core-session.js'
 
 //keep track of which SocioSession client_id's have which of your database user_id's.
 const auth_clients:{[client_id:string]: number} = {};
-socserv.RegisterLifecycleHookHandler("auth", (client:SocioSession, params:object|null) => {
+socserv.RegisterLifecycleHookHandler("auth", (client:SocioSession, params: object | null | Array<any>) => {
     const user_id = DB.get(params);//...do some DB stuff to get the user_id from params, that may contain like username and password
     auth_clients[client.id] = user_id;
     return true;
 })
 
 //then in your qeury function, add in the user_id dynamic param
-async function QueryWrap (client:SocioSession, id:id, sql:string, params = {}) {
+async function QueryWrap (client:SocioSession, id:id, sql:string, params: object | null | Array<any> = {}) {
   if('user_id' in params) //replace the params client side dummy user_id with the real one. Because the client side user_id cannot be trusted.
     params.user_id = auth_clients[client.id]; 
   //you could also check if(client.authenticated) ... but that is unnecessary since the incoming msg wouldn't even get this far if the -auth flag is set and the user isnt authed.
@@ -107,7 +108,7 @@ sc.Subscribe({ sql: "SELECT COUNT(*) AS RESULT FROM users;"}, (res) => {
 const new_user_id = await sc.Query("INSERT INTO users VALUES('Bob', 420) RETURNING id;");
 
 //queries with dynamic data - via params:
-await sc.Query("SELECT COUNT(*) AS RESULT FROM users WHERE name = :name;", params: { name: 'Bob' } ); //it is up to you to sanitize 'Bob' here or hope your DB has injection protection.
+await sc.Query("SELECT COUNT(*) AS RESULT FROM users WHERE name = :name;", { name: 'Bob' } ); //it is up to you to sanitize 'Bob' here or hope your DB has injection protection.
 
 //security:
 await sc.Query("SELECT COUNT(*) FROM users;--socio"); //postfix a literal '--socio' at the end of your query, which by popular SQL notation should be a line comment and thus shouldnt interfere with the query itself, to mark it as to be encrypted by the SocioSecurity class during code building or bundling. Use the included Vite plugin or make your own way of integrating the class. NB! All strings in your entire frontend code base that end with the --socio marker will be encrypted. The marker also accepts an infinite amount of dash seperated params in any order, e.g. '--socio-perm-auth' to indicate, that this query shouldnt run without the required permissions on tables and that the session must be authenticated. Socio automatically appends a random integer as one of these params, just to randomize the encrypted string from being guessed or deduced.
