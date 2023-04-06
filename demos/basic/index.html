@@ -1,7 +1,9 @@
 <html>
     <head>
         <title>Socio demonstration - basic</title>
-        
+        <!-- fake favicon -->
+        <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+
         <!-- font -->
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -9,6 +11,18 @@
             href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@200;400;700&family=Trispace:wght@100;200&display=swap"
             rel="stylesheet">
 
+        <!-- to import base64.js from static, as ES modules import in socio/core-client -->
+        <script type="importmap">
+        {
+          "imports": {
+            "base64-js": "./base64-js"
+          }
+        }
+        </script>
+        <!-- i reall dont know why this error came up, but this script seems to fix it. Base64 doesnt export a default, but it does export 3 functions, which i import as "import * as b64 from 'base64-js';" and that gives browser error "exports is not defined". -->
+        <script>var exports = {};</script>
+
+        <!-- get the actual client script from express static, which has all the socio client logic. -->
         <script src="./client.js" type="module"></script>
     </head>
 

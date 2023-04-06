@@ -6,14 +6,16 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "demo": "node server.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "express": "^4.18.2",
+    "magic-string": "^0.30.0",
     "sequelize": "^6.25.3",
-    "socio": "^0.4.13",
+    "socio": "^0.7.12",
     "sqlite3": "^5.1.2"
   }
 }
