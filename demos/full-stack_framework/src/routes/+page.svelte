@@ -53,7 +53,7 @@
 
     //cleanup for dev server reloads.
     onDestroy(() => {
-        sc.UnsubscribeAll({props:true, queries:true}); //NB! this wipes the subscriptions on the SocioClient instance, not just the ones registered here. Subscriptions return id's to use for unsubscribing.
+        sc.UnsubscribeAll({props:true, queries:true}); //NB! this wipes the subscriptions on the SocioClient instance, not just the ones registered here. Subscriptions return ids to use for unsubscribing.
     })
 </script>
 
