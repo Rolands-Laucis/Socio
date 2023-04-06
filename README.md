@@ -24,7 +24,7 @@ npm i socio
 
 ## How? ✨
 
-Socio is a "middle man" framework. The ``SocioServer`` creates a WebSocket server on your backend, that is hooked up to any DB. The ``SocioClient`` sits on the browser and communicates with your server through WebSockets and socios protocols and mechanisms. E.g. ``SocioClient``.query() or .subscribe() with raw SQL strings. Additionally, the server can also at any time push information to clients, creating a duplex real-time connection. Pretty much everything you'd need, including file transfer, is supported.
+Socio is a "middle man" framework between your DB and clients. The ``SocioServer`` creates a WebSocket server on your backend, that is hooked up to any DB. The ``SocioClient`` sits on the browser and communicates with your server through WebSockets and socios protocols and mechanisms. E.g. ``SocioClient``.query() or .subscribe() with raw SQL strings. Additionally, the server can also at any time push information to clients, creating a duplex real-time connection. Pretty much everything you'd need, including file transfer, is supported.
 
 ## SQL injections and overall data safety? 💉
 
