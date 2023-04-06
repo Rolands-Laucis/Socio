@@ -1,5 +1,5 @@
 import fs from 'fs';
-import b64 from 'base64-js'
+import * as b64 from 'base64-js';
 import { default as os_path } from "path";
 
 //types

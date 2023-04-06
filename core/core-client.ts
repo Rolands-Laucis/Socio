@@ -1,7 +1,7 @@
 //https://stackoverflow.com/questions/38946112/es6-import-error-handling
 
 import { LogHandler, E, err, log, info, done } from './logging.js'
-import b64 from 'base64-js'
+import * as b64 from 'base64-js'
 
 //types
 import type { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind, Bit } from './types.js'
