@@ -24,7 +24,7 @@ npm i socio
 
 ## How? ✨
 
-Socio is a "middle man" framework between your DB and clients. The ``SocioServer`` creates a WebSocket server on your backend, that is hooked up to any DB. The ``SocioClient`` sits on the browser and communicates with your server through WebSockets and socios protocols and mechanisms. E.g. ``SocioClient``.query() or .subscribe() with raw SQL strings. Additionally, the server can also at any time push information to clients, creating a duplex real-time connection. Pretty much everything you'd need, including file transfer, is supported.
+Socio is a "middle man" framework between your DB and clients. The ``SocioServer`` creates a WebSocket server on your backend, that is hooked up to any DB. The ``SocioClient`` sits on the browser and communicates with your server through WebSockets and socios protocols and mechanisms. E.g. ``SocioClient``.Query() or .Subscribe() with raw SQL strings. Additionally, the server can also at any time push information to clients, creating a duplex real-time connection. Pretty much everything you'd need, including file transfer, is supported.
 
 ## SQL injections and overall data safety? 💉
 
@@ -40,7 +40,7 @@ Written in TypeScript, but of course can use the lib in JS scripts just the same
 import { SocioServer } from 'socio/dist/core'; //this way for both JS and TS
 import { SocioSecurity } from 'socio/dist/secure'; //this way for both JS and TS
 import type { QueryFunction, QueryFuncParams } from 'socio/dist/core';
-async function QueryWrap(client: SocioSession, id: id, sql: string, params: object | null = null):Promise<object> {
+async function QueryWrap(client: SocioSession, id: id, sql: string, params: object | null | Array<any> = null):Promise<object> {
     //do whatever u need to run the sql on your DB and return its result
     //sanatize dynamic params!
 }
