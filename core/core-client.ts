@@ -235,7 +235,7 @@ export class SocioClient extends LogHandler {
 
     //subscribe to an sql query. Can add multiple callbacks where ever in your code, if their sql queries are identical
     //returns the created ID for that query, to use to unsubscribe all callbacks to the query
-    Subscribe({ sql = '', params = null }: { sql?: string, params?: object | null } = {}, onUpdate: SubscribeCallbackObjectSuccess = null, status_callbacks: { error?: (e: string) => void } = {}, rate_limit: RateLimit | null = null): id | null{
+    Subscribe({ sql = '', params = null }: { sql?: string, params?: object | null | Array<any> } = {}, onUpdate: SubscribeCallbackObjectSuccess = null, status_callbacks: { error?: (e: string) => void } = {}, rate_limit: RateLimit | null = null): id | null{
         //params for sql is the object that will be passed as params to your query func
 
         //onUpdate is the success standard function, that gets called, when the DB sends an update of its data
@@ -286,7 +286,7 @@ export class SocioClient extends LogHandler {
             }
             else
                 throw new E('Cannot unsubscribe query, because provided ID is not currently tracked.', sub_id);
-        } catch (e:err) { this.HandleError(e) }
+        } catch (e:err) { this.HandleError(e); return false; }
     }
     async UnsubscribeProp(prop_name: PropKey, force = false) {
         try {
@@ -305,7 +305,7 @@ export class SocioClient extends LogHandler {
             }
             else
                 throw new E('Cannot unsubscribe query, because provided prop_name is not currently tracked.', prop_name);
-        } catch (e: err) { this.HandleError(e) }
+        } catch (e: err) { this.HandleError(e); return false; }
     }
     UnsubscribeAll({props=true, queries=true, force=false} = {}){
         if(props)
@@ -316,7 +316,7 @@ export class SocioClient extends LogHandler {
                 this.Unsubscribe(q, force);
     }
 
-    Query(sql: string, params: object | null = null){
+    Query(sql: string, params: object | null | Array<any> = null){
         //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
         const { id, prom } = this.CreateQueryPromise();
 

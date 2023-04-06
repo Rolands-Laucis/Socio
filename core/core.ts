@@ -5,25 +5,25 @@
 import { WebSocketServer } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
 
 //mine
-import { QueryIsSelect, ParseQueryTables, SocioStringParse, ParseQueryVerb, sleep, GetAllMethodNamesOf, MapReviver } from './utils.js'
-import { E, LogHandler, err, log, info, done } from './logging.js'
-import { UUID, SocioSecurity } from './secure.js'
-import { SocioSession } from './core-session.js'
-import { RateLimiter } from './ratelimit.js'
+import { QueryIsSelect, ParseQueryTables, SocioStringParse, ParseQueryVerb, sleep, GetAllMethodNamesOf, MapReviver } from './utils.js';
+import { E, LogHandler, err, log, info, done } from './logging.js';
+import { UUID, SocioSecurity } from './secure.js';
+import { SocioSession } from './core-session.js';
+import { RateLimiter } from './ratelimit.js';
 
 //NB! some fields in these variables are private for safety reasons, but also bcs u shouldnt be altering them, only if through my defined ways. They are mostly expected to be constants.
 //whereas public variables are free for you to alter freely at any time during runtime.
 
 //types
 import type { ServerOptions, WebSocket, AddressInfo } from 'ws';
-import type { IncomingMessage } from 'http'
-import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind, SocioFiles, ClientID, FS_Util_Response } from './types.js'
-import type { RateLimit } from './ratelimit.js'
-export type MessageDataObj = { id?: id, sql?: string, params?: object | null, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue, data?:any, rate_limit?:RateLimit, files?:SocioFiles };
+import type { IncomingMessage } from 'http';
+import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind, SocioFiles, ClientID, FS_Util_Response } from './types.js';
+import type { RateLimit } from './ratelimit.js';
+export type MessageDataObj = { id?: id, sql?: string, params?: object | null | Array<any>, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue, data?:any, rate_limit?:RateLimit, files?:SocioFiles };
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
 export type QueryFunction = (client:SocioSession, id:id, sql:string, params?:object|null) => Promise<object>;
 type SocioServerOptions = { DB_query_function?: QueryFunction, socio_security?: SocioSecurity | null, verbose?: boolean, decrypt_sql?: boolean, decrypt_prop?: boolean, hard_crash?: boolean, session_delete_delay_ms?: number, recon_ttl_ms?:number }
-type AdminMessageDataObj = {function:string, args?:any[], secure_key:string}
+type AdminMessageDataObj = {function:string, args?:any[], secure_key:string};
 
 export class SocioServer extends LogHandler {
     // private:
