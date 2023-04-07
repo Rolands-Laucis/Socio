@@ -81,6 +81,8 @@ export default defineConfig({
 
 Currently the performance is neglegable for small projects. I havent stress tested yet, as its still early dev, but i optimize my data structures, where i can as i go. Current estimate is about 100 concurrent users should be a breeze on a cheap Linode server. I expect your backend DB to be set up properly with table indexing and caching queries.
 
+[According to this blog](https://medium.com/nativeai/websocket-vs-http-for-collecting-events-for-web-analytics-c45507bd7949) WebSockets are much more network traffic efficient than HTTP at scale.
+
 ## Sportsmanship 🤝
 
 The use of the Socio lib **does not** prohibit the use of standard HTTP technologies. Even better - socio server can be configured to run on your existing http webserver, like one that you'd create with express.js. Since WebSockets are established over HTTP, then take over with their own protocol. Though, seeing as they are different technologies, there are situations where you'd need to "stitch" your own solutions between the two, e.g. tracking sessions.
@@ -101,7 +103,7 @@ You should be using WSS:// and HTTPS:// protocols for everything, so that the da
 ## Related lib and tech 🔗
 * [WS](https://www.npmjs.com/package/ws) *Socio uses on the server*
 * [The WebSocket API](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API) *Socio uses on the browser*
-* [https://github.com/ghostebony/sse](https://github.com/ghostebony/sse)
+* [NATS](https://nats.io/) This has recently come to my attention. Together with the [Node.js](https://github.com/nats-io/nats.js) implementation of it and [Nats.ws](https://github.com/nats-io/nats.ws) lib for running it on a browser, this technology seems to me like the future. If not Socio, you should use this imo.
 * [Server-sent events API](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events)
 * [Firebase Realtime Database](https://firebase.google.com/docs/database) serverless database. Google backed.
 * [PocketBase](https://pocketbase.io/) serverless database.
