@@ -18,6 +18,7 @@ import { RateLimiter } from './ratelimit.js';
 import type { ServerOptions, WebSocket, AddressInfo } from 'ws';
 import type { IncomingMessage } from 'http';
 import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind, SocioFiles, ClientID, FS_Util_Response } from './types.js';
+import type { GenCLientID_Hook, Con_Hook, Msg_Hook, Sub_Hook, Upd_Hook, Auth_Hook, Blob_Hook, Serv_Hook, Admin_Hook, Unsub_Hook, Discon_Hook, GrantPerm_Hook, FileUpload_Hook, FileDownload_Hook } from './types.js';
 import type { RateLimit } from './ratelimit.js';
 export type MessageDataObj = { id?: id, sql?: string, params?: object | null | Array<any>, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue, data?:any, rate_limit?:RateLimit, files?:SocioFiles };
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
@@ -39,7 +40,7 @@ export class SocioServer extends LogHandler {
     //rate limits server functions globally
     #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
 
-    #lifecycle_hooks: { [key: string]: Function | null; } = { con: null, discon: null, msg: null, sub:null, unsub:null, upd: null, auth: null, gen_client_id:null, grant_perm:null, serv:null, admin:null, blob:null, file_upload:null, file_download:null } //call the register function to hook on these. They will be called if they exist
+    #lifecycle_hooks: { [f_name: string]: Function | null; } = { con: null as (Con_Hook | null), discon: null as (Discon_Hook | null), msg: null as (Msg_Hook | null), sub: null as (Sub_Hook | null), unsub: null as (Unsub_Hook | null), upd: null as (Upd_Hook | null), auth: null as (Auth_Hook | null), gen_client_id: null as (GenCLientID_Hook | null), grant_perm: null as (GrantPerm_Hook | null), serv: null as (Serv_Hook | null), admin: null as (Admin_Hook | null), blob: null as (Blob_Hook | null), file_upload: null as (FileUpload_Hook | null), file_download: null as (FileDownload_Hook | null) } //call the register function to hook on these. They will be called if they exist
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //msg hook receives all incomming msgs to the server. 
     //upd works the same as msg, but for everytime updates need to be propogated to all the sockets.
@@ -66,7 +67,7 @@ export class SocioServer extends LogHandler {
         this.#secure = { socio_security, decrypt_sql, decrypt_prop}
 
         //public:
-        //@ts-ignore
+        //@ts-expect-error
         this.Query = DB_query_function || (() => {})
         this.session_delete_delay_ms = session_delete_delay_ms;
         this.recon_ttl_ms = recon_ttl_ms;
@@ -266,8 +267,8 @@ export class SocioServer extends LogHandler {
                 case 'GET_PERM':
                     if (client.HasPermFor(data?.verb, data?.table))//check if already has the perm
                         client.Send('GET_PERM', { id: data.id, result: 1 });
-                    else if (this.#lifecycle_hooks?.grant_perm) {//otherwise try to grant the perm
-                        const granted:boolean = await this.#lifecycle_hooks?.grant_perm(client_id, data)
+                    else if (this.#lifecycle_hooks.grant_perm) {//otherwise try to grant the perm
+                        const granted:boolean = await this.#lifecycle_hooks.grant_perm(client, data);
                         client.Send('GET_PERM', { id: data.id, result: granted === true ? 1 : 0 }) //the client will only receive a boolean, but still make sure to only return bools as well
                     }
                     else {

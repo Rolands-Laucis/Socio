@@ -1,11 +1,12 @@
 //https://stackoverflow.com/questions/38946112/es6-import-error-handling
 
-import { LogHandler, E, err, log, info, done } from './logging.js'
-import * as b64 from 'base64-js'
+import { LogHandler, E, err, log, info, done } from './logging.js';
+import * as b64 from 'base64-js';
 
 //types
-import type { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind, Bit } from './types.js'
-import type { RateLimit } from './ratelimit.js'
+import type { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind, Bit } from './types.js';
+import type { Cmd_ClientHook, Msg_ClientHook, Discon_ClientHook } from './types.js';
+import type { RateLimit } from './ratelimit.js';
 import type { SocioFiles } from './types.js';
 import { MapReplacer, MapReviver } from './utils.js';
 export type ClientMessageDataObj = { id: id, verb?: string, table?: string, status?:string|number, result?:string|object|boolean|PropValue|number, prop?:PropKey, data?:any, files?:SocioFiles };
@@ -34,7 +35,7 @@ export class SocioClient extends LogHandler {
     name:string;
     verbose:boolean;
     key_generator: (() => number | string) | undefined;
-    lifecycle_hooks: { [key: string]: Function | null; } = { discon:null, msg:null, cmd:null};
+    lifecycle_hooks: { [f_name: string]: Function | null; } = { discon: null as (Discon_ClientHook | null), msg: null as (Msg_ClientHook | null), cmd: null as (Cmd_ClientHook | null) };
     persistent:boolean=false;
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
