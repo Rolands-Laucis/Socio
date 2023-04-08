@@ -176,8 +176,8 @@ export class SocioServer extends LogHandler {
                 else data.prop = str;
 
                 //perform marker checks
-                if (!markers?.includes('socio')) //secured sql queries must end with the marker, to validate that they havent been tampered with and are not giberish.
-                    throw new E('Decrypted string does not end with the --socio marker, therefor is invalid. [#marker-issue]', client_id, kind, data, markers);
+                // if (!markers?.includes('socio')) //secured sql queries must end with the marker, to validate that they havent been tampered with and are not giberish.
+                //     throw new E('Decrypted string does not end with the --socio marker, therefor is invalid. [#marker-issue]', client_id, kind, data, markers);
 
                 if (markers?.includes('auth'))//query requiers auth to execute
                     if (!client.authenticated)

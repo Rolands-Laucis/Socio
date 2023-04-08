@@ -4,7 +4,7 @@
 
 import MagicString from 'magic-string'; //https://github.com/Rich-Harris/magic-string
 import { randomUUID, createCipheriv, createDecipheriv, getCiphers, randomBytes, createHash } from 'crypto'; //https://nodejs.org/api/crypto.html
-import { string_regex, socio_string_regex } from './utils.js';
+import { socio_string_regex } from './utils.js';
 import { LogHandler, E, log, info, done } from './logging.js';
 import { extname } from 'path';
 
@@ -82,11 +82,9 @@ export class SocioSecurity extends LogHandler {
         const s = new MagicString(source_code);
 
         //loop over match iterator f
-        for (const m of source_code.matchAll(string_regex)){ //loop over all strings in either '' or ""
-            const found = m?.groups?.str?.match(socio_string_regex)?.groups || {};
-
-            if (found?.str && found?.marker && m.groups?.q && m.index)
-                s.update(m.index, m.index + m[0].length, this.EncryptSocioString(m.groups.q, found.str, found.marker));
+        for (const m of source_code.matchAll(socio_string_regex)){ //loop over all strings in either '' or ""
+            if(m.index)
+                s.update(m.index, m.index + m[0].length, this.EncryptSocioString(m.groups?.sql));
         }
 
         return s
@@ -111,16 +109,16 @@ export class SocioSecurity extends LogHandler {
 
     //surrouded by the same quotes as original, the sql gets encrypted along with its marker, so neither can be altered on the front end.
     //to mitigate known plaintext attacks, all spaces are replaced with random ints 
-    EncryptSocioString(q: string = '', sql: string = '', marker: string =''){
-        let sql_alter = ''
+    EncryptSocioString(sql: string = ''){
+        let randint_sql = '';
         for(const l of sql){
-            if (l == ' ') sql_alter += `-;¦${this.GenRandInt(10,99)}`;
-            else sql_alter += l;
+            if (l == ' ') randint_sql += `-;¦${this.GenRandInt(10,99)}`;
+            else randint_sql += l;
         }
-        return q + this.EncryptString(sql_alter + (marker || '--socio')) + q;
+        return `\`${this.EncryptString(randint_sql)}\``;
     }
-    RemoveRandInts(altered_sql: string =''){
-        return altered_sql.replace(/-;¦\d{2}/gi, ' ');
+    RemoveRandInts(randint_sql: string =''){
+        return randint_sql.replace(/-;¦\d{2}/gi, ' ');
     }
 
     GenRandInt(min:number = 10_000, max:number = 100_000_000):number{

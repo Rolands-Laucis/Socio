@@ -5,8 +5,20 @@ import type { QueryMarker } from "./types.js";
 export type SocioStringObj = { str: string, markers: string[] };
 
 //regex
-export const string_regex = /(?<q>["'`])(?<str>[^\1]*?)\1/g // match all strings
-export const socio_string_regex = /(?<str>[^]+?)(?<marker>--socio(?:-\w+?)*)([;\s]+)?$/mi; //markers currently support - auth, perm, \d+
+export const socio_string_regex = /socio`(?<sql>.*?)`/igs;
+export const table_names_regex = /(?:FROM|INTO)[\s]+(?<tables>[\w,\s]+?)([\s]+)?(?:\(|WHERE|VALUES|;|LIMIT|GROUP|ORDER)/mi;
+export const socio_string_markers_regex = /--(?<markers>(?:-?(?:auth|perm))*)/;
+
+//socio template literal tag. Dummy function, that doesnt ever get used, but can be. Will insert all template variables in correct order and return the string.
+export function socio(strings: TemplateStringsArray, ...vars){
+    const interweaved:string[] = [];
+    for (let i = 0; i < strings.length; i++){
+        interweaved.push(strings[i]);
+        if(i < vars.length)
+            interweaved.push(vars[i]);
+    }
+    return interweaved.join('');
+}
 
 //query helper functions
 export function QueryIsSelect(sql: string): boolean {
@@ -16,7 +28,7 @@ export function QueryIsSelect(sql: string): boolean {
 // /(?:FROM|INTO)[\s\n\t](?<tables>[\w,\s\n\t]+?)[\s\n\t]?(?:\([\w\s,]+\)|WHERE|VALUES|;|LIMIT|GROUP|ORDER)/mi
 export function ParseQueryTables(q: string): string[] {
     return q
-        .match(/(?:FROM|INTO)[\s]+(?<tables>[\w,\s]+?)([\s]+)?(?:\(|WHERE|VALUES|;|LIMIT|GROUP|ORDER)/mi)
+        .match(table_names_regex)
         ?.groups?.tables
         .split(/,[\s]*/mig)
         .map((t) => t.split(/[\s]/mi)[0].trim()) || []
@@ -29,8 +41,8 @@ export function ParseQueryVerb(q: string): string | null {
 
 //socio string marker utils
 export function SocioStringParse(str: string): SocioStringObj {
-    const m = str.match(socio_string_regex)?.groups
-    return { str: m?.str || '', markers: m?.marker ? m.marker.slice(2).split('-') : [] } //the slice(2) is to remove the starting --
+    const markers = str.match(socio_string_markers_regex)?.groups?.markers;
+    return { str, markers: markers ? markers.split('-') : [] };
 }
 
 export function SocioMarkerHas(marker: QueryMarker, { parsed = null, str = '' }: { parsed?: string[] | null, str?: string }) {
