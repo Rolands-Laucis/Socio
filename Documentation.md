@@ -83,6 +83,8 @@ const socserv = new SocioServer({ port: 3000, perMessageDeflate }, {...} );
 
 ### Setup of ``SocioClient``
 
+When using SocioSecurity, but advised to always do this, the "socio" [JS Template Literal Tag](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals#tagged_templates) must be used, though it doesnt do much. It is just used to conveniently tag and later find socio strings within source code with regex during the encryption procedure.
+
 ```ts
 //browser code - can be inside just a js script that gets loaded with a script tag or in components of whatever framework.
 import { SocioClient } from 'socio/dist/core-client.js';
