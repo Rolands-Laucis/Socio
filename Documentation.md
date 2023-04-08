@@ -85,7 +85,8 @@ const socserv = new SocioServer({ port: 3000, perMessageDeflate }, {...} );
 
 ```ts
 //browser code - can be inside just a js script that gets loaded with a script tag or in components of whatever framework.
-import {SocioClient} from 'socio/dist/core-client.js'
+import { SocioClient } from 'socio/dist/core-client.js';
+import { socio } from 'socio/dist/utils';
 
 //instantiate the Socio Client from lib on the expected websocket port and wait for it to connect
 //NB! use wss secure socket protocol and use the ./core/Secure class to encrypt these queries in PROD!
@@ -94,33 +95,33 @@ await sc.ready(); //wait until it has connected as confimed by the server
 
 sc.client_id; //can take a look at its ID, if that interests you idk
 
-console.log((await sc.Query("SELECT 42+69 AS RESULT;"))[0].RESULT);//will imediately send a one-time query to the DB and print the response result
+console.log((await sc.Query(socio`SELECT 42+69 AS RESULT;`))[0].RESULT);//will imediately send a one-time query to the DB and print the response result
 
 //subscribe to the changes of this query - whenever the table is altered on the backend. And run the callback with the new received data
 //this will also run the sql query to get the initial value, then indefinitely receive updates and rerun this callback.
-sc.Subscribe({ sql: "SELECT COUNT(*) AS RESULT FROM users;"}, (res) => {
+sc.Subscribe({ sql: socio`SELECT COUNT(*) AS RESULT FROM users;`}, (res) => {
     let ans = res[0].RESULT //res is whatever object your particular DB interface lib returns from a raw query
 });
 
 //-----------------more advanced stuff:
 
 //now if we insert new data into the table, the above callback will rerun with the new data as refetched from the DB. Automagical.
-const new_user_id = await sc.Query("INSERT INTO users VALUES('Bob', 420) RETURNING id;");
+const new_user_id = await sc.Query(socio`INSERT INTO users VALUES('Bob', 420) RETURNING id;`);
 
 //queries with dynamic data - via params:
-await sc.Query("SELECT COUNT(*) AS RESULT FROM users WHERE name = :name;", { name: 'Bob' } ); //it is up to you to sanitize 'Bob' here or hope your DB has injection protection.
+await sc.Query(socio`SELECT COUNT(*) AS RESULT FROM users WHERE name = :name;`, { name: 'Bob' } ); //it is up to you to sanitize 'Bob' here or hope your DB has injection protection.
 
 //security:
-await sc.Query("SELECT COUNT(*) FROM users;--socio"); //postfix a literal '--socio' at the end of your query, which by popular SQL notation should be a line comment and thus shouldnt interfere with the query itself, to mark it as to be encrypted by the SocioSecurity class during code building or bundling. Use the included Vite plugin or make your own way of integrating the class. NB! All strings in your entire frontend code base that end with the --socio marker will be encrypted. The marker also accepts an infinite amount of dash seperated params in any order, e.g. '--socio-perm-auth' to indicate, that this query shouldnt run without the required permissions on tables and that the session must be authenticated. Socio automatically appends a random integer as one of these params, just to randomize the encrypted string from being guessed or deduced.
+await sc.Query(socio`SELECT COUNT(*) FROM users;`); //prefix a JS template literal tag "socio" to mark it to be encrypted by the SocioSecurity class during code building or bundling. Use the included Vite plugin or make your own way of integrating the class. NB! All strings in your entire frontend code base of this pattern will be encrypted. Postfix an SQL comment of dash seperated params in any order, e.g. '--perm-auth' to indicate, that this query shouldnt run without the required permissions on tables and that the session must be authenticated.
 
 //you may also want to be safe that the encrypted query can only be executed by "logged in" or authenticated users. Just include another postfix:
-await sc.Query("SELECT COUNT(*) FROM users;--socio-auth"); //the backend will only execute this, if the session is marked as authenticated. But how would that come to be? 
+await sc.Query(socio`SELECT COUNT(*) FROM users;--auth`); //the backend will only execute this, if the session is marked as authenticated. But how would that come to be? 
 
 //Fear not, after awaiting ready, just send an auth request:
-const auth_success = (await sc.Authenticate({username:'Bob', password:'pass123'}))?.result; //success = Promise<{ id: id, result: boolean }>. The params to the request are your free choice. This object will be passed to your auth hook callback, and it is there that you compute the decision yourself. Then you may execute --socio-auth queries. If this socket were to disconnect, you'd have to redo the auth, but that isnt very likely. You can also at any time check the instance sc.authenticated property to see the state. Persistant socio clients will stay authenticated.
+const auth_success = (await sc.Authenticate({username:'Bob', password:'pass123'}))?.result; //success = Promise<{ id: id, result: boolean }>. The params to the request are your free choice. This object will be passed to your auth hook callback, and it is there that you compute the decision yourself. Then you may execute --auth queries. If this socket were to disconnect, you'd have to redo the auth, but that isnt very likely. You can also at any time check the instance sc.authenticated property to see the state. Persistant socio clients will stay authenticated. NB! Use WSS and HTTPS protocols to avoid middle-man snooping on these private credentials.
 
 //Similar mechanism for table permissions:
-const perm_success = (await sc.AskPermission('SELECT', 'Users'))?.result; //The perm is asked and granted per VERB on a TABLE. This will be passed to your grant_perm hook callback, and it is there that you compute the decision yourself. Then you may execute --socio-perm queries. If this socket were to disconnect, you'd have to redo the perm, but that isnt very likely. If you want to later check, if an instance has a perm, then you'd do this same procedure, but the server already knows what perms you have, so its quicker. Persistant socio clients will keep perms.
+const perm_success = (await sc.AskPermission('SELECT', 'Users'))?.result; //The perm is asked and granted per VERB on a TABLE. This will be passed to your grant_perm hook callback, and it is there that you compute the decision yourself. Then you may execute --perm queries. If this socket were to disconnect, you'd have to redo the perm, but that isnt very likely. If you want to later check, if an instance has a perm, then you'd do this same procedure, but the server already knows what perms you have, so its quicker. Persistant socio clients will keep perms.
 ```
 
 #### Client Sending Files
@@ -278,9 +279,9 @@ WebSockets were pretty much made to solve the issue of chats for the web. As Soc
 
 ```ts
 //server code
-import { SocioServer } from 'socio/dist/core.js'
-import type { MessageDataObj } from 'socio/dist/core.js'
-import type { SocioSession } from 'socio/dist/core-session.js'
+import { SocioServer } from 'socio/dist/core.js';
+import type { MessageDataObj } from 'socio/dist/core.js';
+import type { SocioSession } from 'socio/dist/core-session.js';
 import { ServerChatRoom, HandleChatRoomServ } from 'socio/dist/chat.js'; //safe to import on both server and browser
 
 const socserv = new SocioServer(...);
@@ -294,7 +295,7 @@ socserv.RegisterLifecycleHookHandler('serv', (client: SocioSession, data: Messag
 
 ```ts
 //browser code
-import {SocioClient, type ClientMessageDataObj} from 'socio/dist/core-client.js'
+import {SocioClient, type ClientMessageDataObj} from 'socio/dist/core-client.js';
 import { ChatRoomClient, type ChatRoomMessage, HandleChatRoomCMD } from 'socio/dist/chat.js'; //safe to import on both server and browser
 const sc = new SocioClient(...);
 
@@ -323,9 +324,9 @@ Sometimes you might expect a lot of connections and each to have a lot of differ
 
 ```ts
 //server code
-import { SocioServer } from 'socio/dist/core.js'
-import type { MessageDataObj } from 'socio/dist/core.js'
-import type { SocioSession } from 'socio/dist/core-session.js'
+import { SocioServer } from 'socio/dist/core.js';
+import type { MessageDataObj } from 'socio/dist/core.js';
+import type { SocioSession } from 'socio/dist/core-session.js';
 const socserv = new SocioServer(...)
 
 socserv.RateLimitNames; //all the hook names for convenience
@@ -340,11 +341,13 @@ Caution! This approach will inevitably lead to bad UX for your application. Rate
 You may also add ratelimits to individual subscriptions on the front-end.
 ```ts
 //browser code
-import {SocioClient} from 'socio/dist/core-client.js'
+import {SocioClient} from 'socio/dist/core-client.js';
+import { socio } from 'socio/dist/utils';
+
 const sc = new SocioClient(`ws://localhost:3000`, { verbose: true })
 await sc.ready()
 
-sc.Subscribe({ sql: "SELECT COUNT(*) AS RESULT FROM users;"}, (res) => {
+sc.Subscribe({ sql: socio`SELECT COUNT(*) AS RESULT FROM users;`}, (res) => {
     let ans = res[0].RESULT //res is whatever object your particular DB interface lib returns from a raw query
 }, {}, {n:5, minutes:1}) //rate limit of 5 per 1 minute UPD receivable. Server wont send upd, if exceedes.
 
@@ -358,7 +361,7 @@ Wouldnt it be nice to connect to the backend SocioServer and run instructions on
 
 ```ts
 //some node.js script. The server-admin.js runs only on node, and doesn't inherit from SocioClient, whereas admin-client.js does and runs only on the browser.
-import {AdminClient} from 'socio/dist/admin-server.js'
+import {AdminClient} from 'socio/dist/admin-server.js';
 
 //AdminClient is just a convenient wrapper for the actual mechanism, which you can do yourself. 
 const ac = new AdminClient({url:"wss://localhost:3000", client_secret:'jh45kh345j34g53jh4g52hj3g542j3h2jh34g'}); //NOTE should always use WSS instead of ws protocol for safety, but i dont yet have a way of checking that on the server.
@@ -388,7 +391,7 @@ Since page navigation/reload unloads the entire document from memory and a new d
 
 ```ts
 //browser code
-import {SocioClient} from 'socio/dist/core-client.js'
+import {SocioClient} from 'socio/dist/core-client.js';
 const sc = new SocioClient(`ws://localhost:3000`, { 
   verbose: true,
   name: "Main", //Usually doesn't matter, but for persistent = true, this must be identical on the old page socket and new page socket. This is used as a unique key.

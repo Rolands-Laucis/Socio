@@ -50,17 +50,18 @@ const socserv = new SocioServer({ port: 3000 }, { DB_query_function: QueryWrap a
 ```
 ```ts
 //client side browser code. For SvelteKit, this can be in proj_root/src/hooks.server.ts .Check the Framework Demo for an example.
-import {SocioClient} from 'socio/dist/core-client' //this way for both JS and TS
+import {SocioClient} from 'socio/dist/core-client'; //this way for both JS and TS
+import {socio} from 'socio/dist/utils';
 const sc = new SocioClient('ws://localhost:3000', {verbose:true, name:'Main'}); //create as many as you like
 await sc.ready(); //wait to establish the connection
 
 //will recall the callback whenever the Users table data gets altered
-const id = sc.Subscribe({sql:'SELECT * FROM Users;--socio'}, (res:object) => {
+const id = sc.Subscribe({sql:socio`SELECT * FROM Users;`}, (res:object) => {
     console.log(res);
 });
 
 //send a single query and wait for its result
-console.log(await sc.Query('INSERT INTO Users (name, num) VALUES(:name, :num);--socio', {name:'bob', num:42})); //sanatize dynamic data yourself in QueryWrap!
+console.log(await sc.Query(socio`INSERT INTO Users (name, num) VALUES(:name, :num);`, {name:'bob', num:42})); //sanatize dynamic data yourself in QueryWrap!
 sc.Unsubscribe(id); //notify the server.
 ```
 ```ts
