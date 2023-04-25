@@ -30,7 +30,7 @@ import { SocioServer } from 'socio/dist/core.js'
 import type { SocioSession } from 'socio/dist/core-session.js'
 import type { IncomingMessage } from 'http'
 import type { QueryFunction } from 'socio/dist/core';
-import type { id } from 'socio/dist/types';
+import type { id, Admin_Hook } from 'socio/dist/types';
 
 //SocioServer needs a "query" function that it can call to fetch data. This would usually be your preffered ORM lib interface raw query function, but really this function is as simple as input and output, so it can do whatever you want. Like read from a txt file or whatever. It should be async and Socio will always await its response to send back to the client.
 //id is a unique auto incrementing index for the query itself that is sent from the client - not really important for you, but perhaps for debugging.
@@ -46,6 +46,9 @@ socserv.RegisterLifecycleHookHandler("con", (client:SocioSession, req:IncomingMe
     //woohoo a new client connection!
     //client is the already created instance of Session class, that has useful properties and methods, like the ID and IP of the client.
 });
+
+//all the hooks have their types in "socio/dist/types", so that you can see the hook param type inference in your IDE:
+const handle_admin_hook: Admin_Hook = (client, data) => {...}
 ```
 
 #### Authentification hook - a simple mechanism
