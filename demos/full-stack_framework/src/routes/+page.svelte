@@ -3,6 +3,7 @@
     import { SocioClient } from "socio/dist/core-client";
     import type {id} from 'socio/dist/types'
     import { onMount, onDestroy } from "svelte";
+    import {socio} from 'socio/dist/utils'
 
     import { slide } from "svelte/transition";
     import toast from 'svelte-french-toast'; //https://github.com/kbrgl/svelte-french-toast
@@ -37,13 +38,13 @@
         ready = await sc.ready();
         toast.success('Socio Client connected!', {icon:'🥳',position: "bottom-center", duration:1000});
         
-        sc.Subscribe({sql: "SELECT COUNT(*) AS RES FROM users WHERE name = :name;--socio",params: { name: "John" }}, (res) => {
+        sc.Subscribe({sql: socio`SELECT COUNT(*) AS RES FROM users WHERE name = :name;`,params: { name: "John" }}, (res) => {
                 //@ts-ignore
                 user_count = res[0].RES as number; //res is whatever object your particular DB interface lib returns from a raw query
             }
         );
 
-        sc.Subscribe({ sql: "SELECT * FROM users;--socio" },(res) => {
+        sc.Subscribe({ sql: socio`SELECT * FROM users;` },(res) => {
                 users = res as { userid: number; name: string; num: number }[]; //res is whatever object your particular DB interface lib returns from a raw query
             }
         );
@@ -82,7 +83,7 @@
         <div class="horiz">
             <h6 class="darker_text bold">single sql query:</h6>
             <h4>SELECT 42+69 AS RESULT; =</h4>
-            {#await sc.Query("SELECT 42+69 AS RESULT;--socio")}
+            {#await sc.Query(socio`SELECT 42+69 AS RESULT;`)}
                 <Bloom><Spinner style="--h:24px;--t:6px;" /></Bloom>
             {:then res}
                 <h4 class="bold">{res[0].RESULT}</h4>
@@ -112,7 +113,7 @@
                     style="width:100%;"
                     on:click={async () =>
                         await sc.Query(
-                            "INSERT INTO users (name, num) VALUES(:name, :num);--socio",
+                            socio`INSERT INTO users (name, num) VALUES(:name, :num);`,
                             insert_fields
                         )}
                 >
