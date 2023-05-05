@@ -63,7 +63,7 @@ export class LogHandler {
     HandleError(e: E | Error | undefined | string) { //e is of type class E ^
         if (this.hard_crash) throw e
 
-        if (this.log_handlers.error) this.log_handlers.error(e)
+        if (this.log_handlers?.error) this.log_handlers.error(e)
         else if (this.verbose) {
             if(typeof e == 'string')
                 this.error(e)
