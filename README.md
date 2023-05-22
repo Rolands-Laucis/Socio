@@ -16,7 +16,7 @@ No more API middleware and backend DB interfacing functions and wrappers and han
 
 Ready for use in your small to mid sized web app 🥰 feedback is welcome.
 
-### Instalation
+### Instalation 🔧
 In your Node.js project root dir:
 ```bash
 npm i socio
@@ -24,14 +24,14 @@ npm i socio
 
 ## How? ✨
 
-Socio is a "middle man" framework between your DB and clients. The ``SocioServer`` creates a WebSocket server on your backend, that is hooked up to any DB. The ``SocioClient`` sits on the browser and communicates with your server through WebSockets and socios protocols and mechanisms. E.g. ``SocioClient``.Query() or .Subscribe() with raw SQL strings. Additionally, the server can also at any time push information to clients, creating a duplex real-time connection. Pretty much everything you'd need, including file transfer, is supported.
+Socio is a "middle man" framework between your DB and clients. The ``SocioServer`` creates a WebSocket server on your backend, that is hooked up to any DB. The ``SocioClient`` sits on the browser (or backend with Deno) and communicates with your server through WebSockets and socios protocols and mechanisms. E.g. ``SocioClient``.Query() or .Subscribe() with raw SQL strings. Additionally, the server can also at any time push information to clients, creating a duplex real-time connection. Pretty much everything you'd need, including file transfer, is supported.
 
 ## SQL injections and overall data safety? 💉
 
 Client-side JS source files contain only encrypted strings of your SQL. The AES-256-GCM algorithm guarantees Confidentiality (cannot be read), Integrity (cannot be altered) and Authenticity (server can verify the author of the created cypher text). Dynamic data inserted as query parameters should be server-side sanitized by you as usual. In addition, all queries can use opt-in markers for authentification and table permissions requirements, that are managed by Socio Server for you.
 This is all done with the ``SocioSecurity`` class manually or automagically with the included Vite plugin ``SocioSecurityVitePlugin``.
 
-## Code snippets
+## Code snippets 📜
 
 Written in TypeScript, but of course can use the lib in JS scripts just the same.
 
@@ -88,7 +88,7 @@ Currently the performance is neglegable for small projects. I havent stress test
 
 The use of the Socio lib **does not** prohibit the use of standard HTTP technologies. Even better - socio server can be configured to run on your existing http webserver, like one that you'd create with express.js. Since WebSockets are established over HTTP, then take over with their own protocol. Though, seeing as they are different technologies, there are situations where you'd need to "stitch" your own solutions between the two, e.g. tracking sessions.
 
-## Caveats
+## Caveats 🚩
 
 For SQL queries, the automagic happens because i regex parse the strings myself with simple patterns. The most basic usecases should be covered, but more complex SQL queries are not - situations like: nested queries and multiple queries in a single string. Only table names are extracted, so sometimes subscriptions would receive an update, even though for its specific WHERE clauses it would logically not have changed data. E.g. if you alter a specific users info on a Users table, all subscribed users would get an update.
 
@@ -98,7 +98,7 @@ I cannot guarantee perfect safety of the query encryption. Neither can tradition
 
 You should be using WSS:// and HTTPS:// protocols for everything, so that the data is secure over the network. But that's easier said than done.
 
-## Socio in Production
+## Socio in Production 🥳
 * [Real-time rent prices in Riga, Latvia](http://riga.rolandslaucis.lv/) made by me. SvelteKit, Vite, Socio, NginX, Ubuntu server.
 
 ## Related lib and tech 🔗
