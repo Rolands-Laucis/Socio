@@ -22,6 +22,8 @@ In the future i may support more of the NoSQL ecosystem.
 
 ## Example code snippets
 
+Interesting note: The snippets marked for browser use cannot be run on Node.js, however, can be run on the Deno JS backend runtime. Though, im not sure if the rest of the socio lib is Deno friendly.
+
 ### Setup of ``SocioServer``
 
 ```ts
