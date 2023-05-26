@@ -8,14 +8,16 @@ import type { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind, Bit } 
 import type { Cmd_ClientHook, Msg_ClientHook, Discon_ClientHook } from './types.js';
 import type { RateLimit } from './ratelimit.js';
 import type { SocioFiles } from './types.js';
-import { MapReplacer, MapReviver } from './utils.js';
+import { MapReplacer, MapReviver, clamp } from './utils.js';
 export type ClientMessageDataObj = { id: id, verb?: string, table?: string, status?:string|number, result?:string|object|boolean|PropValue|number, prop?:PropKey, data?:any, files?:SocioFiles };
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
 type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?: Function};
 type QueryObject = { sql: string, params?: object | null, onUpdate: SubscribeCallbackObject }
+type QueryPromise = { res: Function, prom:Promise<any> | null, start_buff: number, payload_size?:number };
+type ProgressOnUpdate = (percentage: number) => void;
 
 type PropUpdateCallback = ((new_val: PropValue) => void) | null;
-export type SocioClientOptions = { name?: string, verbose?: boolean, keep_alive?: boolean, reconnect_tries?: number, persistent?:boolean };
+export type SocioClientOptions = { name?: string, verbose?: boolean, keep_alive?: boolean, reconnect_tries?: number, persistent?:boolean, hard_crash?:boolean };
 
 //"Because he not only wants to perform well, he wants to be well received  —  and the latter lies outside his control." /Epictetus/
 export class SocioClient extends LogHandler {
@@ -26,7 +28,7 @@ export class SocioClient extends LogHandler {
     #is_ready: Function | boolean = false;
     #authenticated=false;
 
-    #queries: Map<id, QueryObject | Function> = new Map(); //keeps a dict of all subscribed queries
+    #queries: Map<id, QueryObject | QueryPromise> = new Map(); //keeps a dict of all subscribed queries
     #props: Map<PropKey, { [id: id]: PropUpdateCallback }> = new Map();
 
     static #key = 1; //all instances will share this number, such that they are always kept unique. Tho each of these clients would make a different session on the backend, but still
@@ -35,13 +37,14 @@ export class SocioClient extends LogHandler {
     name:string;
     verbose:boolean;
     key_generator: (() => number | string) | undefined;
+    persistent: boolean = false;
     lifecycle_hooks: { [f_name: string]: Function | null; } = { discon: null as (Discon_ClientHook | null), msg: null as (Msg_ClientHook | null), cmd: null as (Cmd_ClientHook | null) };
-    persistent:boolean=false;
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
+    // progs: Map<Promise<any>, number> = new Map(); //the promise is that of a socio generic data going out from client async. Number is WS send buffer payload size at the time of query
 
-    constructor(url: string, { name = 'Main', verbose = false, keep_alive = true, reconnect_tries = 1, persistent=false }: SocioClientOptions = {}) {
-        super({ verbose, prefix: 'SocioClient' });
+    constructor(url: string, { name = 'Main', verbose = false, keep_alive = true, reconnect_tries = 1, persistent = false, hard_crash=false }: SocioClientOptions = {}) {
+        super({ verbose, prefix: 'SocioClient', hard_crash });
 
         if (window || undefined && url.startsWith('ws://'))
             this.HandleInfo('UNSECURE WEBSOCKET URL CONNECTION! Please use wss:// and https:// protocols in production to protect against man-in-the-middle attacks.');
@@ -124,15 +127,15 @@ export class SocioClient extends LogHandler {
                         this.HandleInfo(`AUTH returned FALSE, which means websocket has not authenticated.`);
 
                     this.#authenticated = data?.result as Bit === 1;
-                    (this.#queries.get(data.id) as Function)(this.#authenticated); //result should be either True or False to indicate success status
-                    this.#queries.delete(data.id) //clear memory
+                    (this.#queries.get(data.id) as QueryPromise).res(this.#authenticated); //result should be either True or False to indicate success status
+                    this.#queries.delete(data.id); //clear memory
                     break;
                 case 'GET_PERM':
                     this.#FindID(kind, data?.id)
                     if (data?.result as Bit !== 1) 
                         this.HandleInfo(`Server rejected grant perm for ${data?.verb} on ${data?.table}.`);
 
-                    (this.#queries.get(data.id) as Function)(data?.result as Bit === 1); //result should be either True or False to indicate success status
+                    (this.#queries.get(data.id) as QueryPromise).res(data?.result as Bit === 1); //result should be either True or False to indicate success status
                     this.#queries.delete(data.id) //clear memory
                     break;
                 case 'RES':
@@ -147,13 +150,13 @@ export class SocioClient extends LogHandler {
                         }//@ts-expect-error 
                         else throw new E('Prop UPD called, but subscribed prop does not have a callback. data; callback', data, prop[data.id as id]);
                         if (this.#queries.has(data.id))
-                            (this.#queries.get(data.id) as Function)(data.result); //resolve the promise
+                            (this.#queries.get(data.id) as QueryPromise).res(data.result); //resolve the promise
                     }else throw new E('Not enough prop info sent from server to perform prop update.', data)
                     break;
                 case 'CMD': if(this.lifecycle_hooks.cmd) this.lifecycle_hooks.cmd(data); break; //the server pushed some data to this client, let the dev handle it
                 case 'ERR'://The result field is sometimes used as a cause of error msg on the backend
                     if (typeof this.#queries.get(data.id) == 'function')
-                        (this.#queries.get(data.id) as Function)();
+                        (this.#queries.get(data.id) as QueryPromise).res();
 
                     this.HandleError(new E(`Request to Server returned ERROR response for query id, reason #[err-msg-kind]`, data?.id, data?.result as Bit));
                     break;
@@ -192,46 +195,60 @@ export class SocioClient extends LogHandler {
             this.HandleInfo('sent:', kind, data);
         } catch (e: err) { this.HandleError(e); }
     }
-    async SendFiles(files:File[], other_data:object|undefined=undefined){
-        const proc_files: SocioFiles = new Map(); //my own kind of FormData, specific for files, because FormData is actually a very riggid type
+    SendFiles(files:File[], other_data:object|undefined=undefined){
+        const { id, prom } = this.CreateQueryPromise(); //this up here, bcs we await in the lower lines, so that a prog tracker async can find this query as soon as it is available.
+        
+        (async () => {
+            const proc_files: SocioFiles = new Map(); //my own kind of FormData, specific for files, because FormData is actually a very riggid type
 
-        //add each file
-        for(const file of files){
-            //relevant info about files is stored in meta
-            const meta = {
-                lastModified: file.lastModified,
-                size: file.size,
-                type: file.type
-            };
-            proc_files.set(file.name, { meta, bin: b64.fromByteArray(new Uint8Array(await file.arrayBuffer())) }); //this is the best way that i could find. JS is really unhappy about binary data
-        }
+            //add each file
+            for (const file of files) {
+                //relevant info about files is stored in meta
+                const meta = {
+                    lastModified: file.lastModified,
+                    size: file.size,
+                    type: file.type
+                };
+                proc_files.set(file.name, { meta, bin: b64.fromByteArray(new Uint8Array(await file.arrayBuffer())) }); //this is the best way that i could find. JS is really unhappy about binary data
+            }
 
-        //create the server request as usual
-        const {id, prom} = this.CreateQueryPromise();
-        const socio_form_data = { id, files: proc_files }
-        if(other_data)
-            socio_form_data['data'] = other_data; //add the other data if exists
-        this.Send('UP_FILES', socio_form_data);
+            //create the server request as usual
+            const socio_form_data = { id, files: proc_files };
+            if (other_data)
+                socio_form_data['data'] = other_data; //add the other data if exists
+            this.Send('UP_FILES', socio_form_data);
+
+            this.#UpdateQueryPromisePayloadSize(id);
+        })();
 
         return prom as Promise<{ id: id, result: Bit }>;
     }
     SendBinary(blob: Blob | ArrayBuffer | ArrayBufferView) { //send binary. Unfortunately, it is not useful for me to invent my own byte formats and build functionality. You can tho. This is just low level access.
         if (this.#queries.get('BLOB')) throw new E('BLOB already being uploaded. Wait until the last query completes!');
 
+        const start_buff = this.#ws?.bufferedAmount || 0
         this.#ws?.send(blob);
         this.HandleInfo('sent: BLOB');
 
-        return new Promise((res) => {
-            this.#queries.set('BLOB', res);
+        const prom = new Promise((res) => {
+            this.#queries.set('BLOB', { res, prom, start_buff, payload_size: (this.#ws?.bufferedAmount || 0) - start_buff });
         });
+        return prom;
     }
     CreateQueryPromise(){
         //https://advancedweb.hu/how-to-add-timeout-to-a-promise-in-javascript/ should implement promise timeouts
         const id = this.GenKey;
         const prom = new Promise((res) => {
-            this.#queries.set(id, res);
+            this.#queries.set(id, { res, prom:null, start_buff: this.#ws?.bufferedAmount || 0 });
         });
+        (this.#queries.get(id) as QueryPromise).prom = prom;
+        
+        // this.progs.set(prom, this.#ws?.bufferedAmount || 0); //add this to progress tracking
         return {id, prom};
+    }
+    #UpdateQueryPromisePayloadSize(query_id:id){
+        if (!this.#queries.has(query_id)) return;
+        (this.#queries.get(query_id) as QueryPromise).payload_size = (this.#ws?.bufferedAmount || 0) - (this.#queries.get(query_id) as QueryPromise)?.start_buff || 0;
     }
 
     //subscribe to an sql query. Can add multiple callbacks where ever in your code, if their sql queries are identical
@@ -297,7 +314,7 @@ export class SocioClient extends LogHandler {
 
                 //set up new msg to the backend informing a wish to unregister query.
                 const {id, prom} = this.CreateQueryPromise();
-                this.Send('PROP_UNSUB', { id, prop: prop_name })
+                this.Send('PROP_UNSUB', { id, prop: prop_name });
 
                 const res = await prom; //await the response from backend
                 if (res === 1)//if successful, then remove the subscribe from the client
@@ -317,12 +334,18 @@ export class SocioClient extends LogHandler {
                 this.Unsubscribe(q, force);
     }
 
-    Query(sql: string, params: object | null | Array<any> = null){
+    Query(sql: string, params: object | null | Array<any> = null, { onUpdate, freq_ms = undefined }: { onUpdate?: ProgressOnUpdate, freq_ms?:number } = {}){
         //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
         const { id, prom } = this.CreateQueryPromise();
 
         //send off the request, which will be resolved in the message handler
         this.Send('SQL', { id, sql: sql, params: params });
+        this.#UpdateQueryPromisePayloadSize(id);
+
+        // immediate prog tracking for dev convenience.
+        if (onUpdate)
+            this.TrackProgressOfQueryID(id, onUpdate, freq_ms);
+
         return prom;
     }
     SetProp(prop: PropKey, new_val:PropValue){
@@ -333,25 +356,31 @@ export class SocioClient extends LogHandler {
 
             //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
             const { id, prom } = this.CreateQueryPromise();
-
-            //send off the request, which will be resolved in the message handler
             this.Send('PROP_SET', { id, prop: prop, prop_val:new_val });
+            this.#UpdateQueryPromisePayloadSize(id);
+
             return prom;
         } catch (e: err) { this.HandleError(e); return null; }
     }
     GetProp(prop: PropKey) {
         const { id, prom } = this.CreateQueryPromise();
         this.Send('PROP_GET', { id, prop: prop });
+        this.#UpdateQueryPromisePayloadSize(id);
+
         return prom;
     }
     Serv(data: any){
         const { id, prom } = this.CreateQueryPromise();
         this.Send('SERV', { id, data });
+        this.#UpdateQueryPromisePayloadSize(id);
+
         return prom;
     }
     GetFiles(data: any){
         const { id, prom } = this.CreateQueryPromise();
         this.Send('GET_FILES', { id, data });
+        this.#UpdateQueryPromisePayloadSize(id);
+
         return prom as Promise<File[]>;
     }
     //sends a ping with either the user provided number or an auto generated number, for keeping track of packets and debugging
@@ -359,15 +388,19 @@ export class SocioClient extends LogHandler {
         this.Send('PING', { id: num || this.GenKey })
     }
 
-    async Authenticate(params:object={}){ //params here can be anything, like username and password stuff etc. The backend server auth function callback will receive this entire object
+    Authenticate(params:object={}){ //params here can be anything, like username and password stuff etc. The backend server auth function callback will receive this entire object
         const { id, prom } = this.CreateQueryPromise();
         this.Send('AUTH', { id, params: params });
+        this.#UpdateQueryPromisePayloadSize(id);
+
         return prom as Promise<{ id: id, result: Bit }>;
     }
     get authenticated() { return this.#authenticated === true }
     AskPermission(verb = '', table = '') {//ask the backend for a permission on a table with the SQL verb u want to perform on it, i.e. SELECT, INSERT etc.
         const { id, prom } = this.CreateQueryPromise();
-        this.Send('GET_PERM', { id, verb:verb, table:table })
+        this.Send('GET_PERM', { id, verb:verb, table:table });
+        this.#UpdateQueryPromisePayloadSize(id);
+
         return prom as Promise<{ id: id, result: Bit }>;
     }
     
@@ -382,8 +415,16 @@ export class SocioClient extends LogHandler {
     }
     #HandleBasicPromiseMessage(kind:string, data:ClientMessageDataObj){
         this.#FindID(kind, data?.id);
-        //@ts-expect-error
-        this.#queries.get(data.id)(data?.result as Bit);
+        const q = this.#queries.get(data.id);
+        // @ts-expect-error
+        if(q?.res)
+            (q as QueryPromise).res(data?.result as Bit);
+        // @ts-expect-error
+        else if (q?.onUpdate)
+            if ((q as QueryObject)?.onUpdate?.success)
+                // @ts-expect-error
+                (q as QueryObject).onUpdate.success(data?.result as Bit);
+        
         this.#queries.delete(data.id); //clear memory
     }
 
@@ -414,7 +455,7 @@ export class SocioClient extends LogHandler {
             const { id, prom } = this.CreateQueryPromise();
 
             //ask the server for a reconnection to an old session via our one-time token
-            this.Send('RECON', { id, data: { type: 'POST', token } });
+            this.Send('RECON', { id, data: { type: 'POST', token } });            
             const res = await prom;
 
             //@ts-ignore
@@ -430,9 +471,59 @@ export class SocioClient extends LogHandler {
         }
     }
 
+    // for dev debug, if u want
     LogMaps(){
         log('queries', [...this.#queries.entries()])
         log('props', [...this.#props.entries()])
+    }
+
+    // finds a query by its promise and registers a % update callback on its sent progress. NOTE this is not at all accurate. 
+    // The calculations are very time sensitive, since network speeds are super fast these days. You must set up this timer as soon as possible.
+    // returns the timer ID, if it was created, so that the dev can terminate the timer manually.
+    TrackProgressOfQueryPromise(prom: Promise<any>, onUpdate: ProgressOnUpdate, freq_ms = 33.34){
+        for (const [id, q] of this.#queries as Map<id, QueryPromise>){
+            if (q?.prom == prom){
+                return this.#CreateProgTrackingTimer(id, q.start_buff, q.payload_size || 0, onUpdate, freq_ms);
+            }
+        }
+        return null;
+    }
+
+    TrackProgressOfQueryID(query_id: id, onUpdate: ProgressOnUpdate, freq_ms = 33.34) {
+        const q: QueryPromise = (this.#queries.get(query_id) as QueryPromise);
+        if(q) return this.#CreateProgTrackingTimer(query_id, q.start_buff, q.payload_size || 0, onUpdate, freq_ms);
+        else return null;
+    }
+
+    //sets a timer to calculate the progress of a pending query promise, returns it to the user @ 30fps. Returns the timer ID, in case the dev wants to stop it manually.
+    #CreateProgTrackingTimer(query_id: id, start_buff: number, payload_size: number, onUpdate: ProgressOnUpdate, freq_ms = 33.34){
+        let last_buff_size = this.#ws?.bufferedAmount || 0;
+        // log({ last_buff_size, start_buff, payload_size });
+        const intervalID = setInterval(() => {
+            // log(start_buff, this.#ws?.bufferedAmount, payload_size);
+            if (!payload_size){
+                payload_size = (this.#queries.get(query_id) as QueryPromise)?.payload_size || 0;
+                last_buff_size = this.#ws?.bufferedAmount || 0; //reset this as well, bcs it should be 0, if payload was 0. Since the payload hasnt yet been added to the buffer, but will be now.
+                return;
+            }
+            const later_payload_ids = Array.from((this.#queries as Map<id, QueryPromise>).keys()).filter(id => id > query_id);
+            const later_payloads_size = later_payload_ids.map(p_id => (this.#queries.get(p_id) as QueryPromise)?.payload_size || 0).reduce((sum, payload) => sum += payload, 0);
+            const now_buff_size = (this.#ws?.bufferedAmount || 0) - later_payloads_size; //make the now needle ignore later payloads, if they have been added during this timer.
+            const delta_buff = (last_buff_size - now_buff_size) || 1_000; //delta buff - this order bcs last should be smaller and we want to know how much was sent out (delta). The || is a fallback in case the delta is negative or 0, so we dont get stuck in a loop.
+            last_buff_size = now_buff_size;
+
+            //as the now needle moves closer to 0, move the start need by the same amount. When it crosses over 0, then we've started to send out this query payload
+            start_buff -= delta_buff; 
+            const p = (start_buff * -100) / (payload_size as number); //start buff below 0 is the amount of sent out so far. Invert and divide by total payload size * 100 for %.
+
+            onUpdate(clamp(p, 0, 100)); //while start needle is > 0, this will have negative %. When -(start needle) > payload, will be over 100%
+            if (p >= 100 || (this.#ws?.bufferedAmount || 0) === 0) {
+                onUpdate(100);
+                clearInterval(intervalID);
+            }
+            // log({ last_buff_size, start_buff, payload_size, delta_buff, p });
+        }, freq_ms);
+        return intervalID;
     }
 }
 
