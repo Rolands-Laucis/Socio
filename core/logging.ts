@@ -61,53 +61,53 @@ export class LogHandler {
     }
 
     HandleError(e: E | Error | undefined | string) { //e is of type class E ^
-        if (this.hard_crash) throw e
+        if (this.hard_crash) throw e;
 
-        if (this.log_handlers?.error) this.log_handlers.error(e)
+        if (this.log_handlers?.error) this.log_handlers.error(e);
         else if (this.verbose) {
             if(typeof e == 'string')
-                this.error(e)
+                this.error(e);
             else if (typeof e == 'object')
-                this.error(e, ...("logs" in e ? e.logs : []))
+                this.error(e, ...("logs" in e ? e.logs : []));
         }
     }
     HandleInfo(...args: any[]) {
-        if (this.log_handlers.info) this.log_handlers.info(...args)
+        if (this.log_handlers.info) this.log_handlers.info(...args);
         //@ts-ignore
-        else if (this.verbose) this.info(...args)
+        else if (this.verbose) this.info(...args);
     }
 
     static prefix(p:string, color:string) {return p ? `${color}[${p}]${colors.Reset}` : ''}
     static log(...args: any[]) { console.log(...args) }
 
     info(msg:any, ...args:any[]) {
-        console.log(`${LogHandler.prefix(this.use_prefix, colors.BgYellow)} ${msg}`, ...args)
+        console.log(`${LogHandler.prefix(this.use_prefix, colors.BgYellow)} ${msg}`, ...args);
     }
     static info(msg: any, ...args: any[]) {
-        console.log(`${LogHandler.prefix('Socio', colors.BgYellow)} ${msg}`, ...args)
+        console.log(`${LogHandler.prefix('Socio', colors.BgYellow)} ${msg}`, ...args);
     }
     
     done(msg: string, ...args: any[]) {
-        console.log(`${LogHandler.prefix(this.use_prefix, colors.BgGreen)} ${msg}`, ...args)
+        console.log(`${LogHandler.prefix(this.use_prefix, colors.BgGreen)} ${msg}`, ...args);
     }
     static done(msg: string, ...args: any[]) {
-        console.log(`${LogHandler.prefix('Socio', colors.BgGreen)} ${msg}`, ...args)
+        console.log(`${LogHandler.prefix('Socio', colors.BgGreen)} ${msg}`, ...args);
     }
 
     error(msg: any, ...args: any[]) {
-        console.log(`${LogHandler.prefix(`${this.use_prefix} ERROR`, colors.BgRed + colors.FgWhite)} ${msg}`)
+        console.log(`${LogHandler.prefix(`${this.use_prefix} ERROR`, colors.BgRed + colors.FgWhite)} ${msg}`);
         if (args)
-            console.log(...args, '\n')
+            console.log(...args, '\n');
 
-        // throw new Error(msg)
+        throw new Error(msg);
     }
     soft_error(msg: any, ...args: any[]) {
-        console.log(`${LogHandler.prefix(`${this.use_prefix} ERROR`, colors.BgRed + colors.FgWhite)} ${msg}`)
+        console.log(`${LogHandler.prefix(`${this.use_prefix} ERROR`, colors.BgRed + colors.FgWhite)} ${msg}`);
         if (args)
-            console.log(...args, '\n')
+            console.log(...args, '\n');
     }
     static soft_error(msg: any, ...args: any[]) {
-        console.log(`${LogHandler.prefix(`Socio ERROR`, colors.BgRed + colors.FgWhite)} ${msg}`)
+        console.log(`${LogHandler.prefix(`Socio ERROR`, colors.BgRed + colors.FgWhite)} ${msg}`);
         if (args)
             console.log(...args, '\n');
     }
