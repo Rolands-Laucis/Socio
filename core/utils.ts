@@ -53,6 +53,9 @@ export function SocioMarkerHas(marker: QueryMarker, { parsed = null, str = '' }:
 export function sleep(seconds: number = 2) {
     return new Promise(res => setTimeout(res, seconds * 1000))
 }
+export function clamp(x:number, min:number, max:number){
+    return Math.min(Math.max(x, min), max);
+}
 
 //https://stackoverflow.com/a/40577337/8422448
 export function GetAllMethodNamesOf(obj: any): string[] {
