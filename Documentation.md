@@ -412,3 +412,35 @@ After the reconnection attempt, the client asks for a new future use token to be
 This is also not needed if your framework implements CSR (client-side routing), whereby the page doesnt actually navigate or reload, but just looks like it does.
 
 This also has better safety than traditional HTTP(S) session cookies. https://en.wikipedia.org/wiki/Session_hijacking
+
+### Query progress tracking (request progress bars)
+
+The WebSocket protocol doesnt specify any mechanism for tracking individual payloads. However, they have a global buffered amount property, that can be read from at any time. I use that and payload size of the request and lots of math to track them in the buffer, such that you can simply ask socio to tell you the progress % of any request. NOTE that this is hacky and only an approximation of the actual values at play. Unexpected, wacky results might be returned, like even the % flowing backwards for a bit sometimes.
+
+```ts
+let prog = 0;
+async function UploadFiles(e:any){
+  const q = sc.SendFiles(e.target.files); //q is a promise, that will resolve to the result, when you await it. Rather than awaiting immediately, you can start tracking its progress and await later.
+  //pass the promise object to the tracking function, which will set up a timer for you. By default, fires @ 30fps (33.34 ms), but you can change this to be slower, if your app is intensive.
+  const interval_id = sc.TrackProgressOfQueryPromise(q, (p) => prog = p, freq_ms = 33.34); // the callback fires on an interval and gives you a float value, which is the % (0-100)
+  log(await q); //await the result.
+  clearInterval(interval_id); //at any time you can delete this timer as well.
+}
+```
+
+In Svelte, it is more convenient with native stores.
+
+```ts
+import {writable} from 'svelte/store';
+let prog = writable(0);
+
+async function UploadFiles(e:any){
+  const q = sc.SendFiles(e.target.files);
+  sc.TrackProgressOfQueryPromise(q, prog.set, freq_ms = 33.34); //writable has the .set method you can call, and it will assign
+  ...
+}
+```
+
+```svelte
+<progress value={$prog} max="100"></progress>
+```
