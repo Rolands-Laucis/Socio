@@ -197,7 +197,11 @@ export class SocioClient extends LogHandler {
     }
     SendFiles(files:File[], other_data:object|undefined=undefined){
         const { id, prom } = this.CreateQueryPromise(); //this up here, bcs we await in the lower lines, so that a prog tracker async can find this query as soon as it is available.
-        
+
+        // https://developer.mozilla.org/en-US/docs/Glossary/IIFE pattern bcs we need to use await there, but marking this function as async will actually return a new promise instead of the one returned here. 
+        // They need to match for the prog track mechanism to work.
+        // So just let this execute on its own async "thread" and move on with synchronous code.
+        // This also means that payload will be calculated sometime after the prog tracking begins, which is why it checks for payload value existance.
         (async () => {
             const proc_files: SocioFiles = new Map(); //my own kind of FormData, specific for files, because FormData is actually a very riggid type
 
@@ -495,16 +499,16 @@ export class SocioClient extends LogHandler {
         else return null;
     }
 
-    //sets a timer to calculate the progress of a pending query promise, returns it to the user @ 30fps. Returns the timer ID, in case the dev wants to stop it manually.
+    // Sets a timer to calculate the progress of a pending query promise, returns it to the user @ 30fps. 
+    // Returns the timer ID, in case the dev wants to stop it manually.
+    // This might call onUpdate multiple times with 0 before the % starts going up.
     #CreateProgTrackingTimer(query_id: id, start_buff: number, payload_size: number, onUpdate: ProgressOnUpdate, freq_ms = 33.34){
         let last_buff_size = this.#ws?.bufferedAmount || 0;
-        // log({ last_buff_size, start_buff, payload_size });
         const intervalID = setInterval(() => {
-            // log(start_buff, this.#ws?.bufferedAmount, payload_size);
             if (!payload_size){
-                payload_size = (this.#queries.get(query_id) as QueryPromise)?.payload_size || 0;
+                payload_size = (this.#queries.get(query_id) as QueryPromise)?.payload_size || 0; //check if it exists now
+                if(!payload_size) return; //skip if still not ready
                 last_buff_size = this.#ws?.bufferedAmount || 0; //reset this as well, bcs it should be 0, if payload was 0. Since the payload hasnt yet been added to the buffer, but will be now.
-                return;
             }
             const later_payload_ids = Array.from((this.#queries as Map<id, QueryPromise>).keys()).filter(id => id > query_id);
             const later_payloads_size = later_payload_ids.map(p_id => (this.#queries.get(p_id) as QueryPromise)?.payload_size || 0).reduce((sum, payload) => sum += payload, 0);
