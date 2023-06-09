@@ -1,14 +1,15 @@
-import { ClientID } from "./types.js";
+// Wise men speak when they have something to say, fools speak because they have to say something. /Aristotle/
+// By silence, I hear other men’s imperfections and conceal my own. /Zeno of Citium/
 
 //types
+import type { ClientID } from "./types.js";
+import type { SocioSession } from "./core-session.js";
+import type { MessageDataObj } from "./core.js";
+import { E, log } from "./logging.js";
 export type User = { client_id: ClientID, username?: string };
 export type ChatRoomMessage = { user: User, ts: number, text:string};
 type ServerInterfaceFunction = (client_ids: string[], data: object) => void;
 type ClientInterfaceFunction  = (data: any) => void;
-import type { SocioSession } from "./core-session.js";
-import type { MessageDataObj } from "./core.js";
-import type { ClientMessageDataObj } from "./core-client.js";
-import { E, log } from "./logging.js";
 
 export class ServerChatRoom{
     //private

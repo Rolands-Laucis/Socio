@@ -1,3 +1,5 @@
+// The greatest compliment that was ever paid me was when one asked me what I thought, and attended to my answer.  /Henry David Thoreau/
+
 //https://stackoverflow.com/questions/9781218/how-to-change-node-jss-console-font-color
 /**
  * some default colors to pick from so to not memorize the format
