@@ -35,7 +35,7 @@ export class SocioServer extends LogHandler {
     #secure: { socio_security: SocioSecurity | null, decrypt_sql: boolean, decrypt_prop:boolean};
 
     //backend props, e.g. strings for colors, that clients can subscribe to and alter
-    #props: Map<PropKey, { val: PropValue, assigner: PropAssigner, updates: Map<ClientID, { id: id, rate_limiter?: RateLimiter | null }> }> = new Map();
+    #props: Map<PropKey, { val: PropValue, assigner: PropAssigner, updates: Map<ClientID, { id: id, rate_limiter?: RateLimiter | null }>, client_writable:boolean }> = new Map();
 
     //rate limits server functions globally
     #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
@@ -325,9 +325,11 @@ export class SocioServer extends LogHandler {
                 case 'PROP_SET':
                     this.#CheckPropExists(data?.prop, client, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
                     try {
-                        //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value.
-                        this.UpdatePropVal(data.prop as string, data?.prop_val, client.id);
-                        client.Send('RES', { id: data.id, result:1}); //resolve this request to true, so the client knows everything went fine.
+                        if(this.#props.get(data.prop as string)?.client_writable){
+                            //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value.
+                            this.UpdatePropVal(data.prop as string, data?.prop_val, client.id);
+                            client.Send('RES', { id: data.id, result: 1 }); //resolve this request to true, so the client knows everything went fine.
+                        }else throw new E('Prop is not client_writable.', data);
                     } catch (e: err) {
                         //send response
                         client.Send('ERR', {
@@ -530,12 +532,12 @@ export class SocioServer extends LogHandler {
     }
 
     //assigner defaults to basic setter
-    RegisterProp(key: PropKey, val: PropValue, assigner: PropAssigner = (key: PropKey, new_val: PropValue) => this.SetPropVal(key, new_val)){
+    RegisterProp(key: PropKey, val: PropValue, assigner: PropAssigner = (key: PropKey, new_val: PropValue) => this.SetPropVal(key, new_val), client_writable = true){
         try{
             if (this.#props.has(key))
                 throw new E(`Prop key [${key}] has already been registered and for client continuity is forbiden to over-write at runtime. [#prop-key-exists]`)
             else
-                this.#props.set(key, { val, assigner, updates: new Map() });
+                this.#props.set(key, { val, assigner, updates: new Map(), client_writable });
         } catch (e: err) { this.HandleError(e) }
     }
     UnRegisterProp(key: PropKey){
