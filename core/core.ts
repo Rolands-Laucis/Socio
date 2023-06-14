@@ -553,13 +553,13 @@ export class SocioServer extends LogHandler {
         const prop = this.#props.get(key);
         if (!prop) throw new E(`Prop key [${key}] not registered! [#prop-update-not-found]`);
 
-        if (this.#props.get(key)?.assigner(key, new_val)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
+        if (prop?.assigner(key, new_val)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
             for (const [client_id, args] of prop.updates.entries()) {
                 if (args?.rate_limiter && args.rate_limiter?.CheckLimit()) return; //ratelimit check
 
                 //do the thing
                 if (this.#sessions.has(client_id))
-                    this.#sessions.get(client_id)?.Send('PROP_UPD', { id: args.id, prop: key, result: this.GetPropVal(key) }); //should be GetPropVal, bcs i cant know how the assigner changed the val
+                    this.#sessions.get(client_id)?.Send('PROP_UPD', { id: args.id, prop: key, prop_val: this.GetPropVal(key) }); //should be GetPropVal, bcs i cant know how the assigner changed the val
                 else {//the client_id doesnt exist anymore for some reason, so unsubscribe
                     prop.updates.delete(client_id);
                     this.#sessions.delete(client_id);

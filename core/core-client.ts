@@ -9,7 +9,7 @@ import type { Cmd_ClientHook, Msg_ClientHook, Discon_ClientHook } from './types.
 import type { RateLimit } from './ratelimit.js';
 import type { SocioFiles } from './types.js';
 import { MapReplacer, MapReviver, clamp } from './utils.js';
-export type ClientMessageDataObj = { id: id, verb?: string, table?: string, status?:string|number, result?:string|object|boolean|PropValue|number, prop?:PropKey, data?:any, files?:SocioFiles };
+export type ClientMessageDataObj = { id: id, verb?: string, table?: string, status?:string|number, result?:string|object|boolean|PropValue|number, prop?:PropKey, prop_val?:PropValue, data?:any, files?:SocioFiles };
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
 type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?: Function};
 type QueryObject = { sql: string, params?: object | null, onUpdate: SubscribeCallbackObject }
@@ -143,15 +143,15 @@ export class SocioClient extends LogHandler {
                     this.#HandleBasicPromiseMessage(kind, data)
                     break;
                 case 'PROP_UPD':
-                    if (data?.prop && data.hasOwnProperty('id') && data.hasOwnProperty('result')){
+                    if (data?.prop && data.hasOwnProperty('id') && data.hasOwnProperty('prop_val')){
                         const prop = this.#props.get(data.prop as string);
                         if (prop && prop[data.id as id] && typeof prop[data.id as id] === 'function'){
                             //@ts-expect-error
-                            prop[data.id as id](data.result as PropValue);
+                            prop[data.id as id](data.prop_val as PropValue);
                         }//@ts-expect-error 
-                        else throw new E('Prop UPD called, but subscribed prop does not have a callback. data; callback', data, prop[data.id as id]);
+                        else throw new E('Prop UPD called, but subscribed prop does not have a callback.', { data, callback: prop[data.id as id]});
                         if (this.#queries.has(data.id))
-                            (this.#queries.get(data.id) as QueryPromise).res(data.result as PropValue); //resolve the promise
+                            (this.#queries.get(data.id) as QueryPromise).res(data.prop_val as PropValue); //resolve the promise
                     }else throw new E('Not enough prop info sent from server to perform prop update.', data)
                     break;
                 case 'CMD': if(this.lifecycle_hooks.cmd) this.lifecycle_hooks.cmd(data); break; //the server pushed some data to this client, let the dev handle it
@@ -183,7 +183,7 @@ export class SocioClient extends LogHandler {
                     this.#queries.delete(data.id); //clear memory
                     break;
                 // case '': break;
-                default: throw new E(`Unrecognized message kind!`, kind, data);
+                default: throw new E(`Unrecognized message kind!`, {kind, data});
             }
         } catch (e:err) { this.HandleError(e) }
     }
