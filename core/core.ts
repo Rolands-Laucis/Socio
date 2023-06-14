@@ -553,9 +553,7 @@ export class SocioServer extends LogHandler {
 
         if (this.#props.get(key)?.assigner(key, new_val)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
             for (const [client_id, args] of prop.updates.entries()) {
-                //ratelimit check
-                if (args?.rate_limiter && args.rate_limiter?.CheckLimit())
-                    return;
+                if (args?.rate_limiter && args.rate_limiter?.CheckLimit()) return; //ratelimit check
 
                 //do the thing
                 if (this.#sessions.has(client_id))
