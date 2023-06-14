@@ -325,6 +325,7 @@ export class SocioServer extends LogHandler {
                 case 'PROP_SET':
                     this.#CheckPropExists(data?.prop, client, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
                     try {
+                        //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value.
                         this.UpdatePropVal(data.prop as string, data?.prop_val, client.id);
                         client.Send('RES', { id: data.id, result:1}); //resolve this request to true, so the client knows everything went fine.
                     } catch (e: err) {
@@ -547,6 +548,7 @@ export class SocioServer extends LogHandler {
     GetPropVal(key: PropKey){
         return this.#props.get(key)?.val;
     }
+    //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value.
     UpdatePropVal(key: PropKey, new_val: PropValue, client_id: id | null):void{//this will propogate the change, if it is assigned, to all subscriptions
         const prop = this.#props.get(key);
         if (!prop) throw new E(`Prop key [${key}] not registered! [#prop-update-not-found]`);
