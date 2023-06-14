@@ -290,7 +290,7 @@ export class SocioServer extends LogHandler {
                     client.Send('PROP_UPD', {
                         id: data.id,
                         prop: data.prop,
-                        result: this.GetPropVal(data.prop as PropKey)
+                        prop_val: this.GetPropVal(data.prop as PropKey)
                     })
                     break;
                 case 'PROP_UNSUB':
