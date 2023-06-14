@@ -160,7 +160,7 @@ export class SocioServer extends LogHandler {
 
                 //check crypt format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where each part is base64 encoded
                 if (!str.includes(' '))
-                    throw new E('encrypted query string does not contain a space, therefor is not of format "iv_base64 original_query_base64 auth_tag_base64" and cannot be processed. [#enc-wrong-format]', client_id, kind, data);
+                    throw new E('encrypted query string does not contain a space, therefor is not of format "iv_base64 original_query_base64 auth_tag_base64" and cannot be processed. [#enc-wrong-format]', { client_id, kind, data });
 
                 const parts = str.split(' '); 
                 if (parts.length != 3)
@@ -194,8 +194,8 @@ export class SocioServer extends LogHandler {
                             throw new E(`Client ${client_id} sent an SQL query without table names. [#table-name-issue]`, data.sql);
 
                         if (!tables.every((t) => client.HasPermFor(verb, t)))
-                            throw new E(`Client ${client_id} tried to execute a perms query without having the required permissions. [#perm-issue]`, verb, tables);
-                    }else if (data?.prop) throw new E('Perm checking for server props is currently unsupported! #[unsupported-feature]', data, markers)
+                            throw new E(`Client ${client_id} tried to execute a perms query without having the required permissions. [#perm-issue]`, {verb, tables});
+                    }else if (data?.prop) throw new E('Perm checking for server props is currently unsupported! #[unsupported-feature]', {data, markers})
                 }
             }
             
@@ -350,7 +350,7 @@ export class SocioServer extends LogHandler {
                 case 'RECON': //client attempts to reconnect to its previous session
                     if(!this.#secure){
                         client.Send('ERR', { id: data.id, result: 'Cannot reconnect on this server configuration!', status: 0 });
-                        throw new E(`RECON requires SocioServer to be set up with the Secure class! [#recon-needs-secure]`, kind, data);
+                        throw new E(`RECON requires SocioServer to be set up with the Secure class! [#recon-needs-secure]`, {kind, data});
                     }
 
                     if (data?.data?.type == 'GET'){
@@ -437,7 +437,7 @@ export class SocioServer extends LogHandler {
                     }
                     break;
                 // case '': break;
-                default: throw new E(`Unrecognized message kind! [#unknown-msg-kind]`, kind, data);
+                default: throw new E(`Unrecognized message kind! [#unknown-msg-kind]`, {kind, data});
             }
         } catch (e: err) { this.HandleError(e); }
     }
@@ -567,7 +567,7 @@ export class SocioServer extends LogHandler {
             }
         }
         else
-            throw new E(`Prop key [${key}] tried to set an invalid value! [#prop-set-not-valid]. Key, val, client_id`, key, new_val, client_id);
+            throw new E(`Tried to set an invalid prop value! [#prop-set-not-valid].`, { key, new_val, client_id });
     }
     SetPropVal(key: PropKey, new_val: PropValue): boolean { //this hard sets the value without checks or updating clients
         try{
