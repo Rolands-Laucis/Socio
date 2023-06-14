@@ -143,7 +143,7 @@ export class SocioClient extends LogHandler {
                     this.#HandleBasicPromiseMessage(kind, data)
                     break;
                 case 'PROP_UPD':
-                    if(data?.prop && data?.id && data?.result as Bit){
+                    if (data?.prop && data.hasOwnProperty('id') && data.hasOwnProperty('result')){
                         const prop = this.#props.get(data.prop as string);
                         if (prop && prop[data.id as id] && typeof prop[data.id as id] === 'function'){
                             //@ts-expect-error
@@ -151,7 +151,7 @@ export class SocioClient extends LogHandler {
                         }//@ts-expect-error 
                         else throw new E('Prop UPD called, but subscribed prop does not have a callback. data; callback', data, prop[data.id as id]);
                         if (this.#queries.has(data.id))
-                            (this.#queries.get(data.id) as QueryPromise).res(data.result); //resolve the promise
+                            (this.#queries.get(data.id) as QueryPromise).res(data.result as PropValue); //resolve the promise
                     }else throw new E('Not enough prop info sent from server to perform prop update.', data)
                     break;
                 case 'CMD': if(this.lifecycle_hooks.cmd) this.lifecycle_hooks.cmd(data); break; //the server pushed some data to this client, let the dev handle it
