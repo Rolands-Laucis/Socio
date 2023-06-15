@@ -54,7 +54,7 @@ export class SocioServer extends LogHandler {
 
     //public:
     Query: QueryFunction; //you can change this at any time
-    session_defaults: SessionsDefaults = { timeouts: false, timeouts_check_interval_ms: 1000 * 60, ttl_ms:0, session_delete_delay_ms: 1000 * 5, recon_ttl_ms: 1000 * 60 * 60 };
+    session_defaults: SessionsDefaults = { timeouts: false, timeouts_check_interval_ms: 1000 * 60, ttl_ms:Infinity, session_delete_delay_ms: 1000 * 5, recon_ttl_ms: 1000 * 60 * 60 };
 
     constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, decrypt_sql = true, decrypt_prop = false, verbose = false, hard_crash = false, session_defaults }: SocioServerOptions){
         super({ verbose, hard_crash, prefix:'SocioServer'});
