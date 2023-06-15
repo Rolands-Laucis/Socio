@@ -5,7 +5,7 @@ import * as b64 from 'base64-js';
 
 //types
 import type { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind, Bit } from './types.js';
-import type { Cmd_ClientHook, Msg_ClientHook, Discon_ClientHook } from './types.js';
+import type { Cmd_ClientHook, Msg_ClientHook, Discon_ClientHook, Timeout_ClientHook } from './types.js';
 import type { RateLimit } from './ratelimit.js';
 import type { SocioFiles } from './types.js';
 import { MapReplacer, MapReviver, clamp } from './utils.js';
@@ -38,7 +38,7 @@ export class SocioClient extends LogHandler {
     verbose:boolean;
     key_generator: (() => number | string) | undefined;
     persistent: boolean = false;
-    lifecycle_hooks: { [f_name: string]: Function | null; } = { discon: null as (Discon_ClientHook | null), msg: null as (Msg_ClientHook | null), cmd: null as (Cmd_ClientHook | null) };
+    lifecycle_hooks: { [f_name: string]: Function | null; } = { discon: null as (Discon_ClientHook | null), msg: null as (Msg_ClientHook | null), cmd: null as (Cmd_ClientHook | null), timeout: null as (Timeout_ClientHook | null)};
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
     // progs: Map<Promise<any>, number> = new Map(); //the promise is that of a socio generic data going out from client async. Number is WS send buffer payload size at the time of query
@@ -181,6 +181,10 @@ export class SocioClient extends LogHandler {
                     };
 
                     this.#queries.delete(data.id); //clear memory
+                    break;
+                case 'TIMEOUT': 
+                    if (this.lifecycle_hooks.timeout)
+                        this.lifecycle_hooks.timeout(this.name, this.#client_id);
                     break;
                 // case '': break;
                 default: throw new E(`Unrecognized message kind!`, {kind, data});

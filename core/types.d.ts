@@ -21,7 +21,7 @@ export type FS_Util_Response = { result: Bit, error?: string | Error | E | objec
 
 //msg kinds
 export type CoreMessageKind = 'SUB' | 'UNSUB' | 'SQL' | 'PING' | 'AUTH' | 'GET_PERM' | 'PROP_SUB' | 'PROP_UNSUB' | 'PROP_GET' | 'PROP_SET' | 'SERV' | 'ADMIN' | 'RECON' | 'UP_FILES' | 'GET_FILES';
-export type ClientMessageKind = 'CON' | 'UPD' | 'PONG' | 'AUTH' | 'GET_PERM' | 'RES' | 'ERR' | 'PROP_UPD' | 'CMD' | 'RECON' | 'RECV_FILES';
+export type ClientMessageKind = 'CON' | 'UPD' | 'PONG' | 'AUTH' | 'GET_PERM' | 'RES' | 'ERR' | 'PROP_UPD' | 'CMD' | 'RECON' | 'RECV_FILES' | 'TIMEOUT';
 
 //server hook functions
 export type GenCLientID_Hook = () => ClientID;
@@ -44,4 +44,5 @@ export type Upd_Hook = (sessions: Map<ClientID, SocioSession>, tables: string[])
 export type Discon_ClientHook = (name:string, client_id:ClientID, url:string, keep_alive:boolean, verbose:boolean, reconnect_tries:number) => void;
 export type Msg_ClientHook = (name: string, client_id: ClientID, kind: ClientMessageKind, data: ClientMessageDataObj) => boolean;
 export type Cmd_ClientHook = (data:ClientMessageDataObj) => void;
+export type Timeout_ClientHook = (name: string, client_id: ClientID) => void;
 // export type _ClientHook = (name: string, client_id: ClientID,) => boolean;

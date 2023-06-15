@@ -15,7 +15,7 @@ type HookObj = {
     params: object | null,
     rate_limiter: RateLimiter | null
 }
-export type SocioSessionOptions = { verbose?: boolean, default_perms?: Map<string, string[]> };
+export type SocioSessionOptions = { verbose?: boolean, default_perms?: Map<string, string[]>, session_timeout_ttl_ms?:number };
 
 export class SocioSession extends LogHandler {
     //private:
@@ -26,20 +26,22 @@ export class SocioSession extends LogHandler {
     #destroyed:number = 0;
 
     //public:
-    verbose = false
-    last_seen: number = 0 //ms since epoch when this session was last active
+    verbose = false;
+    last_seen: number = 0; //ms since epoch when this session was last active
+    ttl_ms: number = Infinity; //ms since epoch showing how long the session is allowed to live.
 
-    constructor(client_id: string, ws_client: WebSocket, client_ipAddr: string, { verbose = false, default_perms = new Map() }: SocioSessionOptions  = {}) {
+    constructor(client_id: string, ws_client: WebSocket, client_ipAddr: string, { verbose = false, default_perms, session_timeout_ttl_ms }: SocioSessionOptions  = {}) {
         super({ verbose, prefix: 'SocioSession' });
         
         //private:
         this.#ws = ws_client;
         this.#ws['socio_client_id'] = client_id; //set the client id (uuid) in the actual WebSocket class, so that the client doesnt have to send his ID, but instead the server tracks all the sockets and this way will have its ID. Preventing impersonation.
         this.#ws['socio_client_ipAddr'] = client_ipAddr;
-        this.#perms = default_perms;
+        if(default_perms) this.#perms = default_perms;
 
         //public:
         this.verbose = verbose;
+        if (session_timeout_ttl_ms) this.ttl_ms = session_timeout_ttl_ms;
 
         this.last_seen_now();
     }
@@ -90,13 +92,15 @@ export class SocioSession extends LogHandler {
 
     last_seen_now(){this.last_seen = (new Date()).getTime()}
 
+    // Closes the underlying socket
+    CloseConnection() {
+        if (this.#ws?.close) this.#ws.close();
+        if (this.#ws?.terminate) this.#ws.terminate();
+    }
     //marks the session to be destroyed after some time to live
     Destroy(remove_session_callback:Function, ttl_ms:number, force:boolean = false){
         if (force) {//destroyed immediately
-            if (this.#ws?.close)
-                this.#ws.close();
-            if (this.#ws?.terminate)
-                this.#ws.terminate();
+            this.CloseConnection();
             remove_session_callback();
         } 
         else this.#destroyed = setTimeout(remove_session_callback, ttl_ms);

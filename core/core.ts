@@ -23,7 +23,8 @@ import type { RateLimit } from './ratelimit.js';
 export type MessageDataObj = { id?: id, sql?: string, params?: object | null | Array<any>, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue, data?:any, rate_limit?:RateLimit, files?:SocioFiles };
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
 export type QueryFunction = (client:SocioSession, id:id, sql:string, params?:object|null) => Promise<object>;
-type SocioServerOptions = { DB_query_function?: QueryFunction, socio_security?: SocioSecurity | null, verbose?: boolean, decrypt_sql?: boolean, decrypt_prop?: boolean, hard_crash?: boolean, session_delete_delay_ms?: number, recon_ttl_ms?:number }
+type SessionsDefaults = { timeouts: boolean, timeouts_check_interval_ms?: number, ttl_ms?: number, session_delete_delay_ms?: number, recon_ttl_ms?: number };
+type SocioServerOptions = { DB_query_function?: QueryFunction, socio_security?: SocioSecurity | null, verbose?: boolean, decrypt_sql?: boolean, decrypt_prop?: boolean, hard_crash?: boolean, session_defaults?: SessionsDefaults }
 type AdminMessageDataObj = {function:string, args?:any[], secure_key:string};
 
 export class SocioServer extends LogHandler {
@@ -53,10 +54,9 @@ export class SocioServer extends LogHandler {
 
     //public:
     Query: QueryFunction; //you can change this at any time
-    session_delete_delay_ms:number;
-    recon_ttl_ms:number;
+    session_defaults: SessionsDefaults = { timeouts: false, timeouts_check_interval_ms: 1000 * 60, ttl_ms:0, session_delete_delay_ms: 1000 * 5, recon_ttl_ms: 1000 * 60 * 60 };
 
-    constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, decrypt_sql = true, decrypt_prop = false, verbose = false, hard_crash = false, session_delete_delay_ms = 1000 * 5, recon_ttl_ms=1000*60*60 }: SocioServerOptions){
+    constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, decrypt_sql = true, decrypt_prop = false, verbose = false, hard_crash = false, session_defaults }: SocioServerOptions){
         super({ verbose, hard_crash, prefix:'SocioServer'});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
         //hard_crash will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
@@ -68,13 +68,16 @@ export class SocioServer extends LogHandler {
 
         //public:
         //@ts-expect-error
-        this.Query = DB_query_function || (() => {})
-        this.session_delete_delay_ms = session_delete_delay_ms;
-        this.recon_ttl_ms = recon_ttl_ms;
+        this.Query = DB_query_function || (() => {});
+        this.session_defaults = Object.assign(this.session_defaults, session_defaults);
 
         this.#wss.on('connection', this.#Connect.bind(this)); //https://thenewstack.io/mastering-javascript-callbacks-bind-apply-call/ have to bind 'this' to the function, otherwise it will use the .on()'s 'this', so that this.[prop] are not undefined
         this.#wss.on('close', (...stuff) => { this.HandleInfo('WebSocketServer close event', ...stuff) });
         this.#wss.on('error', (...stuff) => { this.HandleError(new E('WebSocketServer error event', ...stuff))});
+
+        //set up interval timer to check if sessions are timed out.
+        if (this.session_defaults.timeouts)
+            setInterval(this.#CheckSessionsTimeouts.bind(this), this.session_defaults.timeouts_check_interval_ms);
 
         const addr: AddressInfo = this.#wss.address() as AddressInfo;
         this.done(`Created SocioServer on `, addr);
@@ -94,7 +97,7 @@ export class SocioServer extends LogHandler {
             const client_ip = 'x-forwarded-for' in request?.headers ? request.headers['x-forwarded-for'].split(',')[0].trim() : request.socket.remoteAddress;
 
             //create the socio session class and save down the client id ref for convenience later
-            const client = new SocioSession(client_id, conn, client_ip, { verbose: this.verbose });
+            const client = new SocioSession(client_id, conn, client_ip, { verbose: this.verbose, session_timeout_ttl_ms: this.session_defaults.timeouts ? this.session_defaults.ttl_ms : Infinity });
             this.#sessions.set(client_id, client);
 
             //pass the object to the connection hook, if it exists. It cant take over
@@ -117,19 +120,13 @@ export class SocioServer extends LogHandler {
                     await this.#lifecycle_hooks.discon(client);
 
                 client.Destroy(() => {
-                    //for each prop itereate its update obj and delete the keys with this client_id
-                    for (const p of this.#props.values()){
-                        for (const c_id of p.updates.keys()){
-                            if (c_id == client_id)
-                                p.updates.delete(c_id);
-                        }
-                    }
+                    this.#ClearClientSessionSubs(client_id);
                     //Update() only works on session objects, and if we delete this one, then its query subscriptions should also be gone.
 
                     //delete the connection object and the subscriptions of this client
                     this.#sessions.delete(client_id);
-                    this.HandleInfo('Session Destroyed', client_id);
-                }, this.session_delete_delay_ms);
+                    this.HandleInfo('Session destroyed on disconnect.', client_id);
+                }, this.session_defaults.session_delete_delay_ms as number);
 
                 this.HandleInfo('DISCON', client_id);
             });
@@ -391,7 +388,7 @@ export class SocioServer extends LogHandler {
                             client.Send('RECON', { id: data.id, result: 'IP address changed between reconnect', status: 0 });
                             return;
                         }
-                        else if ((new Date()).getTime() - parseInt(time_stamp) > this.recon_ttl_ms){
+                        else if ((new Date()).getTime() - parseInt(time_stamp) > (this.session_defaults.recon_ttl_ms as number)){
                             client.Send('RECON', { id: data.id, result: 'Token has expired', status: 0 });
                             return;
                         }
@@ -411,8 +408,9 @@ export class SocioServer extends LogHandler {
 
                         //delete old session for good
                         old_client.Destroy(() => {
+                            this.#ClearClientSessionSubs(old_c_id);
                             this.#sessions.delete(old_c_id);
-                        }, this.session_delete_delay_ms);
+                        }, this.session_defaults.session_delete_delay_ms as number);
 
                         //notify the client 
                         client.Send('RECON', { id: data.id, result: { old_client_id: old_c_id, auth: client.authenticated }, status: 1 });
@@ -603,5 +601,16 @@ export class SocioServer extends LogHandler {
     #ClearClientSessionSubs(client_id:string){
         this.#sessions.get(client_id)?.ClearHooks(); //clear query subs
         for (const prop of this.#props.values()) { prop.updates.delete(client_id); }; //clear prop subs
+    }
+
+    #CheckSessionsTimeouts(){
+        const now = (new Date()).getTime();
+        for (const client of this.#sessions.values()){
+            if (now >= client.last_seen + client.ttl_ms){
+                client.Send('TIMEOUT', {});
+                client.CloseConnection();
+                this.HandleInfo('Session timed out.', client.id);
+            }
+        }
     }
 }
