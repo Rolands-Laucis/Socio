@@ -22,7 +22,7 @@ In the future i may support more of the NoSQL ecosystem.
 
 ## Example code snippets
 
-Interesting note: The snippets marked for browser use cannot be run on Node.js, however, can be run on the Deno JS backend runtime. Though, im not sure if the rest of the socio lib is Deno friendly.
+Interesting note: The snippets marked for browser use cannot be run on Node.js, however, can be run on the Deno JS backend runtime. Though, im not sure if the rest of the socio lib is Deno friendly. The "ws" lib Socio uses for the backend might not be compatible with Deno.
 
 ### Setup of ``SocioServer``
 
@@ -231,6 +231,20 @@ const config = {
 export default config;
 ```
 The ``SocioSecurityPlugin`` also takes in an extra options object parameter that the base class doesnt. ``include_file_types`` = ``['js', 'svelte', 'vue', 'jsx', 'ts', 'tsx']`` (default) ; ``exclude_file_types`` = [] (default) ; ``exclude_svelte_server_files`` = true (default)
+
+### Server and Client Hook definitions
+The types.d.ts file contains type definitions for all the server-side and client-side hook functions, so that you know what args they pass to your callback.
+You can import and use them as such:
+```ts
+//server hook functions:
+import type { Admin_Hook } from 'socio/types';
+const handle: Admin_Hook = (client, data) => {...};
+socserv.RegisterLifecycleHookHandler('admin', handle);
+
+//client hook function signatures:
+import type { Cmd_ClientHook, Msg_ClientHook, Discon_ClientHook, Timeout_ClientHook } from 'socio/types';
+```
+Perhaps you know of a better way to use them, but i am not as familiar with TS.
 
 ### Server Props
 
