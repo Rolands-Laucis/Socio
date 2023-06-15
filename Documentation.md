@@ -86,6 +86,22 @@ import { perMessageDeflate } from 'socio/utils';
 const socserv = new SocioServer({ port: 3000, perMessageDeflate }, {...} );
 ```
 
+#### Session Timeouts (session max age since last seen active)
+```ts
+//simply declare a server config object with options.
+const socserv = new SocioServer({ ... }, { 
+  ..., 
+  session_defaults:{
+      timeouts:true, //if true, will set up a timer interval to check all sessions to be timed out. Default false.
+      timeouts_check_interval_ms:1000 * 2, //^ timer check interval. E.g. every 2 minutes.
+      ttl_ms:1000*60*60*2, //default to apply for all sessions. This same property on each SocioSession is public and can be changed at any time. E.g. 2h of inactivity will get timed out
+      session_delete_delay_ms:1000, //delay grace period to wait since marked for deletion. This gives time for the client to attempt a reconn or whatever.
+      recon_ttl_ms: 1000 * 60 * 60 //reconn token expiration time. E.g. 1h since issued.
+    }
+  });
+```
+If you want to have a fixed time period timeout since connection, you can do that yourself with server hooks or other ways. Set up a client_id and connection timestamp. And loop through checks on sessions in your own timer. Calling SocioSession.CloseConnection() will terminate the WS conn and clean up all associated SocioServer data structures.
+
 ### Setup of ``SocioClient``
 
 When using SocioSecurity, but advised to always do this, the "socio" [JS Template Literal Tag](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals#tagged_templates) must be used, though it doesnt do much. It is just used to conveniently tag and later find socio strings within source code with regex during the encryption procedure.
@@ -215,22 +231,6 @@ const config = {
 export default config;
 ```
 The ``SocioSecurityPlugin`` also takes in an extra options object parameter that the base class doesnt. ``include_file_types`` = ``['js', 'svelte', 'vue', 'jsx', 'ts', 'tsx']`` (default) ; ``exclude_file_types`` = [] (default) ; ``exclude_svelte_server_files`` = true (default)
-
-### Session Timeouts (session max age since last seen active)
-```ts
-//simply declare a server config object with options.
-const socserv = new SocioServer({ ... }, { 
-  ..., 
-  session_defaults:{
-      timeouts:true, //if true, will set up a timer interval to check all sessions to be timed out. Default false.
-      timeouts_check_interval_ms:1000 * 2, //^ timer check interval. E.g. every 2 minutes.
-      ttl_ms:1000*60*60*2, //default to apply for all sessions. This same property on each SocioSession is public and can be changed at any time. E.g. 2h of inactivity will get timed out
-      session_delete_delay_ms:1000, //delay grace period to wait since marked for deletion. This gives time for the client to attempt a reconn or whatever.
-      recon_ttl_ms: 1000 * 60 * 60 //reconn token expiration time. E.g. 1h since issued.
-    }
-  });
-```
-If you want to have a fixed time period timeout since connection, you can do that yourself with server hooks or other ways. Set up a client_id and connection timestamp. And loop through checks on sessions in your own timer. Calling SocioSession.CloseConnection() will terminate the WS conn and clean up all associated SocioServer data structures.
 
 ### Server Props
 
