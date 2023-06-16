@@ -2,6 +2,7 @@
 
 import { LogHandler, E, err, log, info, done } from './logging.js';
 import * as b64 from 'base64-js';
+import * as diff_lib from 'recursive-diff'; //https://www.npmjs.com/package/recursive-diff
 
 //types
 import type { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind, Bit } from './types.js';
@@ -9,7 +10,7 @@ import type { Cmd_ClientHook, Msg_ClientHook, Discon_ClientHook, Timeout_ClientH
 import type { RateLimit } from './ratelimit.js';
 import type { SocioFiles } from './types.js';
 import { MapReplacer, MapReviver, clamp } from './utils.js';
-export type ClientMessageDataObj = { id: id, verb?: string, table?: string, status?:string|number, result?:string|object|boolean|PropValue|number, prop?:PropKey, prop_val?:PropValue, data?:any, files?:SocioFiles };
+export type ClientMessageDataObj = { id: id, verb?: string, table?: string, status?: string | number, result?: string | object | boolean | PropValue | number, prop?: PropKey, prop_val?: PropValue, prop_val_diff:diff_lib.rdiffResult[], data?:any, files?:SocioFiles };
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
 type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?: Function};
 type QueryObject = { sql: string, params?: object | null, onUpdate: SubscribeCallbackObject }
@@ -143,11 +144,12 @@ export class SocioClient extends LogHandler {
                     this.#HandleBasicPromiseMessage(kind, data)
                     break;
                 case 'PROP_UPD':
-                    if (data?.prop && data.hasOwnProperty('id') && data.hasOwnProperty('prop_val')){
+                    if (data?.prop && data.hasOwnProperty('id') && (data.hasOwnProperty('prop_val') || data.hasOwnProperty('prop_val_diff'))){
                         const prop = this.#props.get(data.prop as string);
                         if (prop && prop[data.id as id] && typeof prop[data.id as id] === 'function'){
+                            const prop_val = data.hasOwnProperty('prop_val') ? data.prop_val : diff_lib.applyDiff(prop.val, data.prop_val_diff);
                             //@ts-expect-error
-                            prop[data.id as id](data.prop_val as PropValue);
+                            prop[data.id as id](prop_val as PropValue);
                         }//@ts-expect-error 
                         else throw new E('Prop UPD called, but subscribed prop does not have a callback.', { data, callback: prop[data.id as id]});
                         if (this.#queries.has(data.id))

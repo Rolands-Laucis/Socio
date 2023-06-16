@@ -3,6 +3,7 @@
 
 //libs
 import { WebSocketServer } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
+import * as diff_lib from 'recursive-diff'; //https://www.npmjs.com/package/recursive-diff
 
 //mine
 import { QueryIsSelect, ParseQueryTables, SocioStringParse, ParseQueryVerb, sleep, GetAllMethodNamesOf, MapReviver } from './utils.js';
@@ -24,7 +25,7 @@ export type MessageDataObj = { id?: id, sql?: string, params?: object | null | A
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
 export type QueryFunction = (client:SocioSession, id:id, sql:string, params?:object|null) => Promise<object>;
 type SessionsDefaults = { timeouts: boolean, timeouts_check_interval_ms?: number, ttl_ms?: number, session_delete_delay_ms?: number, recon_ttl_ms?: number };
-type SocioServerOptions = { DB_query_function?: QueryFunction, socio_security?: SocioSecurity | null, verbose?: boolean, decrypt_sql?: boolean, decrypt_prop?: boolean, hard_crash?: boolean, session_defaults?: SessionsDefaults }
+type SocioServerOptions = { DB_query_function?: QueryFunction, socio_security?: SocioSecurity | null, verbose?: boolean, decrypt_sql?: boolean, decrypt_prop?: boolean, hard_crash?: boolean, session_defaults?: SessionsDefaults, prop_upd_diff?:boolean }
 type AdminMessageDataObj = {function:string, args?:any[], secure_key:string};
 
 export class SocioServer extends LogHandler {
@@ -52,11 +53,13 @@ export class SocioServer extends LogHandler {
     //stores active reconnection tokens
     #tokens: Set<string> = new Set();
 
+    #prop_upd_diff = false;
+
     //public:
     Query: QueryFunction; //you can change this at any time
     session_defaults: SessionsDefaults = { timeouts: false, timeouts_check_interval_ms: 1000 * 60, ttl_ms:Infinity, session_delete_delay_ms: 1000 * 5, recon_ttl_ms: 1000 * 60 * 60 };
 
-    constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, decrypt_sql = true, decrypt_prop = false, verbose = false, hard_crash = false, session_defaults }: SocioServerOptions){
+    constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, decrypt_sql = true, decrypt_prop = false, verbose = false, hard_crash = false, session_defaults, prop_upd_diff=false }: SocioServerOptions){
         super({ verbose, hard_crash, prefix:'SocioServer'});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
         //hard_crash will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
@@ -64,7 +67,8 @@ export class SocioServer extends LogHandler {
 
         //private:
         this.#wss = new WebSocketServer({ ...opts, clientTracking: true }); //take a look at the WebSocketServer docs - the opts can have a server param, that can be your http server
-        this.#secure = { socio_security, decrypt_sql, decrypt_prop}
+        this.#secure = { socio_security, decrypt_sql, decrypt_prop};
+        this.#prop_upd_diff = prop_upd_diff;
 
         //public:
         //@ts-expect-error
@@ -552,14 +556,26 @@ export class SocioServer extends LogHandler {
     UpdatePropVal(key: PropKey, new_val: PropValue, client_id: id | null):void{//this will propogate the change, if it is assigned, to all subscriptions
         const prop = this.#props.get(key);
         if (!prop) throw new E(`Prop key [${key}] not registered! [#prop-update-not-found]`);
+        
+        const old_prop_val = prop.val; //bcs the assigner somehow changes this property. Weird. 
+        //Dont think JS allows such ref pointers to work. But this then keeps the correct val. 
+        //This idea works bcs the mutator of the data should be the first to run this and all other session will get informed here with that sessions diff.
 
         if (prop?.assigner(key, new_val)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
             for (const [client_id, args] of prop.updates.entries()) {
                 if (args?.rate_limiter && args.rate_limiter?.CheckLimit()) return; //ratelimit check
 
                 //do the thing
-                if (this.#sessions.has(client_id))
-                    this.#sessions.get(client_id)?.Send('PROP_UPD', { id: args.id, prop_val: this.GetPropVal(key) }); //should be GetPropVal, bcs i cant know how the assigner changed the val
+                if (this.#sessions.has(client_id)){
+                    //construct either concrete value or diff of it.
+                    const upd_data = { id: args.id, prop:key };
+                    if(this.#prop_upd_diff)
+                        upd_data['prop_val_diff'] = diff_lib.getDiff(old_prop_val, this.GetPropVal(key));
+                    else
+                        upd_data['prop_val'] = this.GetPropVal(key); //should be GetPropVal, bcs i cant know how the assigner changed the val
+
+                    this.#sessions.get(client_id)?.Send('PROP_UPD', upd_data);
+                }
                 else {//the client_id doesnt exist anymore for some reason, so unsubscribe
                     prop.updates.delete(client_id);
                     this.#sessions.delete(client_id);
