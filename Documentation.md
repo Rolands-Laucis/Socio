@@ -267,6 +267,17 @@ socserv.RegisterProp('color', '#ffffff', (curr_val:PropValue, new_val:PropValue)
 
 Though usable for realtime web chat applications, i advise against that, because props data traffic is not yet optimized. It sends the entire prop data structure both ways. Instead you should use the SendToClients() function and store the chat messages yourself. A built in solution for this is in the works.
 
+To be more network efficient, Socio can be set to use the [recursive-diff](https://www.npmjs.com/package/recursive-diff) lib for props. This is a good idea when your prop is a generic, large or deeply nested JS object and only small parts of its structure get updated. Only differeneces in this object will be sent through the network on PROP_UPD msgs. Keep in mind, that if one of these msgs gets lost for a client, then its frontend prop will go out of sync unnoticeably and irreparably. The setup is a flag on the SocioServer constructor options:
+
+```ts
+//server code
+import { SocioServer } from 'socio/dist/core.js'
+import type { PropValue } from 'socio/dist/types';
+const socserv = new SocioServer({...}, {..., prop_upd_diff:true}); //will make all PROP_UPD msgs send differences in the complex object, rather than the whole object. NOTE that an initial subscription to a prop will send back a PROP_UPD msg, but it is not affected by this, and will always be the full value of the prop at that time.
+
+socserv.RegisterProp(...)
+```
+
 ### Generic communication
 
 To ensure extendability, i have created a simple generic communication mechanism. Clients can send any generic serializable object to the server, where Socio will just pass it to a special hook and not do anything else with it. It is then the servers responsibility to answer to the client.
