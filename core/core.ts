@@ -559,7 +559,7 @@ export class SocioServer extends LogHandler {
 
                 //do the thing
                 if (this.#sessions.has(client_id))
-                    this.#sessions.get(client_id)?.Send('PROP_UPD', { id: args.id, prop: key, prop_val: this.GetPropVal(key) }); //should be GetPropVal, bcs i cant know how the assigner changed the val
+                    this.#sessions.get(client_id)?.Send('PROP_UPD', { id: args.id, prop_val: this.GetPropVal(key) }); //should be GetPropVal, bcs i cant know how the assigner changed the val
                 else {//the client_id doesnt exist anymore for some reason, so unsubscribe
                     prop.updates.delete(client_id);
                     this.#sessions.delete(client_id);
