@@ -7,7 +7,7 @@
   "module": "core.ts",
   "scripts": {
     "build": "tsc",
-    "pub": "npm run build && npm publish",
+    "pub": "npm run build && ./copy.ps1 && npm publish",
     "watch": "tsc --watch",
     "admin": "node admin2.js",
     "test": "tsc && node tests"

@@ -1,7 +1,8 @@
-import type { SocioSession } from "./core-session.ts";
+import type { SocioSession } from "./core-session.js";
 import type { MessageDataObj } from "./core.ts";
 import type { ClientMessageDataObj } from './core-client.js';
 import type { IncomingMessage } from 'http';
+import type { E } from "./logging.js";
 
 //general types
 export type id = string | number;
@@ -35,7 +36,7 @@ export type Auth_Hook = (client: SocioSession, params: object | null) => boolean
 export type GrantPerm_Hook = (client: SocioSession, data:MessageDataObj) => boolean;
 export type Serv_Hook = (client: SocioSession, data: MessageDataObj) => void;
 export type Admin_Hook = (client: SocioSession, data: MessageDataObj) => boolean;
-export type FileUpload_Hook = (client: SocioSession, files?: SocioFiles, data:any) => Bit | boolean;
+export type FileUpload_Hook = (client: SocioSession, files?: SocioFiles, data?:any) => Bit | boolean;
 export type FileDownload_Hook = (client: SocioSession, data: any) => FS_Util_Response;
 export type Upd_Hook = (sessions: Map<ClientID, SocioSession>, tables: string[]) => boolean;
 // export type _Hook = (client: SocioSession) => boolean;
