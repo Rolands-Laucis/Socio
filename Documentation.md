@@ -16,7 +16,7 @@ The ``./core/secure.ts`` file contains logic to be run on a backend server. It e
 ### SQL and NoSQL
 Currently the lib has been developed with a main focus on SQL queries being written on the frontend. This matters, bcs i parse the sent strings with the assumption that they are valid SQL syntax. However, the lib now also supports a NoSQL paradigm in the form of what i call "Server Props".
 
-"Server props" are a way for the backend to set up a (serializable) JS object, that can be subscribed to and manipulated by clients. Esentially creating an automagically synced value across the backend and all clients. Ofc you may alter the prop on the backend as well at any time. The safety of its data is ensured by you. When registering a new prop to SocioServer, you can supply an "assigner" function, within which it is your responsibility to validate the incoming new value and set it by whatever logic and report back to SocioServer, that the operation was successful or not. If, for example, you hold a prop "color" that is a hex color string, you would have to validate that the new value your assigner receives is a string, starts with #, is 7 char long etc., then set it as the current value. Otherwise a default assigner is used for all props that just sets the value to whatever the new one is without checks (unsafe af tbh).
+"Server props" are a way for the backend to set up a (serializable) JS object, that can be subscribed to and manipulated by clients. Esentially creating an automagically synced value across the backend and all clients. Ofc you may alter the prop on the backend as well at any time. The safety of its data is ensured by you. When registering a new prop to SocioServer, you can supply an "assigner" function, within which it is your responsibility to validate the incoming new value and set it by whatever logic and report back to SocioServer, that the operation was successful or not. See ()[#Server-props] for more details.
 
 In the future i may support more of the NoSQL ecosystem.
 
@@ -254,7 +254,10 @@ import { SocioServer } from 'socio/dist/core.js'
 import type { PropValue } from 'socio/dist/types';
 const socserv = new SocioServer(...)
 
-//set up a key "color" to hold an initial value of "#ffffff" and add an optional assigner function instead of the unsafe default.
+//set up a key "color" to hold an initial value of "#ffffff" 
+//and add an optional assigner function instead of the unsafe default. The assigner does 2 things - validate the new_val and set the prop to that new_val.
+//return truthy to report back to the prop upd function, that this is an accepted, valid action and the new prop val has been set.
+//a default assigner is used for all props that just sets the value to whatever the new one is without checks (unsafe af tbh).
 socserv.RegisterProp('color', '#ffffff', (curr_val:PropValue, new_val:PropValue):boolean => {
   if(typeof new_val != 'string' || new_val.length != 7) return false;
   if (!new_val.match(/^#[0-9a-f]{6}/mi)) return false;
@@ -265,17 +268,39 @@ socserv.RegisterProp('color', '#ffffff', (curr_val:PropValue, new_val:PropValue)
 })
 ```
 
-Though usable for realtime web chat applications, i advise against that, because props data traffic is not yet optimized. It sends the entire prop data structure both ways. Instead you should use the SendToClients() function and store the chat messages yourself. A built in solution for this is in the works.
+Then in the browser any client can subscribe to it:
+```ts
+//browser code
+const sc = new SocioClient(...);
+await sc.ready();
+let col = '';
+col = sc.GetProp('color'); //one-shot request the prop value from the server.
+const res = sc.SetProp('color', '#fff'); //request the server to set a prop to a val. Res contains info about the success of this action, since the server can deny it.
+
+sc.SubscribeProp('color', color => col = color); //will call this callback function on realtime updates made to the prop either by other clients or the server.
+//afterwards this prop will also be stored locally on the client, so you can also fetch its value without calling the server:
+col = sc.GetProp('color', true); //last arg local=true
+```
+
+Though usable for realtime web chat applications, i advise against that. There is a socio/chat.ts file that handles such a usecase in a more generic and extendable way.
 
 To be more network efficient, Socio can be set to use the [recursive-diff](https://www.npmjs.com/package/recursive-diff) lib for props. This is a good idea when your prop is a generic, large or deeply nested JS object and only small parts of its structure get updated. Only differeneces in this object will be sent through the network on PROP_UPD msgs. Keep in mind, that if one of these msgs gets lost for a client, then its frontend prop will go out of sync unnoticeably and irreparably. The setup is a flag on the SocioServer constructor options:
 
 ```ts
 //server code
-import { SocioServer } from 'socio/dist/core.js'
-import type { PropValue } from 'socio/dist/types';
 const socserv = new SocioServer({...}, {..., prop_upd_diff:true}); //will make all PROP_UPD msgs send differences in the complex object, rather than the whole object. NOTE that an initial subscription to a prop will send back a PROP_UPD msg, but it is not affected by this, and will always be the full value of the prop at that time.
+socserv.RegisterProp(...);
 
-socserv.RegisterProp(...)
+//this global flag can be overwritten per UpdatePropVal call, to force either full or diff val to be sent:
+socserv.UpdatePropVal(..., true); //last arg send_as_diff overwrites prop_upd_diff for this send to all subs.
+```
+
+For more security/paranoia, props can be registered such that clients are not allowed to write, just read props.
+```ts
+//server code
+socserv.RegisterProp('color', '#ffffff', (curr_val:PropValue, new_val:PropValue):boolean => {
+  return socserv.SetPropVal('color', new_val);
+}, false); //last arg client_writable=false
 ```
 
 ### Generic communication
