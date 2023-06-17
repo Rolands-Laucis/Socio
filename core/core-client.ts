@@ -15,9 +15,10 @@ type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
 type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?: Function};
 type QueryObject = { sql: string, params?: object | null, onUpdate: SubscribeCallbackObject }
 type QueryPromise = { res: Function, prom:Promise<any> | null, start_buff: number, payload_size?:number };
-type ProgressOnUpdate = (percentage: number) => void;
+export type ProgressOnUpdate = (percentage: number) => void;
 
 type PropUpdateCallback = ((new_val: PropValue) => void) | null;
+export type ClientProp = { val: PropValue | undefined, subs: { [id: id]: PropUpdateCallback } };
 export type SocioClientOptions = { name?: string, verbose?: boolean, keep_alive?: boolean, reconnect_tries?: number, persistent?:boolean, hard_crash?:boolean };
 
 //"Because he not only wants to perform well, he wants to be well received  —  and the latter lies outside his control." /Epictetus/
@@ -30,7 +31,7 @@ export class SocioClient extends LogHandler {
     #authenticated=false;
 
     #queries: Map<id, QueryObject | QueryPromise> = new Map(); //keeps a dict of all subscribed queries
-    #props: Map<PropKey, { [id: id]: PropUpdateCallback }> = new Map();
+    #props: Map<PropKey, ClientProp> = new Map();
 
     static #key = 1; //all instances will share this number, such that they are always kept unique. Tho each of these clients would make a different session on the backend, but still
 
@@ -146,12 +147,13 @@ export class SocioClient extends LogHandler {
                 case 'PROP_UPD':
                     if (data?.prop && data.hasOwnProperty('id') && (data.hasOwnProperty('prop_val') || data.hasOwnProperty('prop_val_diff'))){
                         const prop = this.#props.get(data.prop as string);
-                        if (prop && prop[data.id as id] && typeof prop[data.id as id] === 'function'){
+                        if (prop && prop.subs.hasOwnProperty(data.id as id) && typeof prop.subs[data.id as id] === 'function'){
                             const prop_val = data.hasOwnProperty('prop_val') ? data.prop_val : diff_lib.applyDiff(prop.val, data.prop_val_diff);
                             //@ts-expect-error
-                            prop[data.id as id](prop_val as PropValue);
+                            prop.subs[data.id as id](prop_val as PropValue);
+                            prop.val = prop_val; //set the new val
                         }//@ts-expect-error 
-                        else throw new E('Prop UPD called, but subscribed prop does not have a callback.', { data, callback: prop[data.id as id]});
+                        else throw new E('Prop UPD called, but subscribed prop does not have a callback.', { data, callback: prop.subs[data.id as id]});
                         if (this.#queries.has(data.id))
                             (this.#queries.get(data.id) as QueryPromise).res(data.prop_val as PropValue); //resolve the promise
                     }else throw new E('Not enough prop info sent from server to perform prop update.', data)
@@ -291,9 +293,9 @@ export class SocioClient extends LogHandler {
             const prop = this.#props.get(prop_name);
 
             if (prop)//add the callback
-                prop[id] = onUpdate;
+                prop.subs[id] = onUpdate;
             else {//init the prop object
-                this.#props.set(prop_name, { [id]: onUpdate });
+                this.#props.set(prop_name, { val: undefined, subs: { [id]: onUpdate } });
                 this.Send('PROP_SUB', { id, prop: prop_name, rate_limit })
             }
         } catch (e: err) { this.HandleError(e); }
@@ -373,12 +375,14 @@ export class SocioClient extends LogHandler {
             return prom;
         } catch (e: err) { this.HandleError(e); return null; }
     }
-    GetProp(prop: PropKey) {
-        const { id, prom } = this.CreateQueryPromise();
-        this.Send('PROP_GET', { id, prop: prop });
-        this.#UpdateQueryPromisePayloadSize(id);
-
-        return prom;
+    GetProp(prop: PropKey, local: boolean = false): PropValue | undefined | Promise<unknown> {
+        if(local) return this.#props.get(prop)?.val;
+        else{
+            const { id, prom } = this.CreateQueryPromise();
+            this.Send('PROP_GET', { id, prop: prop });
+            this.#UpdateQueryPromisePayloadSize(id);
+            return prom;
+        }
     }
     Serv(data: any){
         const { id, prom } = this.CreateQueryPromise();
