@@ -553,7 +553,7 @@ export class SocioServer extends LogHandler {
         return this.#props.get(key)?.val;
     }
     //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value.
-    UpdatePropVal(key: PropKey, new_val: PropValue, client_id: id | null):void{//this will propogate the change, if it is assigned, to all subscriptions
+    UpdatePropVal(key: PropKey, new_val: PropValue, client_id: id | null, send_as_diff = this.#prop_upd_diff):void{//this will propogate the change, if it is assigned, to all subscriptions
         const prop = this.#props.get(key);
         if (!prop) throw new E(`Prop key [${key}] not registered! [#prop-update-not-found]`);
         
@@ -569,7 +569,7 @@ export class SocioServer extends LogHandler {
                 if (this.#sessions.has(client_id)){
                     //construct either concrete value or diff of it.
                     const upd_data = { id: args.id, prop:key };
-                    if(this.#prop_upd_diff)
+                    if (send_as_diff)
                         upd_data['prop_val_diff'] = diff_lib.getDiff(old_prop_val, this.GetPropVal(key));
                     else
                         upd_data['prop_val'] = this.GetPropVal(key); //should be GetPropVal, bcs i cant know how the assigner changed the val
