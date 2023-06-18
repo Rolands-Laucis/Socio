@@ -40,7 +40,7 @@ const QueryWrap = async (client:SocioSession, id:id, sql:string, params: object 
 //https://sequelize.org/docs/v6/core-concepts/raw-queries/#replacements how replacements work
 
 //Instance of SocioServer on port 3000 using the created query function. Verbose will make it print all incoming and outgoing traffic from all sockets. The first object is WSS Options - https://github.com/websockets/ws/blob/master/doc/ws.md#new-websocketserveroptions-callback
-const socserv = new SocioServer({ port: 3000 }, {DB_query_function: QueryWrap as QueryFunction, verbose:true} ); //the clients can now interact with your backend DB!
+const socserv = new SocioServer({ port: 3000 }, {DB_query_function: QueryWrap as QueryFunction, logging: {verbose:true}} ); //the clients can now interact with your backend DB!
 
 //This class has a few public fields that you can alter, as well as useful functions to call later in your program at any time. E.g. set up lifecycle hooks:
 socserv.LifecycleHookNames; //get an array of the hooks currently recognized in Socio.
@@ -113,7 +113,7 @@ import { socio } from 'socio/dist/utils';
 
 //instantiate the Socio Client from lib on the expected websocket port and wait for it to connect
 //NB! use wss secure socket protocol and use the ./core/Secure class to encrypt these queries in PROD!
-const sc = new SocioClient(`ws://localhost:3000`, { verbose: true }) ;//each instance is going to be its own "session" on the server, but you can spawn and destroy these where ever in your code
+const sc = new SocioClient(`ws://localhost:3000`, { logging: {verbose:true} }) ;//each instance is going to be its own "session" on the server, but you can spawn and destroy these where ever in your code
 await sc.ready(); //wait until it has connected as confimed by the server
 
 sc.client_id; //can take a look at its ID, if that interests you idk
@@ -211,8 +211,8 @@ import type { SocioSession } from 'socio/dist/core-session.js'
 import { SocioSecurity } from 'socio/dist/secure';
 
 //vite plugin and this instance must share the same private secret key, so perhaps use .env mechanism
-const socsec = new SocioSecurity({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', verbose: true });
-const socserv = new SocioServer({ port: ws_port }, { DB_query_function: QueryWrap as QueryFunction, verbose: true, socio_security: socsec });
+const socsec = new SocioSecurity({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', logging: {verbose:true} });
+const socserv = new SocioServer({ port: ws_port }, { DB_query_function: QueryWrap as QueryFunction, logging: {verbose:true}, socio_security: socsec });
 //by default ecrypts all strings that end with the socio marker, but decryption can be individually turned off for either sql or prop key strings.
 ```
 
@@ -225,7 +225,7 @@ import { SocioSecurityPlugin } from 'socio/dist/secure';
 
 /** @type {import('vite').UserConfig} */
 const config = {
-	plugins: [SocioSecurityPlugin({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', verbose: true }), viteCommonjs(), sveltekit()],
+	plugins: [SocioSecurityPlugin({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', logging: {verbose:true} }), viteCommonjs(), sveltekit()],
 };
 
 export default config;
@@ -310,7 +310,7 @@ To ensure extendability, i have created a simple generic communication mechanism
 ```ts
 //browser code
 import {SocioClient} from 'socio/dist/core-client.js'
-const sc = new SocioClient(`ws://localhost:3000`, { verbose: true })
+const sc = new SocioClient(`ws://localhost:3000`, { logging: {verbose:true} })
 await sc.ready()
 
 await sc.Serv({some:'data'} || 'string' || ['anthing']) //use the serv() function to serve anything to the backend
@@ -417,7 +417,7 @@ You may also add ratelimits to individual subscriptions on the front-end.
 import {SocioClient} from 'socio/dist/core-client.js';
 import { socio } from 'socio/dist/utils';
 
-const sc = new SocioClient(`ws://localhost:3000`, { verbose: true })
+const sc = new SocioClient(`ws://localhost:3000`, {logging: {verbose:true}})
 await sc.ready()
 
 sc.Subscribe({ sql: socio`SELECT COUNT(*) AS RESULT FROM users;`}, (res) => {
@@ -466,7 +466,7 @@ Since page navigation/reload unloads the entire document from memory and a new d
 //browser code
 import {SocioClient} from 'socio/dist/core-client.js';
 const sc = new SocioClient(`ws://localhost:3000`, { 
-  verbose: true,
+  logging: {verbose:true},
   name: "Main", //Usually doesn't matter, but for persistent = true, this must be identical on the old page socket and new page socket. This is used as a unique key.
   persistent:true //enables a mechanism that upon the new connection to the server, gives the server a special one-time token that gives this connection a previous sessions setup, i.e. auth and perms
 });
@@ -510,3 +510,20 @@ async function UploadFiles(e:any){
 ```svelte
 <progress value={$prog} max="100"></progress>
 ```
+
+### Logging
+Socio has its own ``LogHandler`` class in ``logging.ts``, which you can configure in its constructor, its public properties at runtime, or the ``logging:{}`` parameter of higher order class constructors. It also has static methods with defaults for its various logging level functions, so that you dont have to instantiate the class. This file also contains stand-alone function exports, that are shorthands for calling those static methods, for your convenience. Here are some of its config options:
+```ts
+const x = new SocioClass({..., 
+  logging:{
+    info_handler = LogHandler.log, //this can be your custom function that logs to a file or whatever
+    error_handler = LogHandler.soft_error, //same as ^ but for errors, when they are thrown or called.
+    verbose = false, //overall stopper of all msgs from printing
+    hard_crash = false, //should thrown errors throw futher (bubble) after the error msg is written? Usually causes the entire process to crash.
+    prefix ='', //msgs of this class will have a prefix, e.g. [SocioServer], to know which class instance created the msg. Higher order classes have their logical defaults.
+    use_color = true //the msg prefix will get a background color representing its severity level. Some terminals dont understand these special bytes. Chrome dev tools and VS Code powershell both work fine. You also prop dont want these in your log files. NOTE, this option is a static class property, so it can be set at any time from anywhere! All instances share this prop.
+  }
+});
+```
+
+On Unix systems simply the output of the terminal can be piped to a log file for persistance. E.g. ``node run > ./log.log``. Otherwise you can get creative ;)

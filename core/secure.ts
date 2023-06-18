@@ -5,12 +5,12 @@
 import MagicString from 'magic-string'; //https://github.com/Rich-Harris/magic-string
 import { randomUUID, createCipheriv, createDecipheriv, getCiphers, randomBytes, createHash } from 'crypto'; //https://nodejs.org/api/crypto.html
 import { socio_string_regex } from './utils.js';
-import { LogHandler, E, log, info, done } from './logging.js';
+import { LogHandler, LogHandlerOptions, E, log, info, done } from './logging.js';
 import { extname } from 'path';
 
 //types
 import type { CipherGCMTypes } from 'crypto';
-export type SocioSecurityOptions = { secure_private_key: Buffer | string, rand_int_gen?: ((min: number, max: number) => number), verbose?: boolean };
+export type SocioSecurityOptions = { secure_private_key: Buffer | string, rand_int_gen?: ((min: number, max: number) => number), logging?: LogHandlerOptions };
 export type SocioSecurityPluginOptions = { include_file_types?: string[], exclude_file_types?: string[], exclude_svelte_server_files?: boolean, exclude_regex?:RegExp };
 
 //it was recommended on a forum to use 256 bits, even though 128 is still perfectly safe
@@ -59,8 +59,9 @@ export class SocioSecurity extends LogHandler {
     //https://www.youtube.com/watch?v=O4xNJsjtN6E&ab_channel=Computerphile
     //And a brief discussion on Cryptography Stack Exchange.
     //let me know if i am dumb.
-    constructor({ secure_private_key = '', rand_int_gen = undefined, verbose = false }: SocioSecurityOptions){
-        super({ verbose, prefix: 'SocioSecurity' });
+    constructor({ secure_private_key = '', rand_int_gen = undefined, logging = { verbose: false, hard_crash: false } }: SocioSecurityOptions){
+        //@ts-expect-error
+        super({ ...logging, prefix: 'SocioSecurity' });
         
         if (!secure_private_key) throw new E(`Missing secure_private_key constructor argument!`);
         if (typeof secure_private_key == 'string') secure_private_key = StringToByteBuffer(secure_private_key); //cast to buffer, if string was passed
@@ -70,7 +71,7 @@ export class SocioSecurity extends LogHandler {
 
         this.#key = createHash('sha256').update(secure_private_key).digest().subarray(0, cipher_algorithm_bytes); //hash the key just to make sure to complicate the input key, if it is weak
 
-        this.verbose = verbose;
+        this.verbose = logging.verbose || false;
         this.#rand_int_gen = rand_int_gen;
         if (this.verbose) this.done('Initialized SocioSecurity object succesfully!');
     }

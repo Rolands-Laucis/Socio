@@ -1,6 +1,6 @@
 //Homo vitae commodatus non donatus est. - Man's life is lent, not given. /Syrus/
 
-import { LogHandler, E, log, info, done } from './logging.js'
+import { LogHandler, LogHandlerOptions, E, log, info, done } from './logging.js'
 import { RateLimiter } from './ratelimit.js'
 
 //types
@@ -15,7 +15,7 @@ type HookObj = {
     params: object | null,
     rate_limiter: RateLimiter | null
 }
-export type SocioSessionOptions = { verbose?: boolean, default_perms?: Map<string, string[]>, session_timeout_ttl_ms?:number };
+export type SocioSessionOptions = { logging?: LogHandlerOptions, default_perms?: Map<string, string[]>, session_timeout_ttl_ms?:number };
 
 export class SocioSession extends LogHandler {
     //private:
@@ -30,8 +30,9 @@ export class SocioSession extends LogHandler {
     last_seen: number = 0; //ms since epoch when this session was last active
     ttl_ms: number = Infinity; //ms since epoch showing how long the session is allowed to live.
 
-    constructor(client_id: string, ws_client: WebSocket, client_ipAddr: string, { verbose = false, default_perms, session_timeout_ttl_ms }: SocioSessionOptions  = {}) {
-        super({ verbose, prefix: 'SocioSession' });
+    constructor(client_id: string, ws_client: WebSocket, client_ipAddr: string, { logging = { verbose: false, hard_crash: false }, default_perms, session_timeout_ttl_ms }: SocioSessionOptions  = {}) {
+        // @ts-expect-error
+        super({ ...logging, prefix: 'SocioSession' });
         
         //private:
         this.#ws = ws_client;
@@ -40,7 +41,7 @@ export class SocioSession extends LogHandler {
         if(default_perms) this.#perms = default_perms;
 
         //public:
-        this.verbose = verbose;
+        this.verbose = logging.verbose || false;
         if (session_timeout_ttl_ms) this.ttl_ms = session_timeout_ttl_ms;
 
         this.last_seen_now();

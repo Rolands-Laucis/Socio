@@ -32,7 +32,9 @@ export const colors = {
     BgWhite: "\x1b[47m"
 }
 
+//types
 export type err = E | string | any;
+export type LogHandlerOptions = { info_handler?: Function, error_handler?: Function | null, verbose?: boolean, hard_crash?: boolean, prefix?:string, use_color?: boolean};
 
 //for my own error throwing, bcs i want to throw a msg + some objects maybe to log the current state of the program
 export class E extends Error {
@@ -53,13 +55,15 @@ export class LogHandler {
     hard_crash:boolean;
     verbose: boolean;
     use_prefix:string;
+    static use_color:boolean = true;
 
-    constructor({ info_handler = LogHandler.log, error_handler = null, verbose = false, hard_crash = false, prefix =''} = {}){
+    constructor({ info_handler = LogHandler.log, error_handler = null, verbose = false, hard_crash = false, prefix ='', use_color = undefined} = {}){
         this.info_f = info_handler;
         this.error_f = error_handler || this.soft_error;
         this.verbose = verbose;
         this.hard_crash = hard_crash;
         this.use_prefix = prefix;
+        if(use_color !== undefined) LogHandler.use_color = use_color;
     }
 
     HandleError(e: E | Error | undefined | string) { //e is of type class E ^
@@ -79,7 +83,7 @@ export class LogHandler {
         else if (this.verbose) this.info(...args);
     }
 
-    static prefix(p:string, color:string) {return p ? `${color}[${p}]${colors.Reset}` : ''}
+    static prefix(p:string, color:string) {return p ? `${LogHandler.use_color ? color : ''}[${p}]${LogHandler.use_color ? colors.Reset : ''}` : ''}
     static log(...args: any[]) { console.log(...args) }
 
     info(msg:any, ...args:any[]) {

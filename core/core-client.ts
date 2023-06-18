@@ -7,9 +7,10 @@ import * as diff_lib from 'recursive-diff'; //https://www.npmjs.com/package/recu
 //types
 import type { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind, Bit } from './types.js';
 import type { Cmd_ClientHook, Msg_ClientHook, Discon_ClientHook, Timeout_ClientHook } from './types.js';
-import type { RateLimit } from './ratelimit.js';
 import type { SocioFiles } from './types.js';
+import type { RateLimit } from './ratelimit.js';
 import { MapReplacer, MapReviver, clamp } from './utils.js';
+import type { LogHandlerOptions } from './logging.js';
 export type ClientMessageDataObj = { id: id, verb?: string, table?: string, status?: string | number, result?: string | object | boolean | PropValue | number, prop?: PropKey, prop_val?: PropValue, prop_val_diff:diff_lib.rdiffResult[], data?:any, files?:SocioFiles };
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
 type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?: Function};
@@ -19,7 +20,7 @@ export type ProgressOnUpdate = (percentage: number) => void;
 
 type PropUpdateCallback = ((new_val: PropValue) => void) | null;
 export type ClientProp = { val: PropValue | undefined, subs: { [id: id]: PropUpdateCallback } };
-export type SocioClientOptions = { name?: string, verbose?: boolean, keep_alive?: boolean, reconnect_tries?: number, persistent?:boolean, hard_crash?:boolean };
+export type SocioClientOptions = { name?: string, logging?: LogHandlerOptions, keep_alive?: boolean, reconnect_tries?: number, persistent?:boolean };
 
 //"Because he not only wants to perform well, he wants to be well received  —  and the latter lies outside his control." /Epictetus/
 export class SocioClient extends LogHandler {
@@ -45,19 +46,20 @@ export class SocioClient extends LogHandler {
     //discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
     // progs: Map<Promise<any>, number> = new Map(); //the promise is that of a socio generic data going out from client async. Number is WS send buffer payload size at the time of query
 
-    constructor(url: string, { name = 'Main', verbose = false, keep_alive = true, reconnect_tries = 1, persistent = false, hard_crash=false }: SocioClientOptions = {}) {
-        super({ verbose, prefix: 'SocioClient', hard_crash });
+    constructor(url: string, { name = 'Main', logging = { verbose: false, hard_crash: false }, keep_alive = true, reconnect_tries = 1, persistent = false}: SocioClientOptions = {}) {
+        //@ts-expect-error
+        super({ ...logging, prefix: 'SocioClient' });
 
         if (window || undefined && url.startsWith('ws://'))
             this.HandleInfo('UNSECURE WEBSOCKET URL CONNECTION! Please use wss:// and https:// protocols in production to protect against man-in-the-middle attacks.');
 
         //public:
         this.name = name
-        this.verbose = verbose //It is recommended to turn off verbose in prod.
+        this.verbose = logging.verbose || false; //It is recommended to turn off verbose in prod.
         this.persistent = persistent;
         
         this.#latency = (new Date()).getTime();
-        this.#connect(url, keep_alive, verbose, reconnect_tries);
+        this.#connect(url, keep_alive, this.verbose, reconnect_tries);
     }
     get ws() { return this.#ws; } //the WebSocket instance has some useful properties https://developer.mozilla.org/en-US/docs/Web/API/WebSocket#instance_properties
 

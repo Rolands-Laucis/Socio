@@ -21,11 +21,12 @@ import type { IncomingMessage } from 'http';
 import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind, SocioFiles, ClientID, FS_Util_Response } from './types.js';
 import type { GenCLientID_Hook, Con_Hook, Msg_Hook, Sub_Hook, Upd_Hook, Auth_Hook, Blob_Hook, Serv_Hook, Admin_Hook, Unsub_Hook, Discon_Hook, GrantPerm_Hook, FileUpload_Hook, FileDownload_Hook } from './types.js';
 import type { RateLimit } from './ratelimit.js';
+import type { LogHandlerOptions } from './logging.js';
 export type MessageDataObj = { id?: id, sql?: string, params?: object | null | Array<any>, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue, data?:any, rate_limit?:RateLimit, files?:SocioFiles };
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
 export type QueryFunction = (client:SocioSession, id:id, sql:string, params?:object|null) => Promise<object>;
 type SessionsDefaults = { timeouts: boolean, timeouts_check_interval_ms?: number, ttl_ms?: number, session_delete_delay_ms?: number, recon_ttl_ms?: number };
-type SocioServerOptions = { DB_query_function?: QueryFunction, socio_security?: SocioSecurity | null, verbose?: boolean, decrypt_sql?: boolean, decrypt_prop?: boolean, hard_crash?: boolean, session_defaults?: SessionsDefaults, prop_upd_diff?:boolean }
+type SocioServerOptions = { DB_query_function?: QueryFunction, socio_security?: SocioSecurity | null, logging?: LogHandlerOptions, decrypt_sql?: boolean, decrypt_prop?: boolean, hard_crash?: boolean, session_defaults?: SessionsDefaults, prop_upd_diff?:boolean }
 type AdminMessageDataObj = {function:string, args?:any[], secure_key:string};
 
 export class SocioServer extends LogHandler {
@@ -59,8 +60,9 @@ export class SocioServer extends LogHandler {
     Query: QueryFunction; //you can change this at any time
     session_defaults: SessionsDefaults = { timeouts: false, timeouts_check_interval_ms: 1000 * 60, ttl_ms:Infinity, session_delete_delay_ms: 1000 * 5, recon_ttl_ms: 1000 * 60 * 60 };
 
-    constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, decrypt_sql = true, decrypt_prop = false, verbose = false, hard_crash = false, session_defaults, prop_upd_diff=false }: SocioServerOptions){
-        super({ verbose, hard_crash, prefix:'SocioServer'});
+    constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, logging = {verbose: false, hard_crash: false}, decrypt_sql = true, decrypt_prop = false, session_defaults, prop_upd_diff=false }: SocioServerOptions){
+        //@ts-expect-error
+        super({ ...logging, prefix:'SocioServer'});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
         //hard_crash will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
         //both are public and settable at runtime
@@ -101,7 +103,7 @@ export class SocioServer extends LogHandler {
             const client_ip = 'x-forwarded-for' in request?.headers ? request.headers['x-forwarded-for'].split(',')[0].trim() : request.socket.remoteAddress;
 
             //create the socio session class and save down the client id ref for convenience later
-            const client = new SocioSession(client_id, conn, client_ip, { verbose: this.verbose, session_timeout_ttl_ms: this.session_defaults.timeouts ? this.session_defaults.ttl_ms : Infinity });
+            const client = new SocioSession(client_id, conn, client_ip, { logging: {verbose: this.verbose}, session_timeout_ttl_ms: this.session_defaults.timeouts ? this.session_defaults.ttl_ms : Infinity });
             this.#sessions.set(client_id, client);
 
             //pass the object to the connection hook, if it exists. It cant take over

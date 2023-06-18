@@ -1,13 +1,13 @@
 //If God did not exist, it would be necessary to invent Him. /Voltaire/
 
-import { LogHandler, E } from "./logging.js";
+import { LogHandler, LogHandlerOptions, E } from "./logging.js";
 import { WebSocket as nodeWebSocket } from "ws";
 import { MapReplacer, MapReviver } from './utils.js'
 
 //types
 import type { ClientMessageKind, id, PropValue } from './types.js'
 type MessageDataObj = { id: id, status?: string, result?: string | object | boolean | PropValue, data?: object };
-type AdminClientOptions = { url: string, client_secret: string, verbose?:boolean }
+type AdminClientOptions = { url: string, client_secret: string, logging?: LogHandlerOptions }
 
 export class AdminClient extends LogHandler{
     //private:
@@ -18,8 +18,9 @@ export class AdminClient extends LogHandler{
     #is_ready: Function | boolean = false;
     #queries: { [id: id]: Function } = {}; //keeps a dict of all querie promises
 
-    constructor({ url = '', client_secret = '', verbose = true }: AdminClientOptions){
-        super({prefix:'SocioAdmin', verbose});
+    constructor({ url = '', client_secret = '', logging = { verbose: false, hard_crash: false } }: AdminClientOptions){
+        //@ts-expect-error
+        super({prefix:'SocioAdmin', ...logging});
 
         if (client_secret.length < 16)
             throw new E('client_secret length must be at least 16 char for safety. Got ', client_secret.length);
