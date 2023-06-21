@@ -25,9 +25,9 @@
     //setup toasts
     sc.lifecycle_hooks.msg = (name:string, client_id:string, kind:string, data:any) => {
         if(['UPD', 'PROP_UPD'].includes(kind))
-            toast('An update came in from the Socio Server.', {style:'background: #0D0D0E; color: #fff;',position: "bottom-center", duration:1000});
-        else if(kind == 'ERR')
-            toast.error(`An error arrived for a query or prop. MSG ID:${data.id}`,{position: "bottom-center", duration:2000})
+            toast('An update came in from the Socio Server.', {style:'background: #0D0D0E; color: #fff;',position: "bottom-center", duration:500});
+        // else if(kind == 'ERR')
+        //     toast.error(`An error arrived for a query or prop. MSG ID:${data.id}`,{position: "bottom-center", duration:500});
     }
 
     //variables
