@@ -12,11 +12,14 @@
     import Bloom from "$lib/bloom.svelte";
     import Spinner from "$lib/spinner.svelte";
     import Button from "$lib/button.svelte";
+    import { writable } from "svelte/store";
+    import { log } from "socio/dist/logging";
 
     //init SocioClient
     const sc = new SocioClient("ws://localhost:3000", {
-        verbose: true,
+        logging:{verbose: false},
         name: "Main",
+        // persistent:true
     });
 
     //setup toasts
@@ -32,7 +35,8 @@
         user_count = 0;
     let users: { userid: number; name: string; num: number }[] = [];
     let insert_fields = { name: "Bob", num: 42 };
-    let color_prop = "#ffffff";
+    let color_prop = "#ffffff", num = 0;
+    let progress = writable(0);
 
     onMount(async () => {
         ready = await sc.ready();
@@ -49,18 +53,26 @@
             }
         );
 
-        sc.SubscribeProp("color", (c) => (color_prop = c as string));
+        sc.SubscribeProp("color", c => color_prop = c as string);
+        sc.SubscribeProp("num", n => num = n as number);
     });
 
     //cleanup for dev server reloads.
     onDestroy(() => {
         sc.UnsubscribeAll({props:true, queries:true}); //NB! this wipes the subscriptions on the SocioClient instance, not just the ones registered here. Subscriptions return ids to use for unsubscribing.
     })
+
+    async function UploadFiles(e:any){
+        $progress = 0;
+        const q = sc.SendFiles(e.target.files);
+        sc.TrackProgressOfQueryPromise(q, progress.set);
+        log('file upload result bit: ', await q);
+    }
 </script>
 
-<section>
+<main>
     {#if ready}
-        <div class="horiz">
+        <section>
             <h4>
                 <a href="https://kit.svelte.dev/"
                     target="_blank"
@@ -76,11 +88,11 @@
                 demo.
             </h4>
             <h6 class="darker_text">client ID: {sc.client_id}</h6>
-        </div>
+        </section>
 
-        <div class="line" />
+        <hr>
 
-        <div class="horiz">
+        <section>
             <h6 class="darker_text bold">single sql query:</h6>
             <h4>SELECT 42+69 AS RESULT; =</h4>
             {#await sc.Query(socio`SELECT 42+69 AS RESULT;`)}
@@ -88,27 +100,25 @@
             {:then res}
                 <h4 class="bold">{res[0].RESULT}</h4>
             {/await}
-        </div>
+        </section>
 
-        <div class="horiz">
+        <section>
             <h6 class="darker_text bold">subscribed sql query:</h6>
 
             <h4>
-                SELECT COUNT(*) FROM users WHERE name = :name <span
-                    class="h5 darker_text bold">(John)</span
-                >; =
+                SELECT COUNT(*) FROM users WHERE name = :name <span class="h5 darker_text bold">(John)</span>; =
                 {#if user_count}
                     <span class="bold">{user_count}</span>
                 {:else}
                     <Bloom><Spinner style="--h:24px;--t:6px;" /></Bloom>
                 {/if}
             </h4>
-        </div>
+        </section>
 
-        <div class="line" />
+        <hr>
 
-        <div class="insert">
-            <Bloom style="--s_h:0.8;--b_h:8px;--c_h:1;">
+        <section class="vert" style="width: 600px;">
+            <Bloom style="--s_h:0.8;--b_h:8px;--c_h:1; width:100%;">
                 <Button
                     style="width:100%;"
                     on:click={async () =>
@@ -117,71 +127,63 @@
                             insert_fields
                         )}
                 >
-                    INSERT INTO users (name, num) VALUES("<span
-                        class="acc1 norm">{insert_fields.name}</span
-                    >",
+                    INSERT INTO users (name, num) VALUES("<span class="acc1 norm">{insert_fields.name}</span>",
                     <span class="acc1 norm">{insert_fields.num || 0}</span>);
                 </Button>
             </Bloom>
             <div class="inputs">
-                <Bloom style="--b:0px;--b_h:6px;--s:0;--s_h:0.4;flex-grow:1;"
-                    ><input
-                        type="text"
-                        bind:value={insert_fields.name}
-                    /></Bloom
-                >
-                <Bloom style="--b:0px;--b_h:6px;--s:0;--s_h:0.4;flex-grow:1;"
-                    ><input
-                        type="number"
-                        min="0"
-                        bind:value={insert_fields.num}
-                    /></Bloom
-                >
+                <input type="text" bind:value={insert_fields.name}/>
+                <input type="number" min="0" bind:value={insert_fields.num}/>
             </div>
-        </div>
+        </section>
 
-        <div class="users">
+        <section class="vert users">
             {#each users as u (u.userid)}
                 <div class="user" transition:slide>
                     <h4>{u.userid}</h4>
-                    <Bloom><h4 class="acc1">|</h4></Bloom>
+                    <h4 class="acc1">|</h4>
                     <h4>{u.name}</h4>
-                    <Bloom><h4 class="acc2">|</h4></Bloom>
+                    <h4 class="acc2">|</h4>
                     <h4>{u.num}</h4>
                 </div>
             {/each}
-        </div>
+        </section>
 
-        <div class="line" />
+        <hr>
 
         <div class="color">
             <h6 class="darker_text bold">subscribed server prop:</h6>
-            <Bloom style="--s_h:0.8;--b_h:8px;--c_h:1;">
-                <Button
-                    on:click={async () => await sc.SetProp("color", color_prop)}
-                    >SET</Button
-                >
-            </Bloom>
-            <Bloom style="--b:0px;--b_h:6px;--s:0;--s_h:0.4;"
-                ><input
-                    type="text"
-                    maxlength="7"
-                    bind:value={color_prop}
-                /></Bloom
-            >
-            <Bloom>
+            <input type="text" maxlength="7" bind:value={color_prop} on:input={async () => await sc.SetProp("color", color_prop)}/>
+            <Bloom style="--s:0.5;--b:8px;--c:1;">
                 <div class="color_box" style="--c:{color_prop};">
                     <h4>{color_prop}</h4>
                 </div>
             </Bloom>
         </div>
+
+        <hr>
+
+        <section>
+            <Bloom><Button on:click={() => sc.SetProp('num', --num)}>-</Button></Bloom>
+            <input type="number" bind:value={num} on:change={() => sc.SetProp('num', num)}>
+            <Bloom><Button on:click={() => sc.SetProp('num', ++num)}>+</Button></Bloom>
+        </section>
+
+        <hr>
+
+        <section class="vert" style="width: clamp(200px, 90dvw, 800px);">
+            <input type="file" accept=".txt, .rtf" multiple on:change={UploadFiles}>
+            <Bloom style="--s:0.5;--b:8px;--c:1; width:100%;">
+                <progress value={$progress} max="100"></progress>
+            </Bloom>
+        </section>
     {:else}
         <Bloom style="--b:4px;"><Spinner style="--h:64px;--t:10px;" /></Bloom>
     {/if}
-</section>
+</main>
 
 <style lang="scss">
-    section {
+    main{
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -189,11 +191,16 @@
         gap: $pad;
     }
 
-    .insert {
-        width: 600px;
+    section{
         display: flex;
-        flex-direction: column;
+        align-items: baseline;
         gap: $pad;
+
+        &.vert{
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
     }
 
     .inputs {
@@ -218,8 +225,6 @@
     .users {
         max-width: 600px;
         width: 600px;
-        display: flex;
-        flex-direction: column;
         gap: $pad_small;
 
         overflow-y: auto;
@@ -257,10 +262,23 @@
         }
     }
 
-    .line {
+    hr {
+        display: block;
         min-height: 1px;
         height: 1px;
         width: 500px;
         background-color: $gray3;
+        outline: none;
+        border: none;
+    }
+
+    .num{
+        display: flex;
+        align-items: center;
+        gap: $pad;
+    }
+
+    progress{
+        width: 100%;
     }
 </style>

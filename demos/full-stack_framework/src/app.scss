@@ -9,6 +9,7 @@ html, body{
     background-color: black;
     color: $light;
     color-scheme: dark;
+    accent-color: $acc2;
 
     font-synthesis: none;
     text-rendering: optimizeLegibility;
@@ -19,7 +20,7 @@ html, body{
     overflow-x: hidden;
 }
 
-h1, .h1,  h2, .h2,  h3, .h3,  h4, .h4, h5, .h5, h6, .h6, a, html, body, button, input{
+h1, .h1,  h2, .h2,  h3, .h3,  h4, .h4, h5, .h5, h6, .h6, a, html, body, button, input, hr{
     font-family: 'Jost', 'Open Sans', sans-serif;
     font-weight: 200;
 
@@ -81,11 +82,6 @@ a {
     // }
 }
 
-.horiz {
-    display: flex;
-    align-items: baseline;
-    gap: $pad;
-}
 .light{color: $light;}
 .acc1 {
     color: $acc1;
