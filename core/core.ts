@@ -202,7 +202,7 @@ export class SocioServer extends LogHandler {
                 }
             }
             
-            this.HandleInfo(`recv: ${kind} from ${client_id}`, kind != 'UP_FILES' ? data : true);
+            this.HandleInfo(`recv: ${kind} from ${client_id}`, kind != 'UP_FILES' ? data : `File count: ${data.files?.size}`);
 
             //let the developer handle the msg
             if (this.#lifecycle_hooks.msg)
@@ -584,8 +584,7 @@ export class SocioServer extends LogHandler {
                 }
             }
         }
-        else
-            throw new E(`Tried to set an invalid prop value! [#prop-set-not-valid].`, { key, new_val, client_id });
+        else throw new E(`Tried to set an invalid prop value! [#prop-set-not-valid].`, { key, new_val, client_id });
     }
     SetPropVal(key: PropKey, new_val: PropValue): boolean { //this hard sets the value without checks or updating clients
         try{
