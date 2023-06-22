@@ -78,6 +78,36 @@ async function QueryWrap (client:SocioSession, id:id, sql:string, params: object
 //*of course you can set your own properties on the client instances. However, they will not be copied to a reconnect instance, so it is still advised to do this as shown.
 ```
 
+#### Endpoint hook - storing your SQL queries on the backend.
+In case you really want to burden your Dev X, you may store your SQL query strings locally wherever and however you wish, even unencrypted. This is not the intended use of Socio, but i wont stand in your way.
+
+Instead of a client subscribing to the encrypted socio string and sending that, an "endpoint keyname" unencrypted string can be passed, which will be sent to the backend and resolved to an actual SQL string. It must be a valid SQL string, since the rest of the procedure is identical to a regular subscription.
+```ts
+//server code
+const endpoints: {[e:string]: string} = {
+  'all':'SELECT * FROM Users;'
+}
+
+const socserv = new SocioServer(...);
+
+//this hook will be called when socio server gets a subscription request payload that contains an endpoint string and no sql string. Your callback must then by any means resolve to a valid SQL string and return it. Here it is just fetched from a local dict. These subscriptions work identically to regular ones.
+socserv.RegisterLifecycleHookHandler('endpoint', async (client:SocioSession, endpoint:string) => {
+  return endpoints[endpoint];
+});
+```
+
+```ts
+//browser code
+const socserv = new SocioServer(...);
+
+const sc = new SocioClient(...);
+
+//cannot supply both sql: and endpoint:
+sc.Subscribe({endpoint:'all', params:{user:1}}, (val) => {
+  log(val); //will log the result of 'SELECT * FROM Users;' query and send updates
+});
+```
+
 #### WebSocket perMessageDeflate (Zlib Message Compression)
 You may want to compress incoming and outgoing messages of your WebSockets for less network traffic. However, note that the use of compression would obviously add to CPU and RAM loads. In addition, see other concerns - [slow speed and possible memory leaks](https://github.com/websockets/ws/issues/1369) [ws readme](https://github.com/websockets/ws#websocket-compression). I have provided the ``perMessageDeflate`` object for convenience, which is the default from the ws readme. From my investigation, this is enough to get it working. [See here](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket#instance_properties) and check on SocioClient.ws.extensions
 
