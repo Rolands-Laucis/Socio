@@ -218,7 +218,7 @@ export class SocioServer extends LogHandler {
                     //if the client happens to want to use an endpoint keyname instead of SQL, retrieve the SQL string from a hook call and procede with that.
                     if (data.endpoint && !data.sql){
                         if (this.#lifecycle_hooks.endpoint)
-                            data.sql = this.#lifecycle_hooks.endpoint(client, data.endpoint);
+                            data.sql = await this.#lifecycle_hooks.endpoint(client, data.endpoint);
                         else throw new E('Client sent endpoint instead of SQL, but its hook is missing. [#no-endpoint-hook]');
                     }
 
