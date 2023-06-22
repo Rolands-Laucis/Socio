@@ -19,10 +19,10 @@ import { RateLimiter } from './ratelimit.js';
 import type { ServerOptions, WebSocket, AddressInfo } from 'ws';
 import type { IncomingMessage } from 'http';
 import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind, SocioFiles, ClientID, FS_Util_Response } from './types.js';
-import type { GenCLientID_Hook, Con_Hook, Msg_Hook, Sub_Hook, Upd_Hook, Auth_Hook, Blob_Hook, Serv_Hook, Admin_Hook, Unsub_Hook, Discon_Hook, GrantPerm_Hook, FileUpload_Hook, FileDownload_Hook } from './types.js';
+import type { GenCLientID_Hook, Con_Hook, Msg_Hook, Sub_Hook, Upd_Hook, Auth_Hook, Blob_Hook, Serv_Hook, Admin_Hook, Unsub_Hook, Discon_Hook, GrantPerm_Hook, FileUpload_Hook, FileDownload_Hook, Endpoint_Hook } from './types.js';
 import type { RateLimit } from './ratelimit.js';
 import type { LogHandlerOptions } from './logging.js';
-export type MessageDataObj = { id?: id, sql?: string, params?: object | null | Array<any>, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue, data?:any, rate_limit?:RateLimit, files?:SocioFiles };
+export type MessageDataObj = { id?: id, sql?: string, endpoint?:string, params?: object | null | Array<any>, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue, data?:any, rate_limit?:RateLimit, files?:SocioFiles };
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
 export type QueryFunction = (client:SocioSession, id:id, sql:string, params?:object|null) => Promise<object>;
 type SessionsDefaults = { timeouts: boolean, timeouts_check_interval_ms?: number, ttl_ms?: number, session_delete_delay_ms?: number, recon_ttl_ms?: number };
@@ -43,7 +43,7 @@ export class SocioServer extends LogHandler {
     //rate limits server functions globally
     #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
 
-    #lifecycle_hooks: { [f_name: string]: Function | null; } = { con: null as (Con_Hook | null), discon: null as (Discon_Hook | null), msg: null as (Msg_Hook | null), sub: null as (Sub_Hook | null), unsub: null as (Unsub_Hook | null), upd: null as (Upd_Hook | null), auth: null as (Auth_Hook | null), gen_client_id: null as (GenCLientID_Hook | null), grant_perm: null as (GrantPerm_Hook | null), serv: null as (Serv_Hook | null), admin: null as (Admin_Hook | null), blob: null as (Blob_Hook | null), file_upload: null as (FileUpload_Hook | null), file_download: null as (FileDownload_Hook | null) } //call the register function to hook on these. They will be called if they exist
+    #lifecycle_hooks: { [f_name: string]: Function | null; } = { con: null as (Con_Hook | null), discon: null as (Discon_Hook | null), msg: null as (Msg_Hook | null), sub: null as (Sub_Hook | null), unsub: null as (Unsub_Hook | null), upd: null as (Upd_Hook | null), auth: null as (Auth_Hook | null), gen_client_id: null as (GenCLientID_Hook | null), grant_perm: null as (GrantPerm_Hook | null), serv: null as (Serv_Hook | null), admin: null as (Admin_Hook | null), blob: null as (Blob_Hook | null), file_upload: null as (FileUpload_Hook | null), file_download: null as (FileDownload_Hook | null), endpoint: null as (Endpoint_Hook | null) } //call the register function to hook on these. They will be called if they exist
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //msg hook receives all incomming msgs to the server. 
     //upd works the same as msg, but for everytime updates need to be propogated to all the sockets.
@@ -215,26 +215,36 @@ export class SocioServer extends LogHandler {
                         if (await this.#lifecycle_hooks.sub(client, kind, data))
                             return;
 
-                    if (QueryIsSelect(data.sql || '')) {
-                        //set up hook
-                        const tables = ParseQueryTables(data.sql || '');
-                        if (tables)
-                            client.RegisterHook(tables, data.id as id, data.sql as string, data.params || null, data?.rate_limit || null);
+                    //if the client happens to want to use an endpoint keyname instead of SQL, retrieve the SQL string from a hook call and procede with that.
+                    if (data.endpoint && !data.sql){
+                        if (this.#lifecycle_hooks.endpoint)
+                            data.sql = this.#lifecycle_hooks.endpoint(client, data.endpoint);
+                        else throw new E('Client sent endpoint instead of SQL, but its hook is missing. [#no-endpoint-hook]');
+                    }
 
-                        //send response
-                        client.Send('UPD', {
-                            id: data.id,
-                            result: await this.Query(client, data.id || 0, data.sql || '', data.params),
-                            status: 'success'
-                        });
-                    } else
-                        //send response
-                        client.Send('ERR', {
-                            id: data.id,
-                            result: 'Only SELECT queries may be subscribed to! [#reg-not-select]',
-                            status:'error'
-                        });
+                    if(data.sql){
+                        if (QueryIsSelect(data.sql || '')) {
+                            //set up hook
+                            const tables = ParseQueryTables(data.sql || '');
+                            if (tables)
+                                client.RegisterHook(tables, data.id as id, data.sql as string, data.params || null, data?.rate_limit || null);
 
+                            //send response
+                            client.Send('UPD', {
+                                id: data.id,
+                                result: await this.Query(client, data.id || 0, data.sql || '', data.params),
+                                status: 'success'
+                            });
+                        } else client.Send('ERR', {
+                                id: data.id,
+                                result: 'Only SELECT queries may be subscribed to! [#reg-not-select]',
+                                status: 'error'
+                            });
+                    } else client.Send('ERR', {
+                        id: data.id,
+                        result: 'Nothing to subscribed to! [#reg-no-res]',
+                        status: 'error'
+                    });
                     break;
                 case 'UNSUB':
                     if (this.#lifecycle_hooks.unsub)

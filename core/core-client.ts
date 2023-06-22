@@ -14,7 +14,8 @@ import type { LogHandlerOptions } from './logging.js';
 export type ClientMessageDataObj = { id: id, verb?: string, table?: string, status?: string | number, result?: string | object | boolean | PropValue | number, prop?: PropKey, prop_val?: PropValue, prop_val_diff:diff_lib.rdiffResult[], data?:any, files?:SocioFiles };
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
 type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?: Function};
-type QueryObject = { sql: string, params?: object | null, onUpdate: SubscribeCallbackObject }
+type QueryObjectSQL = { sql?: string, endpoint?: string, params?: object | null };
+type QueryObject = QueryObjectSQL & { onUpdate: SubscribeCallbackObject };
 type QueryPromise = { res: Function, prom:Promise<any> | null, start_buff: number, payload_size?:number };
 export type ProgressOnUpdate = (percentage: number) => void;
 
@@ -268,22 +269,23 @@ export class SocioClient extends LogHandler {
 
     //subscribe to an sql query. Can add multiple callbacks where ever in your code, if their sql queries are identical
     //returns the created ID for that query, to use to unsubscribe all callbacks to the query
-    Subscribe({ sql = '', params = null }: { sql?: string, params?: object | null | Array<any> } = {}, onUpdate: SubscribeCallbackObjectSuccess = null, status_callbacks: { error?: (e: string) => void } = {}, rate_limit: RateLimit | null = null): id | null{
+    Subscribe({ sql = undefined, endpoint = undefined, params = null }: QueryObjectSQL = {}, onUpdate: SubscribeCallbackObjectSuccess = null, status_callbacks: { error?: (e: string) => void } = {}, rate_limit: RateLimit | null = null): id | null{
         //params for sql is the object that will be passed as params to your query func
+        //optionally can also supply an endpoint name instead of an sql string. Cannot do both. The endpoint is your own keyname for a sql query defined on the backend in a special file.
 
         //onUpdate is the success standard function, that gets called, when the DB sends an update of its data
         //status_callbacks is an optional object, that expects 1 optional key - "error", and it must be a callable function, that receives 1 arg - the error msg.
-        
+        if (sql && endpoint) throw new E('Can only subscribe to either literal SQL query string or endpoint keyname, not both!');
         if (typeof onUpdate !== "function") throw new E('Subscription onUpdate is not function, but has to be.');
         if (status_callbacks?.error && typeof status_callbacks.error !== "function") throw new E('Subscription error is not function, but has to be.');
         try {
-            const id = this.GenKey
+            const id = this.GenKey;
             const callbacks: SubscribeCallbackObject = { success: onUpdate, ...status_callbacks };
 
-            this.#queries.set(id, { sql, params, onUpdate: callbacks });
-            this.Send('SUB', { id, sql, params, rate_limit });
+            this.#queries.set(id, { sql, endpoint, params, onUpdate: callbacks });
+            this.Send('SUB', { id, sql, endpoint, params, rate_limit });
 
-            return id //the ID of the query
+            return id; //the ID of the query
         } catch (e: err) { this.HandleError(e); return null; }
     }
     SubscribeProp(prop_name: PropKey, onUpdate: PropUpdateCallback, rate_limit: RateLimit | null = null):void{

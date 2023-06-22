@@ -39,6 +39,7 @@ export type Admin_Hook = (client: SocioSession, data: MessageDataObj) => boolean
 export type FileUpload_Hook = (client: SocioSession, files?: SocioFiles, data?:any) => Bit | boolean;
 export type FileDownload_Hook = (client: SocioSession, data: any) => FS_Util_Response;
 export type Upd_Hook = (sessions: Map<ClientID, SocioSession>, tables: string[]) => boolean;
+export type Endpoint_Hook = (client: SocioSession, endpoint:string) => string;
 // export type _Hook = (client: SocioSession) => boolean;
 
 //client hook functions
