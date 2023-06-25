@@ -1,6 +1,6 @@
 # Socio - A WebSocket Real-Time Communication (RTC) API framework.
 
-<p align="center"><img src="./logo.png"/></p>
+<p align="center"><img src="./logo.png" alt="socio logo banner"/></p>
 
 ## Connecting your Front-End logic to Back-End Database reactively! ⇄
 
