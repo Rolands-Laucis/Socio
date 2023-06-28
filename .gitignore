@@ -17,6 +17,7 @@ core/admin2.js
 test
 getting_started.md
 demos/socio
+demos/full-stack_framework/upload_files/*
 
 ### Database ###
 *.accdb

@@ -17,7 +17,7 @@
 
     //init SocioClient
     const sc = new SocioClient("ws://localhost:3000", {
-        logging:{verbose: false},
+        logging:{verbose: true},
         name: "Main",
         // persistent:true
     });
@@ -25,7 +25,7 @@
     //setup toasts
     sc.lifecycle_hooks.msg = (name:string, client_id:string, kind:string, data:any) => {
         if(['UPD', 'PROP_UPD'].includes(kind))
-            toast('An update came in from the Socio Server.', {style:'background: #0D0D0E; color: #fff;',position: "bottom-center", duration:500});
+            toast('An update came in from the Socio Server.', {style:'background: #0D0D0E; color: #fff; padding:4px;',position: "bottom-center", duration:1000});
         // else if(kind == 'ERR')
         //     toast.error(`An error arrived for a query or prop. MSG ID:${data.id}`,{position: "bottom-center", duration:500});
     }
@@ -40,7 +40,7 @@
 
     onMount(async () => {
         ready = await sc.ready();
-        toast.success('Socio Client connected!', {icon:'🥳',position: "bottom-center", duration:1000});
+        toast.success('Socio Client connected!', {icon:'🥳', style:'padding:4px;',position: "bottom-center", duration:1500});
         
         sc.Subscribe({sql: socio`SELECT COUNT(*) AS RES FROM users WHERE name = :name;`,params: { name: "John" }}, (res) => {
                 //@ts-ignore
@@ -118,6 +118,10 @@
         <hr>
 
         <section class="vert" style="width: 600px;">
+            <div class="inputs">
+                <input type="text" bind:value={insert_fields.name}/>
+                <input type="number" min="0" bind:value={insert_fields.num}/>
+            </div>
             <Bloom style="--s_h:0.8;--b_h:8px;--c_h:1; width:100%;">
                 <Button
                     style="width:100%;"
@@ -131,10 +135,6 @@
                     <span class="acc1 norm">{insert_fields.num || 0}</span>);
                 </Button>
             </Bloom>
-            <div class="inputs">
-                <input type="text" bind:value={insert_fields.name}/>
-                <input type="number" min="0" bind:value={insert_fields.num}/>
-            </div>
         </section>
 
         <section class="vert users">

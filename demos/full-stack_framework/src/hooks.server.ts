@@ -32,8 +32,8 @@ try{
     socserv.RegisterProp('num', 0);
 
     socserv.RegisterLifecycleHookHandler('file_upload', (client: SocioSession, files: SocioFiles) => {
-        // return SaveFilesToDiskPath(['.', 'upload_files'], files).result;
-        return 1;
+        return SaveFilesToDiskPath(['.', 'upload_files'], files).result;
+        // return 1;
     });
 }
 catch (e:any) {soft_error(e)}
