@@ -25,7 +25,7 @@
     //setup toasts
     sc.lifecycle_hooks.msg = (name:string, client_id:string, kind:string, data:any) => {
         if(['UPD', 'PROP_UPD'].includes(kind))
-            toast('An update came in from the Socio Server.', {style:'background: #0D0D0E; color: #fff; padding:4px;',position: "bottom-center", duration:1000});
+            toast('An update came in from the Socio Server.', {style:'background: #0D0D0E; color: #fff; padding:2px;',position: "bottom-center", duration:1000});
         // else if(kind == 'ERR')
         //     toast.error(`An error arrived for a query or prop. MSG ID:${data.id}`,{position: "bottom-center", duration:500});
     }
@@ -40,7 +40,7 @@
 
     onMount(async () => {
         ready = await sc.ready();
-        toast.success('Socio Client connected!', {icon:'🥳', style:'padding:4px;',position: "bottom-center", duration:1500});
+        toast.success('Socio Client connected!', {icon:'🥳', style:'padding:2px;',position: "bottom-center", duration:1500});
         
         sc.Subscribe({sql: socio`SELECT COUNT(*) AS RES FROM users WHERE name = :name;`,params: { name: "John" }}, (res) => {
                 //@ts-ignore
@@ -65,6 +65,7 @@
     async function UploadFiles(e:any){
         $progress = 0;
         const q = sc.SendFiles(e.target.files);
+        // c.TrackProgressOfQueryPromise(q, p => prog = p);
         sc.TrackProgressOfQueryPromise(q, progress.set);
         log('file upload result bit: ', await q);
     }
@@ -73,20 +74,6 @@
 <main>
     {#if ready}
         <section>
-            <h4>
-                <a href="https://kit.svelte.dev/"
-                    target="_blank"
-                    class="thin light">
-                    SvelteKit
-                </a>
-                +
-                <a href="https://vitejs.dev/"
-                    target="_blank"
-                    class="thin light">
-                    Vite
-                </a>
-                demo.
-            </h4>
             <h6 class="darker_text">client ID: {sc.client_id}</h6>
         </section>
 
@@ -122,7 +109,7 @@
                 <input type="text" bind:value={insert_fields.name}/>
                 <input type="number" min="0" bind:value={insert_fields.num}/>
             </div>
-            <Bloom style="--s_h:0.8;--b_h:8px;--c_h:1; width:100%;">
+            <Bloom style="--b:2px;--s:0.4;--s_h:2;--b_h:8px;--c:1;--c_h:2; width:100%;">
                 <Button
                     style="width:100%;"
                     on:click={async () =>
@@ -164,9 +151,9 @@
         <hr>
 
         <section>
-            <Bloom><Button on:click={() => sc.SetProp('num', --num)}>-</Button></Bloom>
+            <Bloom style="--b:2px;--s:0.4;--s_h:2;--b_h:8px;--c:1;--c_h:2;"><Button on:click={() => sc.SetProp('num', --num)}>-</Button></Bloom>
             <input type="number" bind:value={num} on:change={() => sc.SetProp('num', num)}>
-            <Bloom><Button on:click={() => sc.SetProp('num', ++num)}>+</Button></Bloom>
+            <Bloom style="--b:2px;--s:0.4;--s_h:2;--b_h:8px;--c:1;--c_h:2;"><Button on:click={() => sc.SetProp('num', ++num)}>+</Button></Bloom>
         </section>
 
         <hr>

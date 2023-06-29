@@ -3,15 +3,17 @@
 </script>
 
 <nav>
-    <Bloom style="--b_h:6px; --s_h:0.6;"><h1>Socio</h1></Bloom>
-    <Bloom style="--b_h:6px; --s_h:0.6;"><a href="https://github.com/Rolands-Laucis/Socio" target="_blank" class="acc2">github</a></Bloom>
-    <Bloom style="--b_h:6px; --s_h:0.6;"><a href="https://www.npmjs.com/package/socio" target="_blank" class="acc1">npm</a></Bloom>
+    <Bloom style="--b:4px;--s:0.6;--b_h:8px; --s_h:1;">
+        <img src="logo.png" alt="socio logo avif" height="70">
+    </Bloom>
 </nav>
 
 <style lang="scss">
     nav{
+        width: 100%;
+        height: auto;
         display: flex;
         align-items:baseline;
-        gap: 24px;
+        // gap: 24px;
     }
 </style>
