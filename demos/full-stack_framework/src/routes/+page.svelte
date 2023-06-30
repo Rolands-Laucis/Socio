@@ -31,9 +31,8 @@
     }
 
     //variables
-    let ready = false,
-        user_count = 0;
-    let users: { userid: number; name: string; num: number }[] = [];
+    let ready = false;
+    let user_count = 0, users: { userid: number; name: string; num: number }[] = [];
     let insert_fields = { name: "Bob", num: 42 };
     let color_prop = "#ffffff", num = 0;
     let progress = writable(0);
@@ -42,13 +41,12 @@
         ready = await sc.ready();
         toast.success('Socio Client connected!', {icon:'🥳', style:'padding:2px;',position: "bottom-center", duration:1500});
         
-        sc.Subscribe({sql: socio`SELECT COUNT(*) AS RES FROM users WHERE name = :name;`,params: { name: "John" }}, (res) => {
-                //@ts-ignore
+        const id = sc.Subscribe({sql: socio`SELECT COUNT(*) AS RES FROM users WHERE name = :name;`, params: { name: "John" }}, (res:any) => {
                 user_count = res[0].RES as number; //res is whatever object your particular DB interface lib returns from a raw query
             }
         );
 
-        sc.Subscribe({ sql: socio`SELECT * FROM users;` },(res) => {
+        sc.Subscribe({ sql: socio`SELECT * FROM users;` },(res:any) => {
                 users = res as { userid: number; name: string; num: number }[]; //res is whatever object your particular DB interface lib returns from a raw query
             }
         );
