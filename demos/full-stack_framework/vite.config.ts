@@ -3,7 +3,7 @@ import { SocioSecurityVitePlugin } from 'socio/dist/secure';
 
 /** @type {import('vite').UserConfig} */
 const config = {
-	plugins: [SocioSecurityVitePlugin({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', verbose: true }), sveltekit()],
+	plugins: [SocioSecurityVitePlugin({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', logging: { verbose: true } }), sveltekit()],
 
 	css: {
 		preprocessorOptions: {
