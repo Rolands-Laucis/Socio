@@ -1,7 +1,5 @@
 # Socio Full-Stack Framework demo in SvelteKit
 
-#### Only depends on having Node installed.
-
 ## Prerequisites
 * Node.js >= 16 LTS
 * NPM or any other package manager

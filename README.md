@@ -1,20 +1,16 @@
 # Socio - A WebSocket Real-Time Communication (RTC) API framework.
 
-<p align="center"><img src="https://github.com/Rolands-Laucis/Socio/blob/master/logo.png" alt="socio logo banner"/></p>
+<p align="center"><img src="https://github.com/Rolands-Laucis/Socio/blob/master/banner.webp" alt="socio logo banner"/></p>
 
-## Connecting your Front-End logic to Back-End Database reactively! ⇄
+* <a href="https://www.youtube.com/watch?v=iJIC9B3cKME&ab_channel=CepuminsLV" target="_blank">3 min video - Introduction demo.</a>
+* <a href="https://www.youtube.com/watch?v=t8_QBzk5bUk" target="_blank">16 min video - Getting started with Socio 0.7, SvelteKit, Vite.</a>
 
-<a href="https://www.youtube.com/watch?v=iJIC9B3cKME&ab_channel=CepuminsLV" target="_blank">3 min - Youtube video demo.</a>
-
-<a href="https://www.youtube.com/watch?v=t8_QBzk5bUk" target="_blank">16 min - Getting started with Socio 0.7, SvelteKit, Vite.</a>
+* [Basic Demo project](https://github.com/Rolands-Laucis/Socio/blob/master/demos/basic/readme.md) - interactive bare-bones demo project.
+* [Secure Full-Stack Framework Demo project](https://github.com/Rolands-Laucis/Socio/tree/master/demos/full-stack_framework#readme) - interactive demo project with SvelteKit and Vite.
+* [Simple Documentation](https://github.com/Rolands-Laucis/Socio/blob/master/Documentation.md) - page to see direct examples and explanations of how to use various parts of the lib.
+* [Real-time rent prices in Riga, Latvia](http://riga.rolandslaucis.lv/) made by me. SvelteKit, Vite, Socio, NginX, Ubuntu server.
 
 No more API middleware and backend DB interfacing functions and wrappers and handlers. Write your SQL queries on the frontend and have their results be automagically refreshed on all clients when a resource is changed on the server DB. This is secure.
-
-[Basic Demo](https://github.com/Rolands-Laucis/Socio/blob/master/demos/basic/readme.md) - interactive bare-bones demo project.
-
-[Secure Full-Stack Framework Demo](https://github.com/Rolands-Laucis/Socio/tree/master/demos/full-stack_framework#readme) - interactive demo project with SvelteKit and Vite.
-
-[Simple Documentation](https://github.com/Rolands-Laucis/Socio/blob/master/Documentation.md) page to see direct examples and explanations of how to use various parts of the lib.
 
 Ready for use in your small to mid sized web app 🥰 feedback is welcome.
 
@@ -23,10 +19,11 @@ In your Node.js project root dir:
 ```bash
 npm i socio
 ```
+Contains compiled JS files + TS type definitions.
 
 ## How? ✨
 
-Socio is a "middle man" framework between your DB and clients. The ``SocioServer`` creates a WebSocket server on your backend, that is hooked up to any DB. The ``SocioClient`` sits on the browser (or backend with Deno) and communicates with your server through WebSockets and socios protocols and mechanisms. E.g. ``SocioClient``.Query() or .Subscribe() with raw SQL strings. Additionally, the server can also at any time push information to clients, creating a duplex real-time connection. Pretty much everything you'd need, including file transfer, is supported.
+Socio is a "middle man" framework between your DB and clients. The ``SocioServer`` creates a WebSocket server on your backend, that is hooked up to any DB. The ``SocioClient`` sits on the browser (or backend with Deno) and communicates with your server through WebSockets and socios protocols and mechanisms. E.g. ``SocioClient.Query()`` or ``.Subscribe()`` with raw SQL strings. Additionally, the server can also at any time push information to clients, creating a duplex real-time connection. Pretty much everything you'd need, including file transfer, is supported.
 
 ## SQL injections and overall data safety? 💉
 
@@ -39,22 +36,22 @@ Written in TypeScript, but of course can use the lib in JS scripts just the same
 
 ```ts
 //TS server side
-import { SocioServer } from 'socio/dist/core'; //this way for both JS and TS
-import { SocioSecurity } from 'socio/dist/secure'; //this way for both JS and TS
+import { SocioServer } from 'socio/dist/core'; //this way for both JS and TS. Might need to put .js at the end.
+import { SocioSecurity } from 'socio/dist/secure';
 import type { QueryFunction, QueryFuncParams } from 'socio/dist/core';
 async function QueryWrap(client: SocioSession, id: id, sql: string, params: object | null | Array<any> = null):Promise<object> {
     //do whatever u need to run the sql on your DB and return its result
     //sanatize dynamic params!
 }
 
-const socsec = new SocioSecurity({ secure_private_key: '...', verbose:true }); //for decrypting incoming queries. This same key is used for encrypting the source files when you build and bundle them.
-const socserv = new SocioServer({ port: 3000 }, { DB_query_function: QueryWrap as QueryFunction, verbose: true, socio_security: socsec }); //creates localhost:3000 web socket server
+const socsec = new SocioSecurity({ secure_private_key: '...', logging:{verbose:true} }); //for decrypting incoming queries. This same key is used for encrypting the source files when you build and bundle them.
+const socserv = new SocioServer({ port: 3000 }, { DB_query_function: QueryWrap as QueryFunction, socio_security: socsec, logging:{verbose:true} }); //creates localhost:3000 web socket server
 ```
 ```ts
 //client side browser code. For SvelteKit, this can be in proj_root/src/hooks.server.ts .Check the Framework Demo for an example.
-import {SocioClient} from 'socio/dist/core-client'; //this way for both JS and TS
+import {SocioClient} from 'socio/dist/core-client'; //this way for both JS and TS. Might need to put .js at the end.
 import {socio} from 'socio/dist/utils';
-const sc = new SocioClient('ws://localhost:3000', {verbose:true, name:'Main'}); //create as many as you like
+const sc = new SocioClient('ws://localhost:3000', {logging:{verbose:true}, name:'Main'}); //create as many as you like
 await sc.ready(); //wait to establish the connection
 
 //will recall the callback whenever the Users table data gets altered
@@ -74,7 +71,7 @@ import { SocioSecurityVitePlugin } from 'socio/dist/secure';
 
 export default defineConfig({
 	plugins: [
-        SocioSecurityVitePlugin({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', verbose: true }), 
+        SocioSecurityVitePlugin({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', logging:{verbose:true} }), 
         sveltekit()
     ]
 });

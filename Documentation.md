@@ -20,6 +20,15 @@ Currently the lib has been developed with a main focus on SQL queries being writ
 
 In the future i may support more of the NoSQL ecosystem.
 
+#### Youtube devlogs that talk more about some of the features here:
+* [Socio.js v0.8.2 & v0.9 | Socio strings & Request Progress](https://www.youtube.com/watch?v=wZQxjz1d868)
+* [Socio.js - Getting started v0.7](https://www.youtube.com/watch?v=t8_QBzk5bUk)
+* [Socio.js v0.7.0 | Real-Time Chat; Optimizations; Compression](https://www.youtube.com/watch?v=61tG9Xj244Q)
+* [Socio.js v0.6.0 | WebSocket File Transfer; Query Security](https://www.youtube.com/watch?v=YA3gvZuFKII)
+* [Socio.js v0.5.0 | WebSocket Persistence; Admin Client](https://www.youtube.com/watch?v=af2k7r-77mE)
+* [Socio.js v0.4.5. | Demo in SvelteKit + Vite](https://www.youtube.com/watch?v=iJIC9B3cKME)
+* [Socio.js v0.3.15 Demonstration in SvelteKit + Vite](https://www.youtube.com/watch?v=5MxAg-h38VA)
+
 ## Example code snippets
 
 Interesting note: The snippets marked for browser use cannot be run on Node.js, however, can be run on the Deno JS backend runtime. Though, im not sure if the rest of the socio lib is Deno friendly. The "ws" lib Socio uses for the backend might not be compatible with Deno.
