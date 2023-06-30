@@ -253,10 +253,11 @@
         display: block;
         min-height: 1px;
         height: 1px;
-        width: 500px;
+        width: 600px;
         background-color: $gray3;
         outline: none;
         border: none;
+        margin: 48px 0px;
     }
 
     .num{
