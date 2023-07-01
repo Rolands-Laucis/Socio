@@ -62,6 +62,20 @@ socserv.RegisterLifecycleHookHandler("con", (client:SocioSession, req:IncomingMe
 const handle_admin_hook: Admin_Hook = (client, data) => {...}
 ```
 
+#### Server and Client Hook definitions
+The types.d.ts file contains type definitions for all the server-side and client-side hook functions, so that you know what args they pass to your callback.
+You can import and use them as such:
+```ts
+//server hook functions:
+import type { Admin_Hook } from 'socio/types';
+const handle: Admin_Hook = (client, data) => {...}; //(client, data) both params should have automatic type inference with a TS language server in your IDE.
+socserv.RegisterLifecycleHookHandler('admin', handle);
+
+//client hook function signatures:
+import type { Cmd_ClientHook, Msg_ClientHook, Discon_ClientHook, Timeout_ClientHook ... } from 'socio/types';
+```
+Perhaps you know of a better way to use them, but i am not as familiar with TS.
+
 #### Authentification hook - a simple mechanism
 ```ts
 //server code
@@ -88,9 +102,9 @@ async function QueryWrap (client:SocioSession, id:id, sql:string, params: object
 ```
 
 #### Endpoint hook - storing your SQL queries on the backend.
-In case you really want to burden your Dev X, you may store your SQL query strings locally wherever and however you wish, even unencrypted. This is not the intended use of Socio, but i wont stand in your way.
+In case you really want to burden your Dev-X, you may store your SQL query strings locally on the backend wherever and however you wish, even unencrypted. This is not the intended use of Socio, but i wont stand in your way.
 
-Instead of a client subscribing to the encrypted socio string and sending that, an "endpoint keyname" unencrypted string can be passed, which will be sent to the backend and resolved to an actual SQL string. It must be a valid SQL string, since the rest of the procedure is identical to a regular subscription.
+Instead of a client subscribing to the encrypted socio string and sending that, an "endpoint keyname" unencrypted string can be passed, which will be sent to the backend and resolved to an actual SQL string there. It must be a valid SQL string, since the rest of the procedure is identical to a regular subscription.
 ```ts
 //server code
 const endpoints: {[e:string]: string} = {
@@ -99,7 +113,7 @@ const endpoints: {[e:string]: string} = {
 
 const socserv = new SocioServer(...);
 
-//this hook will be called when socio server gets a subscription request payload that contains an endpoint string and no sql string. Your callback must then by any means resolve to a valid SQL string and return it. Here it is just fetched from a local dict. These subscriptions work identically to regular ones.
+//this hook will be called when socio server gets a subscription request payload that contains an endpoint string and no sql string. Your callback must then by any means resolve to a valid SQL string and return it. The hook response can be async and it will be awaited. Here it is just fetched from a local dict instantly. These subscriptions work identically to regular ones.
 socserv.RegisterLifecycleHookHandler('endpoint', async (client:SocioSession, endpoint:string) => {
   return endpoints[endpoint];
 });
@@ -107,12 +121,14 @@ socserv.RegisterLifecycleHookHandler('endpoint', async (client:SocioSession, end
 
 ```ts
 //browser code
-const socserv = new SocioServer(...);
-
 const sc = new SocioClient(...);
 
 //cannot supply both sql: and endpoint:
-sc.Subscribe({endpoint:'all', params:{user:1}}, (val) => {
+sc.Subscribe({endpoint:'all', params:{}}, (val) => { //params is, as always, optional
+  log(val); //will log the result of 'SELECT * FROM Users;' query and send updates
+});
+//similar with Query
+sc.Query('all', {sql_is_endpoint:true, params:{}}, (val) => { //params is, as always, optional
   log(val); //will log the result of 'SELECT * FROM Users;' query and send updates
 });
 ```
@@ -270,20 +286,6 @@ const config = {
 export default config;
 ```
 The ``SocioSecurityPlugin`` also takes in an extra options object parameter that the base class doesnt. ``include_file_types`` = ``['js', 'svelte', 'vue', 'jsx', 'ts', 'tsx']`` (default) ; ``exclude_file_types`` = [] (default) ; ``exclude_svelte_server_files`` = true (default)
-
-### Server and Client Hook definitions
-The types.d.ts file contains type definitions for all the server-side and client-side hook functions, so that you know what args they pass to your callback.
-You can import and use them as such:
-```ts
-//server hook functions:
-import type { Admin_Hook } from 'socio/types';
-const handle: Admin_Hook = (client, data) => {...};
-socserv.RegisterLifecycleHookHandler('admin', handle);
-
-//client hook function signatures:
-import type { Cmd_ClientHook, Msg_ClientHook, Discon_ClientHook, Timeout_ClientHook } from 'socio/types';
-```
-Perhaps you know of a better way to use them, but i am not as familiar with TS.
 
 ### Server Props
 
