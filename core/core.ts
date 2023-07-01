@@ -22,7 +22,7 @@ import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessa
 import type { GenCLientID_Hook, Con_Hook, Msg_Hook, Sub_Hook, Upd_Hook, Auth_Hook, Blob_Hook, Serv_Hook, Admin_Hook, Unsub_Hook, Discon_Hook, GrantPerm_Hook, FileUpload_Hook, FileDownload_Hook, Endpoint_Hook } from './types.js';
 import type { RateLimit } from './ratelimit.js';
 import type { LogHandlerOptions } from './logging.js';
-export type MessageDataObj = { id?: id, sql?: string, endpoint?:string, params?: object | null | Array<any>, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val:PropValue, data?:any, rate_limit?:RateLimit, files?:SocioFiles };
+export type MessageDataObj = { id?: id, sql?: string, endpoint?: string, params?: object | null | Array<any>, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val: PropValue, data?: any, rate_limit?: RateLimit, files?: SocioFiles, sql_is_endpoint?:boolean };
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
 export type QueryFunction = (client:SocioSession, id:id, sql:string, params?:object|null) => Promise<object>;
 type SessionsDefaults = { timeouts: boolean, timeouts_check_interval_ms?: number, ttl_ms?: number, session_delete_delay_ms?: number, recon_ttl_ms?: number };
@@ -219,7 +219,7 @@ export class SocioServer extends LogHandler {
                     if (data.endpoint && !data.sql){
                         if (this.#lifecycle_hooks.endpoint)
                             data.sql = await this.#lifecycle_hooks.endpoint(client, data.endpoint);
-                        else throw new E('Client sent endpoint instead of SQL, but its hook is missing. [#no-endpoint-hook]');
+                        else throw new E('Client sent endpoint instead of SQL, but its hook is missing. [#no-endpoint-hook-SUB]');
                     }
 
                     if(data.sql){
@@ -254,6 +254,12 @@ export class SocioServer extends LogHandler {
                     client.Send('RES', { id: data.id, result: client.UnRegisterHook(data?.unreg_id || '') });
                     break;
                 case 'SQL':
+                    //if the client happens to want to use an endpoint keyname instead of SQL, retrieve the SQL string from a hook call and procede with that.
+                    if (data?.sql_is_endpoint && data.sql) {
+                        if (this.#lifecycle_hooks.endpoint)
+                            data.sql = await this.#lifecycle_hooks.endpoint(client, data.sql_is_endpoint);
+                        else throw new E('Client sent endpoint instead of SQL, but its hook is missing. [#no-endpoint-hook-SQL]');
+                    }
                     //have to do the query in every case
                     const res = this.Query(client, data.id || 0, data.sql || '', data.params);
                     client.Send('RES', { id: data.id, result: await res }); //wait for result and send it back
