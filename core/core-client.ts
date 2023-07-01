@@ -11,7 +11,6 @@ import type { SocioFiles } from './types.js';
 import type { RateLimit } from './ratelimit.js';
 import { MapReplacer, MapReviver, clamp } from './utils.js';
 import type { LogHandlerOptions } from './logging.js';
-import type { SocioCache } from './cache.js';
 export type ClientMessageDataObj = { id: id, verb?: string, table?: string, status?: string | number, result?: string | object | boolean | PropValue | number, prop?: PropKey, prop_val?: PropValue, prop_val_diff:diff_lib.rdiffResult[], data?:any, files?:SocioFiles };
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
 type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?: Function};
@@ -22,7 +21,7 @@ export type ProgressOnUpdate = (percentage: number) => void;
 
 type PropUpdateCallback = ((new_val: PropValue) => void) | null;
 export type ClientProp = { val: PropValue | undefined, subs: { [id: id]: PropUpdateCallback } };
-export type SocioClientOptions = { name?: string, logging?: LogHandlerOptions, keep_alive?: boolean, reconnect_tries?: number, persistent?: boolean, cache?: SocioCache };
+export type SocioClientOptions = { name?: string, logging?: LogHandlerOptions, keep_alive?: boolean, reconnect_tries?: number, persistent?: boolean };
 
 //"Because he not only wants to perform well, he wants to be well received  —  and the latter lies outside his control." /Epictetus/
 export class SocioClient extends LogHandler {
@@ -43,13 +42,12 @@ export class SocioClient extends LogHandler {
     verbose:boolean;
     key_generator: (() => number | string) | undefined;
     persistent: boolean = false;
-    cache: SocioCache | undefined;
     lifecycle_hooks: { [f_name: string]: Function | null; } = { discon: null as (Discon_ClientHook | null), msg: null as (Msg_ClientHook | null), cmd: null as (Cmd_ClientHook | null), timeout: null as (Timeout_ClientHook | null)};
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
     // progs: Map<Promise<any>, number> = new Map(); //the promise is that of a socio generic data going out from client async. Number is WS send buffer payload size at the time of query
 
-    constructor(url: string, { name = 'Main', logging = { verbose: false, hard_crash: false }, keep_alive = true, reconnect_tries = 1, persistent = false, cache}: SocioClientOptions = {}) {
+    constructor(url: string, { name = 'Main', logging = { verbose: false, hard_crash: false }, keep_alive = true, reconnect_tries = 1, persistent = false}: SocioClientOptions = {}) {
         //@ts-expect-error
         super({ ...logging, prefix: 'SocioClient' });
 
@@ -60,7 +58,6 @@ export class SocioClient extends LogHandler {
         this.name = name
         this.verbose = logging.verbose || false; //It is recommended to turn off verbose in prod.
         this.persistent = persistent;
-        this.cache = cache;
         
         this.#latency = (new Date()).getTime();
         this.#connect(url, keep_alive, this.verbose, reconnect_tries);
