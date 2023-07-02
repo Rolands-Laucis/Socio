@@ -62,7 +62,7 @@ export class SocioClient extends LogHandler {
         this.#latency = (new Date()).getTime();
         this.#connect(url, keep_alive, this.verbose, reconnect_tries);
     }
-    get ws() { return this.#ws; } //the WebSocket instance has some useful properties https://developer.mozilla.org/en-US/docs/Web/API/WebSocket#instance_properties
+    get web_socket() { return this.#ws; } //the WebSocket instance has some useful properties https://developer.mozilla.org/en-US/docs/Web/API/WebSocket#instance_properties
 
     async #connect(url: string, keep_alive: boolean, verbose: boolean, reconnect_tries:number){
         this.#ws = new WebSocket(url);

@@ -47,8 +47,9 @@ export class SocioSession extends LogHandler {
         this.last_seen_now();
     }
 
-    get id(): string { return this.#ws['socio_client_id'] }
-    get ipAddr(): string { return this.#ws['socio_client_ipAddr'] }
+    get web_socket(): WebSocket { return this.#ws; }
+    get id(): string { return this.#ws['socio_client_id']; }
+    get ipAddr(): string { return this.#ws['socio_client_ipAddr']; }
 
     //accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
     Send(kind: ClientMessageKind, ...data) {//data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
