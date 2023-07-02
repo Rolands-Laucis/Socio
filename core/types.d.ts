@@ -25,26 +25,26 @@ export type CoreMessageKind = 'SUB' | 'UNSUB' | 'SQL' | 'PING' | 'AUTH' | 'GET_P
 export type ClientMessageKind = 'CON' | 'UPD' | 'PONG' | 'AUTH' | 'GET_PERM' | 'RES' | 'ERR' | 'PROP_UPD' | 'CMD' | 'RECON' | 'RECV_FILES' | 'TIMEOUT';
 
 //server hook functions
-export type GenCLientID_Hook = () => ClientID;
-export type Con_Hook = (client: SocioSession, request: IncomingMessage) => void;
-export type Discon_Hook = (client: SocioSession) => void;
-export type Blob_Hook = (client: SocioSession, request: Buffer | ArrayBuffer | Buffer[]) => boolean;
-export type Msg_Hook = (client: SocioSession, kind: CoreMessageKind, data: MessageDataObj) => boolean;
-export type Sub_Hook = (client: SocioSession, kind: CoreMessageKind, data: MessageDataObj) => boolean;
-export type Unsub_Hook = (client: SocioSession, kind: CoreMessageKind, data: MessageDataObj) => boolean;
-export type Auth_Hook = (client: SocioSession, params: object | null) => boolean;
-export type GrantPerm_Hook = (client: SocioSession, data:MessageDataObj) => boolean;
-export type Serv_Hook = (client: SocioSession, data: MessageDataObj) => void;
-export type Admin_Hook = (client: SocioSession, data: MessageDataObj) => boolean;
-export type FileUpload_Hook = (client: SocioSession, files?: SocioFiles, data?:any) => Bit | boolean;
-export type FileDownload_Hook = (client: SocioSession, data: any) => FS_Util_Response;
-export type Upd_Hook = (sessions: Map<ClientID, SocioSession>, tables: string[]) => boolean;
+export type GenCLientID_Hook = () => ClientID | Promise<ClientID>;
+export type Con_Hook = (client: SocioSession, request: IncomingMessage) => void | Promise<void>;
+export type Discon_Hook = (client: SocioSession) => void | Promise<void>;
+export type Blob_Hook = (client: SocioSession, request: Buffer | ArrayBuffer | Buffer[]) => boolean | Promise<boolean>;
+export type Msg_Hook = (client: SocioSession, kind: CoreMessageKind, data: MessageDataObj) => boolean | Promise<boolean>;
+export type Sub_Hook = (client: SocioSession, kind: CoreMessageKind, data: MessageDataObj) => boolean | Promise<boolean>;
+export type Unsub_Hook = (client: SocioSession, kind: CoreMessageKind, data: MessageDataObj) => boolean | Promise<boolean>;
+export type Auth_Hook = (client: SocioSession, params: object | null) => boolean | Promise<boolean>;
+export type GrantPerm_Hook = (client: SocioSession, data: MessageDataObj) => boolean | Promise<boolean>;
+export type Serv_Hook = (client: SocioSession, data: MessageDataObj) => void | Promise<void>;
+export type Admin_Hook = (client: SocioSession, data: MessageDataObj) => boolean | Promise<boolean>;
+export type FileUpload_Hook = (client: SocioSession, files?: SocioFiles, data?: any) => Bit | boolean | Promise<Bit | boolean>;
+export type FileDownload_Hook = (client: SocioSession, data: any) => FS_Util_Response | Promise<FS_Util_Response>;
+export type Upd_Hook = (sessions: Map<ClientID, SocioSession>, tables: string[]) => boolean | Promise<boolean>;
 export type Endpoint_Hook = (client: SocioSession, endpoint:string) => string | Promise<string>;
 // export type _Hook = (client: SocioSession) => boolean;
 
 //client hook functions
 export type Discon_ClientHook = (name:string, client_id:ClientID, url:string, keep_alive:boolean, verbose:boolean, reconnect_tries:number) => void;
-export type Msg_ClientHook = (name: string, client_id: ClientID, kind: ClientMessageKind, data: ClientMessageDataObj) => boolean;
+export type Msg_ClientHook = (name: string, client_id: ClientID, kind: ClientMessageKind, data: ClientMessageDataObj) => boolean | Promise<boolean>;
 export type Cmd_ClientHook = (data:ClientMessageDataObj) => void;
 export type Timeout_ClientHook = (name: string, client_id: ClientID) => void;
 // export type _ClientHook = (name: string, client_id: ClientID,) => boolean;

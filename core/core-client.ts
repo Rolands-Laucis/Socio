@@ -97,7 +97,7 @@ export class SocioClient extends LogHandler {
 
             //let the developer handle the msg
             if (this.lifecycle_hooks.msg)
-                if (this.lifecycle_hooks.msg(this.name,this.#client_id, kind, data))
+                if (await this.lifecycle_hooks.msg(this.name,this.#client_id, kind, data))
                     return;
 
             switch (kind) {

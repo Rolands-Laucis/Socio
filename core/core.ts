@@ -94,9 +94,9 @@ export class SocioServer extends LogHandler {
     async #Connect(conn: WebSocket, request: IncomingMessage){
         try{
             //construct the new session with a unique client ID
-            let client_id: string = (this.#lifecycle_hooks.gen_client_id ? this.#lifecycle_hooks.gen_client_id() : UUID())?.toString();
+            let client_id: ClientID = (this.#lifecycle_hooks.gen_client_id ? await this.#lifecycle_hooks.gen_client_id() : UUID())?.toString();
             while (this.#sessions.has(client_id)) //avoid id collisions
-                client_id = (this.#lifecycle_hooks.gen_client_id ? this.#lifecycle_hooks.gen_client_id() : UUID())?.toString();
+                client_id = (this.#lifecycle_hooks.gen_client_id ? await this.#lifecycle_hooks.gen_client_id() : UUID())?.toString();
 
             //get the IP. Gets either from a reverse proxy header (like if u have nginx) or just straight off the http meta
             //@ts-ignore
