@@ -1,7 +1,7 @@
 # Simple Documentation for Socio usage.
 ##### Those that know, do. Those that understand, teach. /Aristotle/
 
-### Overview
+## Overview
 
 * [WS](https://www.npmjs.com/package/ws) Socio uses on the server.
 * [The WebSocket API](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API) Socio uses on the browser.
@@ -15,7 +15,7 @@ The ``./core/secure.ts`` file contains logic to be run on a backend server. It e
 
 Encryption and decryption uses the AES-256-GCM algorithm (symmetric encryption), which guarantees Confidentiality - cannot be read; Integrity - cannot be altered; and Authenticity - server can verify the author of the created cypher text.
 
-### SQL and NoSQL
+## SQL and NoSQL
 Currently the lib has been developed with a main focus on SQL queries being written on the frontend. This matters, bcs i parse the sent strings with the assumption that they are valid SQL syntax. However, the lib now also supports a NoSQL paradigm in the form of what i call "Server Props".
 
 "Server props" are a way for the backend to set up a (serializable) JS object, that can be subscribed to and manipulated by clients. Esentially creating an automagically synced value across the backend and all clients. Ofc you may alter the prop on the backend as well at any time. The safety of its data is ensured by you. When registering a new prop to SocioServer, you can supply an "assigner" function, within which it is your responsibility to validate the incoming new value and set it by whatever logic and report back to SocioServer, that the operation was successful or not. See ()[#Server-props] for more details.
@@ -144,8 +144,9 @@ const socserv = new SocioServer({ port: 3000, perMessageDeflate }, {...} );
 ```
 
 #### Session Timeouts (session max age since last seen active)
+Simply declare a server config object with default options.
+
 ```ts
-//simply declare a server config object with options.
 const socserv = new SocioServer({ ... }, { 
   ..., 
   session_defaults:{
@@ -158,6 +159,8 @@ const socserv = new SocioServer({ ... }, {
   });
 ```
 If you want to have a fixed time period timeout since connection, you can do that yourself with server hooks or other ways. Set up a client_id and connection timestamp. And loop through checks on sessions in your own timer. Calling SocioSession.CloseConnection() will terminate the WS conn and clean up all associated SocioServer data structures.
+
+You can quite easily mimic HTTP cookie sessions on whatever backend by using SocioServer hooks with SocioSession id's.
 
 ### Setup of ``SocioClient``
 

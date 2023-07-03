@@ -4,12 +4,12 @@
 
 * <a href="https://www.youtube.com/watch?v=iJIC9B3cKME&ab_channel=CepuminsLV" target="_blank">3 min video - Introduction demo.</a>
 * <a href="https://www.youtube.com/watch?v=t8_QBzk5bUk" target="_blank">16 min video - Getting started with Socio 0.7, SvelteKit, Vite.</a>
-
+---
 * [Basic Demo project](https://github.com/Rolands-Laucis/Socio/blob/master/demos/basic/readme.md) - interactive bare-bones demo project.
 * [Secure Full-Stack Framework Demo project](https://github.com/Rolands-Laucis/Socio/tree/master/demos/full-stack_framework#readme) - interactive demo project with SvelteKit and Vite.
 * [Simple Documentation](https://github.com/Rolands-Laucis/Socio/blob/master/Documentation.md) - page to see direct examples and explanations of how to use various parts of the lib.
 * [Real-time rent prices in Riga, Latvia](http://riga.rolandslaucis.lv/) made by me. SvelteKit, Vite, Socio, NginX, Ubuntu server.
-
+---
 No more API middleware and backend DB interfacing functions and wrappers and handlers. Write your SQL queries on the frontend and have their results be automagically refreshed on all clients when a resource is changed on the server DB. This is secure.
 
 Ready for use in your small to mid sized web app 🥰 feedback is welcome.
@@ -44,7 +44,7 @@ async function QueryWrap(client: SocioSession, id: id, sql: string, params: obje
     //sanatize dynamic params!
 }
 
-const socsec = new SocioSecurity({ secure_private_key: '...', logging:{verbose:true} }); //for decrypting incoming queries. This same key is used for encrypting the source files when you build and bundle them.
+const socsec = new SocioSecurity({ secure_private_key: '...', logging:{verbose:true} }); //for decrypting incoming queries. This same key is used for encrypting the source files when you build and bundle them. Same in the Vite plugin.
 const socserv = new SocioServer({ port: 3000 }, { DB_query_function: QueryWrap as QueryFunction, socio_security: socsec, logging:{verbose:true} }); //creates localhost:3000 web socket server
 ```
 ```ts
@@ -71,7 +71,7 @@ import { SocioSecurityVitePlugin } from 'socio/dist/secure';
 
 export default defineConfig({
 	plugins: [
-        SocioSecurityVitePlugin({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', logging:{verbose:true} }), 
+        SocioSecurityVitePlugin({ secure_private_key: '...', logging:{verbose:true} }), //same key as in SocioSecurity
         sveltekit()
     ]
 });
@@ -90,8 +90,6 @@ The use of the Socio lib **does not** prohibit the use of standard HTTP technolo
 ## Caveats 🚩
 
 For SQL queries, the automagic happens because i regex parse the strings myself with simple patterns. The most basic usecases should be covered, but more complex SQL queries are not - situations like: nested queries and multiple queries in a single string. Only table names are extracted, so sometimes subscriptions would receive an update, even though for its specific WHERE clauses it would logically not have changed data. E.g. if you alter a specific users info on a Users table, all subscribed users would get an update.
-
-You can quite easily mimic HTTP cookie sessions on whatever backend by using SocioServer hooks with SocioSession id's.
 
 I cannot guarantee perfect safety of the query encryption. Neither can traditional HTTP backends. You may use SocioServer hooks to double check the incoming data yourself for your peace of mind.
 
