@@ -38,7 +38,7 @@ export class SocioServer extends LogHandler {
     #secure: { socio_security: SocioSecurity | null, decrypt_sql: boolean, decrypt_prop:boolean};
 
     //backend props, e.g. strings for colors, that clients can subscribe to and alter
-    #props: Map<PropKey, { val: PropValue, assigner: PropAssigner, updates: Map<ClientID, { id: id, rate_limiter?: RateLimiter | null }>, client_writable:boolean }> = new Map();
+    #props: Map<PropKey, { val: PropValue, assigner: PropAssigner, updates: Map<ClientID, { id: id, rate_limiter?: RateLimiter | null }>, client_writable:boolean, send_as_diff?:boolean }> = new Map();
 
     //rate limits server functions globally
     #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
@@ -552,12 +552,12 @@ export class SocioServer extends LogHandler {
     }
 
     //assigner defaults to basic setter
-    RegisterProp(key: PropKey, val: PropValue, assigner: PropAssigner = (key: PropKey, new_val: PropValue) => this.SetPropVal(key, new_val), client_writable = true){
+    RegisterProp(key: PropKey, val: PropValue, { assigner = this.SetPropVal, client_writable = true, send_as_diff = undefined} = {}){
         try{
             if (this.#props.has(key))
                 throw new E(`Prop key [${key}] has already been registered and for client continuity is forbiden to over-write at runtime. [#prop-key-exists]`)
             else
-                this.#props.set(key, { val, assigner, updates: new Map(), client_writable });
+                this.#props.set(key, { val, assigner, updates: new Map(), client_writable, send_as_diff });
         } catch (e: err) { this.HandleError(e) }
     }
     UnRegisterProp(key: PropKey){
@@ -579,7 +579,7 @@ export class SocioServer extends LogHandler {
         //Dont think JS allows such ref pointers to work. But this then keeps the correct val. 
         //This idea works bcs the mutator of the data should be the first to run this and all other session will get informed here with that sessions diff.
 
-        if (prop?.assigner(key, new_val)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
+        if (prop.assigner(key, new_val)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
             for (const [client_id, args] of prop.updates.entries()) {
                 if (args?.rate_limiter && args.rate_limiter?.CheckLimit()) return; //ratelimit check
 
@@ -587,6 +587,10 @@ export class SocioServer extends LogHandler {
                 if (this.#sessions.has(client_id)){
                     //construct either concrete value or diff of it.
                     const upd_data = { id: args.id, prop:key };
+
+                    //overload the global Socio Server flag with a per prop flag
+                    if (prop?.send_as_diff && typeof prop?.send_as_diff == 'boolean') send_as_diff = prop.send_as_diff;
+
                     if (send_as_diff)
                         upd_data['prop_val_diff'] = diff_lib.getDiff(old_prop_val, this.GetPropVal(key));
                     else
