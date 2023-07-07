@@ -293,6 +293,7 @@ export default config;
 The ``SocioSecurityPlugin`` also takes in an extra options object parameter that the base class doesnt. ``include_file_types`` = ``['js', 'svelte', 'vue', 'jsx', 'ts', 'tsx']`` (default) ; ``exclude_file_types`` = [] (default) ; ``exclude_svelte_server_files`` = true (default)
 
 ### Server Props
+A shared JSON serializable value/object/state on the server that is live synced to subscribed clients and is modifyable by clients.
 
 ```ts
 //server code
@@ -304,13 +305,17 @@ const socserv = new SocioServer(...)
 //and add an optional assigner function instead of the unsafe default. The assigner does 2 things - validate the new_val and set the prop to that new_val.
 //return truthy to report back to the prop upd function, that this is an accepted, valid action and the new prop val has been set.
 //a default assigner is used for all props that just sets the value to whatever the new one is without checks (unsafe af tbh).
-socserv.RegisterProp('color', '#ffffff', (curr_val:PropValue, new_val:PropValue):boolean => {
-  if(typeof new_val != 'string' || new_val.length != 7) return false;
-  if (!new_val.match(/^#[0-9a-f]{6}/mi)) return false;
-  //...more checks.
-  
-  //success, so assign
-  return socserv.SetPropVal('color', new_val); //assign the prop. Returns truthy, if was set succesfully
+socserv.RegisterProp('color', '#ffffff', {
+  assigner:(curr_val:PropValue, new_val:PropValue):boolean => {
+    if(typeof new_val != 'string' || new_val.length != 7) return false;
+    if (!new_val.match(/^#[0-9a-f]{6}/mi)) return false;
+    //...more checks.
+    
+    //success, so assign
+    return socserv.SetPropVal('color', new_val); //assign the prop. Returns truthy, if was set succesfully
+  }, //default SocioServer.SetPropVal
+  client_writable:true, //clients can change this value. Default true
+  send_as_diff:false //send only the differences in the prop values. Overrules the diff global flag. Default false.
 })
 ```
 
@@ -339,14 +344,13 @@ socserv.RegisterProp(...);
 
 //this global flag can be overwritten per UpdatePropVal call, to force either full or diff val to be sent:
 socserv.UpdatePropVal(..., true); //last arg send_as_diff overwrites prop_upd_diff for this send to all subs.
+socserv.UnRegisterProp(...);
 ```
 
 For more security/paranoia, props can be registered such that clients are not allowed to write, just read props.
 ```ts
 //server code
-socserv.RegisterProp('color', '#ffffff', (curr_val:PropValue, new_val:PropValue):boolean => {
-  return socserv.SetPropVal('color', new_val);
-}, false); //last arg client_writable=false
+socserv.RegisterProp(..., {client_writable:false});
 ```
 
 ### Generic communication
@@ -393,8 +397,37 @@ const sc = new SocioClient(...)
 sc.lifecycle_hooks.cmd = (data:any) => { console.log(data) }
 ```
 
-### Basic Real-Time Chat Mechanism
-WebSockets were pretty much made to solve the issue of chats for the web. As Socio uses WebSockets for a much grander purpose, still I provide a convenient basic setup of chat rooms.
+### Socio Rooms/Spaces/Presentations/Collabs (Divided, shared Contexts)
+For a lot of SaaS and Digital Document type Web Apps or multiplayer games you're gonna want some form of the idea of a "room" for users - a shared data/state context with certain users (subset of all possible users). Socio doesn't have a special solution for such a pattern, but only because it doesn't need one. 😎
+You can create such a pattern simply with Socio Server Props. The prop name would be a unique "room" ID, that Socio Clients can subscribe to. Then the entire "room" or "game" shared state can be a large JSON serializable object. Thus only specific users will interact with this global state and it will be live synced to the others in that "room".
+This object can grow large, because you can send just the differences in updates to the object and not the whole object. This happens automagically for you :)
+
+Something like this:
+```ts
+const socserv = new SocioServer(...)
+
+//use the generic communications mechanism to init a room
+socserv.RegisterLifecycleHookHandler('serv', (client:SocioSession, data:MessageDataObj) => {
+  if(data.data.action == 'create_room'){
+    //generate new room id
+    const id = UUID()
+
+    //generate new room server prop
+    socserv.RegisterProp(id, {}, {send_as_diff:true}) //add a assigner function yourself or dont idk
+
+    //tell the user their room ID so they can share with their friends.
+    client.Send('RES', {id:data.id, room_id:id})
+  }else if(data.data.action == 'destroy_room'){
+    //last person to exit the room should call to destroy it. You can think of ways to ensure this yourself. Get creative :)
+    socserv.UnRegisterProp(data.data.room_id) //free memory of server
+    client.Send('RES', {id:data.id, result:1})
+  }
+})
+```
+This is great for Web games like "Kahoot", "Codenames", any kind of presentation with slides, perhaps even collaborative editable text documents etc.
+
+#### Basic Real-Time Chat Mechanism
+WebSockets were pretty much made to solve the issue of chats for the web. As Socio uses WebSockets for a much grander purpose, still I provide a convenient basic setup of chat rooms. This is more specialized and potentially less problematic than the [Socio Rooms](#Socio-Rooms) idea.
 
 ```ts
 //server code
