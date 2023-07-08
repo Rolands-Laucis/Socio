@@ -8,7 +8,7 @@
 * [Basic Demo project](https://github.com/Rolands-Laucis/Socio/blob/master/demos/basic/readme.md) - interactive bare-bones demo project.
 * [Secure Full-Stack Framework Demo project](https://github.com/Rolands-Laucis/Socio/tree/master/demos/full-stack_framework#readme) - interactive demo project with SvelteKit and Vite.
 * [Simple Documentation](https://github.com/Rolands-Laucis/Socio/blob/master/Documentation.md) - page to see direct examples and explanations of how to use various parts of the lib.
-* [Real-time rent prices in Riga, Latvia](http://riga.rolandslaucis.lv/) made by me. SvelteKit, Vite, Socio, NginX, Ubuntu server.
+* [Website made with Socio](http://riga.rolandslaucis.lv/) by me. Real-time rent prices in Riga, Latvia. SvelteKit, Vite, Socio, NginX, Ubuntu server.
 ---
 No more API middleware and backend DB interfacing functions and wrappers and handlers. Write your SQL queries on the frontend and have their results be automagically refreshed on all clients when a resource is changed on the server DB. This is secure.
 
