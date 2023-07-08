@@ -23,7 +23,7 @@ try{
     const socsec = new SocioSecurity({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', logging: { verbose: false } });
     const socserv = new SocioServer({ port: 3000, perMessageDeflate }, { DB_query_function: Query, logging: { verbose: true, hard_crash:false }, socio_security: socsec });
 
-    const validate_color_prop: PropAssigner = (curr_val: PropValue, new_val: PropValue): boolean => {
+    const validate_color_prop: PropAssigner = (curr_val: PropValue, new_val: PropValue) => {
         if (typeof new_val != 'string' || new_val.length != 7) return false;
         if (!new_val.match(/^#[0-9a-f]{6}/mi)) return false;
         return socserv.SetPropVal('color', new_val);
