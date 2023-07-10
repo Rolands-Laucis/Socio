@@ -5,8 +5,7 @@ import * as b64 from 'base64-js';
 import * as diff_lib from 'recursive-diff'; //https://www.npmjs.com/package/recursive-diff
 
 //types
-import type { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind, Bit } from './types.js';
-import type { Cmd_ClientHook, Msg_ClientHook, Discon_ClientHook, Timeout_ClientHook } from './types.js';
+import type { id, PropKey, PropValue, CoreMessageKind, ClientMessageKind, Bit, ClientLifecycleHooks, ClientID } from './types.js';
 import type { SocioFiles } from './types.js';
 import type { RateLimit } from './ratelimit.js';
 import { MapReplacer, MapReviver, clamp } from './utils.js';
@@ -27,7 +26,7 @@ export type SocioClientOptions = { name?: string, logging?: LogHandlerOptions, k
 export class SocioClient extends LogHandler {
     // private:
     #ws: WebSocket | null = null;
-    #client_id:id = '';
+    #client_id:ClientID = '';
     #latency:number;
     #is_ready: Function | boolean = false;
     #authenticated=false;
@@ -42,7 +41,7 @@ export class SocioClient extends LogHandler {
     verbose:boolean;
     key_generator: (() => number | string) | undefined;
     persistent: boolean = false;
-    lifecycle_hooks: { [f_name: string]: Function | null; } = { discon: null as (Discon_ClientHook | null), msg: null as (Msg_ClientHook | null), cmd: null as (Cmd_ClientHook | null), timeout: null as (Timeout_ClientHook | null)};
+    lifecycle_hooks: ClientLifecycleHooks = { discon: undefined, msg: undefined, cmd: undefined, timeout: undefined }; //assign your function to hook on these. They will be called if they exist
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
     // progs: Map<Promise<any>, number> = new Map(); //the promise is that of a socio generic data going out from client async. Number is WS send buffer payload size at the time of query
@@ -102,8 +101,8 @@ export class SocioClient extends LogHandler {
 
             switch (kind) {
                 case 'CON':
-                    //@ts-ignore
-                    this.#client_id = data;//should just be a string
+                    //@ts-expect-error
+                    this.#client_id = data as string;//should just be a string
                     this.#latency = (new Date()).getTime() - this.#latency;
 
                     if (this.persistent) {

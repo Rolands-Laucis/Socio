@@ -18,8 +18,7 @@ import { RateLimiter } from './ratelimit.js';
 //types
 import type { ServerOptions, WebSocket, AddressInfo } from 'ws';
 import type { IncomingMessage } from 'http';
-import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind, SocioFiles, ClientID, FS_Util_Response } from './types.js';
-import type { GenCLientID_Hook, Con_Hook, Msg_Hook, Sub_Hook, Upd_Hook, Auth_Hook, Blob_Hook, Serv_Hook, Admin_Hook, Unsub_Hook, Discon_Hook, GrantPerm_Hook, FileUpload_Hook, FileDownload_Hook, Endpoint_Hook } from './types.js';
+import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind, SocioFiles, ClientID, FS_Util_Response, ServerLifecycleHooks } from './types.js';
 import type { RateLimit } from './ratelimit.js';
 import type { LogHandlerOptions } from './logging.js';
 export type MessageDataObj = { id?: id, sql?: string, endpoint?: string, params?: object | null | Array<any>, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val: PropValue, data?: any, rate_limit?: RateLimit, files?: SocioFiles, sql_is_endpoint?:boolean };
@@ -43,7 +42,7 @@ export class SocioServer extends LogHandler {
     //rate limits server functions globally
     #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
 
-    #lifecycle_hooks: { [f_name: string]: Function | null; } = { con: null as (Con_Hook | null), discon: null as (Discon_Hook | null), msg: null as (Msg_Hook | null), sub: null as (Sub_Hook | null), unsub: null as (Unsub_Hook | null), upd: null as (Upd_Hook | null), auth: null as (Auth_Hook | null), gen_client_id: null as (GenCLientID_Hook | null), grant_perm: null as (GrantPerm_Hook | null), serv: null as (Serv_Hook | null), admin: null as (Admin_Hook | null), blob: null as (Blob_Hook | null), file_upload: null as (FileUpload_Hook | null), file_download: null as (FileDownload_Hook | null), endpoint: null as (Endpoint_Hook | null) } //call the register function to hook on these. They will be called if they exist
+    #lifecycle_hooks: ServerLifecycleHooks = { con: undefined, discon: undefined, msg: undefined, sub: undefined, unsub: undefined, upd: undefined, auth: undefined, gen_client_id: undefined, grant_perm: undefined, serv: undefined, admin: undefined, blob: undefined, file_upload: undefined, file_download: undefined, endpoint: undefined }; //call the register function to hook on these. They will be called if they exist
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //msg hook receives all incomming msgs to the server. 
     //upd works the same as msg, but for everytime updates need to be propogated to all the sockets.
@@ -54,6 +53,7 @@ export class SocioServer extends LogHandler {
     //stores active reconnection tokens
     #tokens: Set<string> = new Set();
 
+    //global flag to send prop obj diffs using the diff lib instead of the full object every time.
     #prop_upd_diff = false;
 
     //public:
@@ -257,7 +257,7 @@ export class SocioServer extends LogHandler {
                     //if the client happens to want to use an endpoint keyname instead of SQL, retrieve the SQL string from a hook call and procede with that.
                     if (data?.sql_is_endpoint && data.sql) {
                         if (this.#lifecycle_hooks.endpoint)
-                            data.sql = await this.#lifecycle_hooks.endpoint(client, data.sql_is_endpoint);
+                            data.sql = await this.#lifecycle_hooks.endpoint(client, data.sql);
                         else throw new E('Client sent endpoint instead of SQL, but its hook is missing. [#no-endpoint-hook-SQL]');
                     }
                     //have to do the query in every case
@@ -552,7 +552,7 @@ export class SocioServer extends LogHandler {
     }
 
     //assigner defaults to basic setter
-    RegisterProp(key: PropKey, val: PropValue, { assigner = this.SetPropVal, client_writable = true, send_as_diff = undefined} = {}){
+    RegisterProp(key: PropKey, val: PropValue, { assigner = this.SetPropVal, client_writable = true, send_as_diff = undefined }: { assigner?: PropAssigner, client_writable?: boolean, send_as_diff?: boolean | undefined} = {}){
         try{
             if (this.#props.has(key))
                 throw new E(`Prop key [${key}] has already been registered and for client continuity is forbiden to over-write at runtime. [#prop-key-exists]`)
