@@ -25,7 +25,8 @@ export type MessageDataObj = { id?: id, sql?: string, endpoint?: string, params?
 export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
 export type QueryFunction = (client:SocioSession, id:id, sql:string, params?:object|null) => Promise<object>;
 type SessionsDefaults = { timeouts: boolean, timeouts_check_interval_ms?: number, ttl_ms?: number, session_delete_delay_ms?: number, recon_ttl_ms?: number };
-type SocioServerOptions = { DB_query_function?: QueryFunction, socio_security?: SocioSecurity | null, logging?: LogHandlerOptions, decrypt_sql?: boolean, decrypt_prop?: boolean, hard_crash?: boolean, session_defaults?: SessionsDefaults, prop_upd_diff?:boolean }
+type DecryptOptions = { decrypt_sql: boolean, decrypt_prop: boolean, decrypt_endpoint: boolean };
+type SocioServerOptions = { DB_query_function?: QueryFunction, socio_security?: SocioSecurity | null, logging?: LogHandlerOptions, decrypt_opts?: DecryptOptions, hard_crash?: boolean, session_defaults?: SessionsDefaults, prop_upd_diff?:boolean }
 type AdminMessageDataObj = {function:string, args?:any[], secure_key:string};
 
 export class SocioServer extends LogHandler {
@@ -34,7 +35,7 @@ export class SocioServer extends LogHandler {
     #sessions: Map<ClientID, SocioSession> = new Map(); //client_id:SocioSession. Maps are quite more performant than objects
 
     //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages, if the msg flag is set
-    #secure: { socio_security: SocioSecurity | null, decrypt_sql: boolean, decrypt_prop:boolean};
+    #secure: { socio_security: SocioSecurity | null } & DecryptOptions;
 
     //backend props, e.g. strings for colors, that clients can subscribe to and alter
     #props: Map<PropKey, { val: PropValue, assigner: PropAssigner, updates: Map<ClientID, { id: id, rate_limiter?: RateLimiter | null }>, client_writable:boolean, send_as_diff?:boolean }> = new Map();
@@ -60,7 +61,7 @@ export class SocioServer extends LogHandler {
     Query: QueryFunction; //you can change this at any time
     session_defaults: SessionsDefaults = { timeouts: false, timeouts_check_interval_ms: 1000 * 60, ttl_ms:Infinity, session_delete_delay_ms: 1000 * 5, recon_ttl_ms: 1000 * 60 * 60 };
 
-    constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, logging = {verbose: false, hard_crash: false}, decrypt_sql = true, decrypt_prop = false, session_defaults, prop_upd_diff=false }: SocioServerOptions){
+    constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, logging = { verbose: false, hard_crash: false }, decrypt_opts = { decrypt_sql: true, decrypt_prop: false, decrypt_endpoint:false}, session_defaults, prop_upd_diff=false }: SocioServerOptions){
         //@ts-expect-error
         super({ ...logging, prefix:'SocioServer'});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
@@ -69,7 +70,7 @@ export class SocioServer extends LogHandler {
 
         //private:
         this.#wss = new WebSocketServer({ ...opts, clientTracking: true }); //take a look at the WebSocketServer docs - the opts can have a server param, that can be your http server
-        this.#secure = { socio_security, decrypt_sql, decrypt_prop};
+        this.#secure = { socio_security, ...decrypt_opts };
         this.#prop_upd_diff = prop_upd_diff;
 
         //public:
@@ -158,7 +159,7 @@ export class SocioServer extends LogHandler {
 
             //if the socio security instance exists and either sql or/and prop was recieved and they are to be decrypted, then do so here
             //this assumes that the incoming message doesnt have both sql and prop in data at the same time.
-            if (this.#secure.socio_security && ((data?.sql && this.#secure.decrypt_sql) || (data?.prop && this.#secure.decrypt_prop))) {
+            if (this.#secure.socio_security && ((data?.sql && this.#secure.decrypt_sql) || (data?.prop && this.#secure.decrypt_prop) || (data?.endpoint && this.#secure.decrypt_endpoint))) {
                 let str: string = (data?.sql ? data.sql : data?.prop) || '', markers:string[]|undefined;
 
                 //check crypt format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where each part is base64 encoded
