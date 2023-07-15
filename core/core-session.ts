@@ -9,7 +9,7 @@ import type { id, ClientMessageKind, Bit } from './types.js';
 import type { RateLimit } from './ratelimit.js'
 import { MapReplacer } from './utils.js';
 
-type HookObj = {
+type SubObj = {
     tables: string[],
     sql: string, 
     params: object | null,
@@ -20,7 +20,7 @@ export type SocioSessionOptions = { logging?: LogHandlerOptions, default_perms?:
 export class SocioSession extends LogHandler {
     //private:
     #ws: WebSocket;
-    #hooks: Map<id, HookObj> = new Map();//msg_id:HookObj
+    #subs: Map<id, SubObj> = new Map();
     #authenticated = false //usually boolean, but can be any truthy or falsy value to show the state of the session. Can be a token or smth for your own use, bcs the client will only receive a boolean
     #perms: Map<string, string[]> = new Map(); //verb:[tables strings] keeps a dict of access permissions of verb type and to which tables this session has been granted
     #destroyed:number = 0;
@@ -61,16 +61,16 @@ export class SocioSession extends LogHandler {
     }
 
     //TODO this used to be well optimized datastructures back in 0.2.1, but had to simplify down, bcs it gets complicated
-    RegisterHook(tables: string[], id: id, sql:string, params: object | null, rate_limit:RateLimit | null) {
-        if (!this.#hooks.has(id))
-            this.#hooks.set(id, { tables, sql, params, rate_limiter: rate_limit ? new RateLimiter(rate_limit) : null });
-        else throw new E('MSG ID already registered as hook!', tables, id, sql, params);
+    RegisterSub(tables: string[], id: id, sql:string, params: object | null, rate_limit:RateLimit | null) {
+        if (!this.#subs.has(id))
+            this.#subs.set(id, { tables, sql, params, rate_limiter: rate_limit ? new RateLimiter(rate_limit) : null });
+        else throw new E('MSG ID already registered as Sub!', tables, id, sql, params);
     }
-    UnRegisterHook(id: id): Bit {
-        return this.#hooks.delete(id) ? 1 : 0;
+    UnRegisterSub(id: id): Bit {
+        return this.#subs.delete(id) ? 1 : 0;
     }
-    GetHooksForTables(tables: string[]=[]){
-        return [...this.#hooks.entries()]
+    GetSubsForTables(tables: string[]=[]){
+        return [...this.#subs.entries()]
             .filter(([key, h]) => h.tables.some(t => tables.includes(t)))
             .map(([key, h]) => { return {...h, id:key}})
     }
@@ -113,7 +113,7 @@ export class SocioSession extends LogHandler {
         this.#destroyed = 0;
     }
 
-    ClearHooks(){this.#hooks.clear();}
+    ClearSubs(){this.#subs.clear();}
     CopySessionFrom(old_client:SocioSession){
         this.#authenticated = old_client.#authenticated;
         this.#perms = old_client.#perms;

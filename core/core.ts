@@ -228,7 +228,7 @@ export class SocioServer extends LogHandler {
                             //set up hook
                             const tables = ParseQueryTables(data.sql || '');
                             if (tables)
-                                client.RegisterHook(tables, data.id as id, data.sql as string, data.params || null, data?.rate_limit || null);
+                                client.RegisterSub(tables, data.id as id, data.sql as string, data.params || null, data?.rate_limit || null);
 
                             //send response
                             client.Send('UPD', {
@@ -252,7 +252,7 @@ export class SocioServer extends LogHandler {
                         if (await this.#lifecycle_hooks.unsub(client, kind, data))
                             return;
 
-                    client.Send('RES', { id: data.id, result: client.UnRegisterHook(data?.unreg_id || '') });
+                    client.Send('RES', { id: data.id, result: client.UnRegisterSub(data?.unreg_id || '') });
                     break;
                 case 'SQL':
                     //if the client happens to want to use an endpoint keyname instead of SQL, retrieve the SQL string from a hook call and procede with that.
@@ -482,7 +482,7 @@ export class SocioServer extends LogHandler {
         //or go through each session's every hook and query the DB for its result, then send it to the client
         try{
             for (const client of this.#sessions.values()){
-                client.GetHooksForTables(tables).forEach(hook => { //for each hook. GetHooksForTables always returns array. If empty, then the foreach wont run, so each sql guaranteed to have hooks array
+                client.GetSubsForTables(tables).forEach(hook => { //for each hook. GetSubsForTables always returns array. If empty, then the foreach wont run, so each sql guaranteed to have hooks array
                     //rate limit check
                     if (hook?.rate_limiter && hook.rate_limiter.CheckLimit()) return;
 
@@ -637,7 +637,7 @@ export class SocioServer extends LogHandler {
     get methods() { return GetAllMethodNamesOf(this) }
 
     #ClearClientSessionSubs(client_id:string){
-        this.#sessions.get(client_id)?.ClearHooks(); //clear query subs
+        this.#sessions.get(client_id)?.ClearSubs(); //clear query subs
         for (const prop of this.#props.values()) { prop.updates.delete(client_id); }; //clear prop subs
     }
 
