@@ -5,9 +5,9 @@ import type { QueryMarker } from "./types.js";
 export type SocioStringObj = { str: string, markers: string[] };
 
 //regex
-export const socio_string_regex = /socio`(?<sql>.*?)`/igs;
-export const table_names_regex = /(?:FROM|INTO)[\s]+(?<tables>[\w,\s]+?)([\s]+)?(?:\(|WHERE|VALUES|;|LIMIT|GROUP|ORDER)/mi;
-export const socio_string_markers_regex = /--(?<markers>(?:-?(?:auth|perm))*)/;
+export const socio_string_regex = /socio`(?<sql>.*?)`/is;
+export const table_names_regex = /(?:FROM|INTO)[\s]+(?<tables>[\w,\s]+?)([\s]+)?(?:\(|WHERE|VALUES|;|LIMIT|GROUP|ORDER|$)/mi;
+export const socio_string_markers_regex = /--(?<markers>(?:-?(?:socio|auth|perm))*)/i;
 
 //socio template literal tag. Dummy function, that doesnt ever get used, but can be. Will insert all template variables in correct order and return the string.
 export function socio(strings: TemplateStringsArray, ...vars){
