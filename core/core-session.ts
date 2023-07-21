@@ -1,21 +1,22 @@
 //Homo vitae commodatus non donatus est. - Man's life is lent, not given. /Syrus/
 
-import { LogHandler, LogHandlerOptions, E, log, info, done } from './logging.js'
-import { RateLimiter } from './ratelimit.js'
+import { LogHandler, LogHandlerOptions, E, log, info, done } from './logging.js';
+import { RateLimiter } from './ratelimit.js';
+import { MapReplacer, FastHash } from './utils.js';
 
 //types
 import type { WebSocket } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
-import type { id, ClientMessageKind, Bit } from './types.js';
+import type { id, ClientMessageKind, Bit, LoggingOpts } from './types.js';
 import type { RateLimit } from './ratelimit.js'
-import { MapReplacer } from './utils.js';
 
-type SubObj = {
+export type SubObj = {
     tables: string[],
     sql: string, 
-    params: object | null,
-    rate_limiter: RateLimiter | null
+    params?: object,
+    rate_limiter?: RateLimiter,
+    cache_hash:number
 }
-export type SocioSessionOptions = { logging?: LogHandlerOptions, default_perms?: Map<string, string[]>, session_timeout_ttl_ms?:number };
+export type SocioSessionOptions = { default_perms?: Map<string, string[]>, session_timeout_ttl_ms?: number } & LoggingOpts;
 
 export class SocioSession extends LogHandler {
     //private:
@@ -61,18 +62,18 @@ export class SocioSession extends LogHandler {
     }
 
     //TODO this used to be well optimized datastructures back in 0.2.1, but had to simplify down, bcs it gets complicated
-    RegisterSub(tables: string[], id: id, sql:string, params: object | null, rate_limit:RateLimit | null) {
+    RegisterSub(tables: string[], id: id, sql:string, params?: object, rate_limit?:RateLimit) {
         if (!this.#subs.has(id))
-            this.#subs.set(id, { tables, sql, params, rate_limiter: rate_limit ? new RateLimiter(rate_limit) : null });
+            this.#subs.set(id, { tables, sql, params, rate_limiter: rate_limit ? new RateLimiter(rate_limit) : undefined, cache_hash: FastHash(sql+JSON.stringify(params)) });
         else throw new E('MSG ID already registered as Sub!', tables, id, sql, params);
     }
     UnRegisterSub(id: id): Bit {
         return this.#subs.delete(id) ? 1 : 0;
     }
-    GetSubsForTables(tables: string[]=[]){
-        return [...this.#subs.entries()]
-            .filter(([key, h]) => h.tables.some(t => tables.includes(t)))
-            .map(([key, h]) => { return {...h, id:key}})
+    * GetSubsForTables(tables: string[]=[]){
+        for (const [id, hook] of this.#subs.entries())
+            if (hook.tables.some(t => tables.includes(t)))
+                yield { ...hook, id };
     }
 
     get authenticated() { return this.#authenticated }

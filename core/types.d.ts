@@ -2,7 +2,7 @@ import type { SocioSession } from "./core-session.js";
 import type { MessageDataObj } from "./core.ts";
 import type { ClientMessageDataObj } from './core-client.js';
 import type { IncomingMessage } from 'http';
-import type { E } from "./logging.js";
+import type { E, LogHandlerOptions } from "./logging.js";
 
 //general types
 export type id = string | number;
@@ -19,6 +19,7 @@ export type PropAssigner = (key: PropKey, new_val:PropValue) => boolean;
 export type SocioFiles = Map<string, { meta: { size: number, lastModified?: number, type?: string }, bin: Base64String }>; //bin is a base64 string of the bytes of the raw file
 export type QueryMarker = 'socio' | 'auth' | 'perm';
 export type FS_Util_Response = { result: Bit, error?: string | Error | E | object | any, files?: SocioFiles }
+export type LoggingOpts = { logging?: LogHandlerOptions };
 
 //msg kinds
 export type CoreMessageKind = 'SUB' | 'UNSUB' | 'SQL' | 'PING' | 'AUTH' | 'GET_PERM' | 'PROP_SUB' | 'PROP_UNSUB' | 'PROP_GET' | 'PROP_SET' | 'SERV' | 'ADMIN' | 'RECON' | 'UP_FILES' | 'GET_FILES';
@@ -39,7 +40,7 @@ export type Serv_Hook = (client: SocioSession, data: MessageDataObj) => void | P
 export type Admin_Hook = (client: SocioSession, data: MessageDataObj) => boolean | Promise<boolean>;
 export type FileUpload_Hook = (client: SocioSession, files?: SocioFiles, data?: any) => Bit | boolean | Promise<Bit | boolean>;
 export type FileDownload_Hook = (client: SocioSession, data: any) => FS_Util_Response | Promise<FS_Util_Response>;
-export type Upd_Hook = (sessions: Map<ClientID, SocioSession>, tables: string[]) => boolean | Promise<boolean>;
+export type Upd_Hook = (sessions: Map<ClientID, SocioSession>, initiator: SocioSession, sql: string, params:object) => boolean | Promise<boolean>;
 export type Endpoint_Hook = (client: SocioSession, endpoint:string) => string | Promise<string>;
 // export type _Hook = (client: SocioSession) => boolean;
 

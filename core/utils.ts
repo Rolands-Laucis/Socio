@@ -111,3 +111,14 @@ export function MapReviver(key: string, value: any) {
     }
     return value
 }
+
+// (modified) CREDIT: https://gist.github.com/jlevy/c246006675becc446360a798e2b2d781
+// super simple, naive, yet fast way to generate a hash for a subscription query. Used to keep a cache while in the core Update function.
+export function FastHash(str:string) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash = hash & hash;
+    }
+    return hash;
+}

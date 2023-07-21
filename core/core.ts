@@ -9,36 +9,36 @@ import * as diff_lib from 'recursive-diff'; //https://www.npmjs.com/package/recu
 import { QueryIsSelect, ParseQueryTables, SocioStringParse, ParseQueryVerb, sleep, GetAllMethodNamesOf, MapReviver } from './utils.js';
 import { E, LogHandler, err, log, info, done } from './logging.js';
 import { UUID, SocioSecurity } from './secure.js';
-import { SocioSession } from './core-session.js';
+import { SocioSession, type SubObj } from './core-session.js';
 import { RateLimiter } from './ratelimit.js';
-
-//NB! some fields in these variables are private for safety reasons, but also bcs u shouldnt be altering them, only if through my defined ways. They are mostly expected to be constants.
-//whereas public variables are free for you to alter freely at any time during runtime.
 
 //types
 import type { ServerOptions, WebSocket, AddressInfo } from 'ws';
 import type { IncomingMessage } from 'http';
-import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind, SocioFiles, ClientID, FS_Util_Response, ServerLifecycleHooks } from './types.js';
+import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind, SocioFiles, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts } from './types.js';
 import type { RateLimit } from './ratelimit.js';
-import type { LogHandlerOptions } from './logging.js';
-export type MessageDataObj = { id?: id, sql?: string, endpoint?: string, params?: object | null | Array<any>, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val: PropValue, data?: any, rate_limit?: RateLimit, files?: SocioFiles, sql_is_endpoint?:boolean };
-export type QueryFuncParams = { id?: id, sql: string, params?: object | null };
-export type QueryFunction = (client:SocioSession, id:id, sql:string, params?:object|null) => Promise<object>;
+export type MessageDataObj = { id?: id, sql?: string, endpoint?: string, params?: any, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val: PropValue, data?: any, rate_limit?: RateLimit, files?: SocioFiles, sql_is_endpoint?:boolean };
+export type QueryFuncParams = { id?: id, sql: string, params?: any };
+export type QueryFunction = (client: SocioSession, id: id, sql: string, params?: any) => Promise<object>;
 type SessionsDefaults = { timeouts: boolean, timeouts_check_interval_ms?: number, ttl_ms?: number, session_delete_delay_ms?: number, recon_ttl_ms?: number };
 type DecryptOptions = { decrypt_sql: boolean, decrypt_prop: boolean, decrypt_endpoint: boolean };
-type SocioServerOptions = { DB_query_function?: QueryFunction, socio_security?: SocioSecurity | null, logging?: LogHandlerOptions, decrypt_opts?: DecryptOptions, hard_crash?: boolean, session_defaults?: SessionsDefaults, prop_upd_diff?:boolean }
+type DBOpts = { Query: QueryFunction, Arbiter?: (initiator: { client: SocioSession, sql: string, params: any }, current: { client: SocioSession, hook: SubObj }) => boolean | Promise<boolean>};
+type SocioServerOptions = { db: DBOpts, socio_security?: SocioSecurity | null, decrypt_opts?: DecryptOptions, hard_crash?: boolean, session_defaults?: SessionsDefaults, prop_upd_diff?: boolean } & LoggingOpts;
 type AdminMessageDataObj = {function:string, args?:any[], secure_key:string};
+
+//NB! some fields in these variables are private for safety reasons, but also bcs u shouldnt be altering them, only if through my defined ways. They are mostly expected to be constants.
+//whereas public variables are free for you to alter freely at any time during runtime.
 
 export class SocioServer extends LogHandler {
     // private:
     #wss: WebSocketServer;
-    #sessions: Map<ClientID, SocioSession> = new Map(); //client_id:SocioSession. Maps are quite more performant than objects
+    #sessions: Map<ClientID, SocioSession> = new Map(); //Maps are quite more performant than objects. And their keys dont overlap with Object prototype.
 
     //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages, if the msg flag is set
     #secure: { socio_security: SocioSecurity | null } & DecryptOptions;
 
     //backend props, e.g. strings for colors, that clients can subscribe to and alter
-    #props: Map<PropKey, { val: PropValue, assigner: PropAssigner, updates: Map<ClientID, { id: id, rate_limiter?: RateLimiter | null }>, client_writable:boolean, send_as_diff?:boolean }> = new Map();
+    #props: Map<PropKey, { val: PropValue, assigner: PropAssigner, updates: Map<ClientID, { id: id, rate_limiter?: RateLimiter }>, client_writable:boolean, send_as_diff?:boolean }> = new Map();
 
     //rate limits server functions globally
     #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
@@ -58,10 +58,10 @@ export class SocioServer extends LogHandler {
     #prop_upd_diff = false;
 
     //public:
-    Query: QueryFunction; //you can change this at any time
+    db!: DBOpts;
     session_defaults: SessionsDefaults = { timeouts: false, timeouts_check_interval_ms: 1000 * 60, ttl_ms:Infinity, session_delete_delay_ms: 1000 * 5, recon_ttl_ms: 1000 * 60 * 60 };
 
-    constructor(opts: ServerOptions | undefined = {}, { DB_query_function = undefined, socio_security = null, logging = { verbose: false, hard_crash: false }, decrypt_opts = { decrypt_sql: true, decrypt_prop: false, decrypt_endpoint:false}, session_defaults, prop_upd_diff=false }: SocioServerOptions){
+    constructor(opts: ServerOptions | undefined = {}, { db, socio_security = null, logging = { verbose: false, hard_crash: false }, decrypt_opts = { decrypt_sql: true, decrypt_prop: false, decrypt_endpoint:false}, session_defaults, prop_upd_diff=false }: SocioServerOptions){
         //@ts-expect-error
         super({ ...logging, prefix:'SocioServer'});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
@@ -74,8 +74,8 @@ export class SocioServer extends LogHandler {
         this.#prop_upd_diff = prop_upd_diff;
 
         //public:
-        //@ts-expect-error
-        this.Query = DB_query_function || (() => {});
+        if (!db?.Query) return;
+        this.db = db;
         this.session_defaults = Object.assign(this.session_defaults, session_defaults);
 
         this.#wss.on('connection', this.#Connect.bind(this)); //https://thenewstack.io/mastering-javascript-callbacks-bind-apply-call/ have to bind 'this' to the function, otherwise it will use the .on()'s 'this', so that this.[prop] are not undefined
@@ -228,12 +228,12 @@ export class SocioServer extends LogHandler {
                             //set up hook
                             const tables = ParseQueryTables(data.sql || '');
                             if (tables)
-                                client.RegisterSub(tables, data.id as id, data.sql as string, data.params || null, data?.rate_limit || null);
+                                client.RegisterSub(tables, data.id as id, data.sql || '', data?.params, data?.rate_limit);
 
                             //send response
                             client.Send('UPD', {
                                 id: data.id,
-                                result: await this.Query(client, data.id || 0, data.sql || '', data.params),
+                                result: await this.db.Query(client, data.id || 0, data.sql || '', data?.params),
                                 status: 'success'
                             });
                         } else client.Send('ERR', {
@@ -262,12 +262,12 @@ export class SocioServer extends LogHandler {
                         else throw new E('Client sent endpoint instead of SQL, but its hook is missing. [#no-endpoint-hook-SQL]');
                     }
                     //have to do the query in every case
-                    const res = this.Query(client, data.id || 0, data.sql || '', data.params);
+                    const res = this.db.Query(client, data.id || 0, data.sql || '', data.params);
                     client.Send('RES', { id: data.id, result: await res }); //wait for result and send it back
 
                     //if the sql wasnt a SELECT, but altered some resource, then need to propogate that to other connection hooks
                     if (!QueryIsSelect(data.sql || ''))
-                        this.Update(ParseQueryTables(data?.sql || ''));
+                        this.Update(client, data.sql || '', data?.params);
                     
                     break;
                 case 'PING': 
@@ -304,7 +304,7 @@ export class SocioServer extends LogHandler {
                             return;
                     
                     //set up hook
-                    this.#props.get(data.prop as PropKey)?.updates.set(client_id, { id: data.id as id, rate_limiter: data?.rate_limit ? new RateLimiter(data.rate_limit) : null })
+                    this.#props.get(data.prop as PropKey)?.updates.set(client_id, { id: data.id as id, rate_limiter: data?.rate_limit ? new RateLimiter(data.rate_limit) : undefined })
 
                     //send response
                     client.Send('PROP_UPD', {
@@ -466,9 +466,7 @@ export class SocioServer extends LogHandler {
         } catch (e: err) { this.HandleError(e); }
     }
 
-    async Update(tables:string[]=[]){
-        if(!tables.length) return;
-        
+    async Update(initiator:SocioSession, sql:string, params:object){        
         //rate limit check
         if(this.#ratelimits.upd)
             if(this.#ratelimits.upd.CheckLimit())
@@ -476,28 +474,48 @@ export class SocioServer extends LogHandler {
 
         //hand off to hook
         if (this.#lifecycle_hooks.upd)
-            if (await this.#lifecycle_hooks.upd(this.#sessions, tables))
+            if (await this.#lifecycle_hooks.upd(this.#sessions, initiator, sql, params))
                 return;
 
         //or go through each session's every hook and query the DB for its result, then send it to the client
         try{
-            for (const client of this.#sessions.values()){
-                client.GetSubsForTables(tables).forEach(hook => { //for each hook. GetSubsForTables always returns array. If empty, then the foreach wont run, so each sql guaranteed to have hooks array
-                    //rate limit check
-                    if (hook?.rate_limiter && hook.rate_limiter.CheckLimit()) return;
+            const tables = ParseQueryTables(sql);
+            if (tables.length == 0) throw new E('Update ParseQueryTables didnt find any table names in the SQL. Something must be wrong.', { initiator, sql, params})
+            
+            const cache: Map<number, object> = new Map(); //cache the queries to not spam the DB in this loop
 
-                    this.Query(client, hook.id, hook.sql, hook.params)
-                        .then(res => client.Send('UPD', {
+            for (const client of this.#sessions.values()){
+                for (const hook of client.GetSubsForTables(tables)){ //GetSubsForTables always returns array. If empty, then the foreach wont run, so each sql guaranteed to have hooks array
+                    //rate limit check
+                    if (hook.rate_limiter && hook.rate_limiter.CheckLimit()) return;
+
+                    //Arbiter decides if this query needs be updated. TODO needs to know what changed on the DB as well to make a decidion
+                    if (this.db?.Arbiter)
+                        if (!this.db.Arbiter({ client: initiator, sql, params }, { client, hook })) //if Arbiter returns false, we skip this hook
+                            continue;
+
+                    if (cache.has(hook.cache_hash))
+                        client.Send('UPD', {
                             id: hook.id,
-                            result: res,
+                            result: cache.get(hook.cache_hash),
                             status: 'success'
-                        }))
-                        .catch(err => client.Send('UPD', {
-                            id: hook.id,
-                            result: err,
-                            status: 'error'
-                        }));
-                });
+                        });
+                    else
+                        this.db.Query(client, hook.id, hook.sql)
+                            .then(res => {
+                                client.Send('UPD', {
+                                    id: hook.id,
+                                    result: res,
+                                    status: 'success'
+                                });
+                                cache.set(hook.cache_hash, res);
+                            })
+                            .catch(err => client.Send('UPD', {
+                                id: hook.id,
+                                result: err,
+                                status: 'error'
+                            }));
+                };
             }
         } catch (e:err) { this.HandleError(e) }
     }
