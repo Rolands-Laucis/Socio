@@ -12,14 +12,14 @@
 ---
 No more API middleware and backend DB interfacing functions and wrappers and handlers. Write your SQL queries on the frontend and have their results be automagically refreshed on all clients when a resource is changed on the server DB. This is secure.
 
-Ready for use in your small to mid sized web app 🥰 feedback is welcome.
+Framework, build tool, server lib and SQL database agnostic.
 
 ### Instalation 🔧
 In your Node.js project root dir:
 ```bash
 npm i socio
 ```
-Contains compiled JS files + TS type definitions.
+Contains compiled JS files + TS type definition files.
 
 ## How? ✨
 
@@ -39,14 +39,15 @@ Written in TypeScript, but of course can use the lib in JS scripts just the same
 import { SocioServer } from 'socio/dist/core'; //this way for both JS and TS. Might need to put .js at the end.
 import { SocioSecurity } from 'socio/dist/secure';
 import type { QueryFunction, QueryFuncParams } from 'socio/dist/core';
-async function QueryWrap(client: SocioSession, id: id, sql: string, params: object | null | Array<any> = null):Promise<object> {
+async function QueryWrap(client: SocioSession, id: id, sql: string, params: object | Array<any> | any):Promise<object> {
     //do whatever u need to run the sql on your DB and return its result
     //sanatize dynamic params!
 }
 
-const socsec = new SocioSecurity({ secure_private_key: '...', logging:{verbose:true} }); //for decrypting incoming queries. This same key is used for encrypting the source files when you build and bundle them. Same in the Vite plugin.
-const socserv = new SocioServer({ port: 3000 }, { DB_query_function: QueryWrap as QueryFunction, socio_security: socsec, logging:{verbose:true} }); //creates localhost:3000 web socket server
+const socsec = new SocioSecurity({ secure_private_key: '...', logging:{verbose:true} }); //for decrypting incoming queries. This same key is used for encrypting the source files when you build and bundle them. Has to be the same in the Vite plugin.
+const socserv = new SocioServer({ port: 3000 }, { db:{Query:QueryWrap}, socio_security: socsec, logging:{verbose:true} }); //creates localhost:3000 web socket server
 ```
+
 ```ts
 //client side browser code. For SvelteKit, this can be in proj_root/src/hooks.server.ts .Check the Framework Demo for an example.
 import {SocioClient} from 'socio/dist/core-client'; //this way for both JS and TS. Might need to put .js at the end.
@@ -63,6 +64,7 @@ const id = sc.Subscribe({sql:socio`SELECT * FROM Users;`}, (res:object) => {
 console.log(await sc.Query(socio`INSERT INTO Users (name, num) VALUES(:name, :num);`, {name:'bob', num:42})); //sanatize dynamic data yourself in QueryWrap!
 sc.Unsubscribe(id); //notify the server.
 ```
+
 ```ts
 //vite.config.ts when using SvelteKit.
 import { sveltekit } from '@sveltejs/kit/vite';
@@ -79,21 +81,17 @@ export default defineConfig({
 
 ## Does it scale? ⚖️
 
-Currently the performance is neglegable for small projects. I havent stress tested yet, as its still early dev, but i optimize my data structures, where i can as i go. Current estimate is about 100 concurrent users should be a breeze on a cheap Linode server. I expect your backend DB to be set up properly with table indexing and caching queries.
+Currently the performance is neglegable for small projects. I havent stress tested yet, as its still early dev, but i optimize my data structures, where i can as i go. Current estimate is about 100 concurrent users should be a breeze on a cheap Linode server. I expect your backend DB to be set up properly with table indexing and caching.
 
 [According to this blog](https://medium.com/nativeai/websocket-vs-http-for-collecting-events-for-web-analytics-c45507bd7949) WebSockets are much more network traffic efficient than HTTP at scale.
 
 ## Sportsmanship 🤝
-
 The use of the Socio lib **does not** prohibit the use of standard HTTP technologies. Even better - socio server can be configured to run on your existing http webserver, like one that you'd create with express.js. Since WebSockets are established over HTTP, then take over with their own protocol. Though, seeing as they are different technologies, there are situations where you'd need to "stitch" your own solutions between the two, e.g. tracking sessions.
 
 ## Caveats 🚩
+I cannot guarantee perfect safety of the query encryption. Neither can traditional HTTP backends. You may use SocioServer hooks to double check the incoming data yourself for your peace of mind. However, I can guarantee this is safer than HTTP cookie based sessions (see "cookie spoofing").
 
-For SQL queries, the automagic happens because i regex parse the strings myself with simple patterns. The most basic usecases should be covered, but more complex SQL queries are not - situations like: nested queries and multiple queries in a single string. Only table names are extracted, so sometimes subscriptions would receive an update, even though for its specific WHERE clauses it would logically not have changed data. E.g. if you alter a specific users info on a Users table, all subscribed users would get an update.
-
-I cannot guarantee perfect safety of the query encryption. Neither can traditional HTTP backends. You may use SocioServer hooks to double check the incoming data yourself for your peace of mind.
-
-You should be using WSS:// and HTTPS:// protocols for everything, so that the data is secure over the network. But that's easier said than done.
+You should be using WSS:// and HTTPS:// protocols for everything, so that the data is secure over the network. That's up to you and your server configuration.
 
 ## Socio in Production 🥳
 * [Real-time rent prices in Riga, Latvia](http://riga.rolandslaucis.lv/) made by me. SvelteKit, Vite, Socio, NginX, Ubuntu server.
