@@ -47,21 +47,29 @@ import type { id, Admin_Hook } from 'socio/dist/types';
 
 //SocioServer needs a "query" function that it can call to fetch data. This would usually be your preffered ORM lib interface raw query function, but really this function is as simple as input and output, so it can do whatever you want. Like read from a txt file or whatever. It should be async and Socio will always await its response to send back to the client.
 //id is a unique auto incrementing index for the query itself that is sent from the client - not really important for you, but perhaps for debugging.
-const QueryWrap = async (client:SocioSession, id:id, sql:string, params: object | null | Array<any> = {}) => (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))[0]
+const QueryWrap = async (client:SocioSession, id:id, sql:string, params: object | null | Array<any> = {}) => (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))?.at(0)
 //https://sequelize.org/docs/v6/core-concepts/raw-queries/#replacements how replacements work
 
 //Instance of SocioServer on port 3000 using the created query function. Verbose will make it print all incoming and outgoing traffic from all sockets. The first object is WSS Options - https://github.com/websockets/ws/blob/master/doc/ws.md#new-websocketserveroptions-callback
-const socserv = new SocioServer({ port: 3000 }, {DB_query_function: QueryWrap as QueryFunction, logging: {verbose:true}} ); //the clients can now interact with your backend DB!
+const socserv = new SocioServer({ port: 3000 }, {
+    db: {
+      Query: QueryWrap as QueryFunction,
+      ...//optional other db settings
+    }, 
+    logging: {verbose:true}
+  }
+);
+//the clients can now interact with your backend DB via the SocioClient.Query() and other functions!
 
 //This class has a few public fields that you can alter, as well as useful functions to call later in your program at any time. E.g. set up lifecycle hooks:
-socserv.LifecycleHookNames; //get an array of the hooks currently recognized in Socio.
+socserv.LifecycleHookNames; //get an array of the hooks currently recognized by Socio.
 socserv.RegisterLifecycleHookHandler("con", (client:SocioSession, req:IncomingMessage) => {
     //woohoo a new client connection!
     //client is the already created instance of Session class, that has useful properties and methods, like the ID and IP of the client.
 });
 
 //all the hooks have their types in "socio/dist/types", so that you can see the hook param type inference in your IDE:
-const handle_admin_hook: Admin_Hook = (client, data) => {...}
+const handle_admin_hook: Admin_Hook = (client, ...) => {...}
 ```
 
 #### Server and Client Hook definitions
@@ -162,9 +170,31 @@ If you want to have a fixed time period timeout since connection, you can do tha
 
 You can quite easily mimic HTTP cookie sessions on whatever backend by using SocioServer hooks with SocioSession id's.
 
+#### DB init object
+```ts
+//server code - can be in express or SvelteKit's hooks.server.ts/js file or whatever way you have of running server side code once.
+
+//the "db" object can have more features than just the hook-up with your backend database.
+type QueryFunction = (client: SocioSession, id: id, sql: string, params?: any) => Promise<object>;
+type Arbiter = (initiator: { client: SocioSession, sql: string, params: any }, current: { client: SocioSession, hook: SubObj }) => boolean | Promise<boolean>;
+const socserv = new SocioServer({ ... }, {
+    db: {
+      Query: fun as QueryFunction, //REQUIRED. If you wish to only use socio props or other features, then pass here () => {}
+      
+      Arbiter: fun as Arbiter //optional. Is called in the inner most loop of the SocioServer.Update() function. 
+      //It lets you decide, if the update triggering query (made by some client or admin rpc call) alters the database enough such that another clients subscription should be updated. 
+      //It asks you to arbitrate this call per subscription hook of every subscribed client. 
+      //Returning false will skip this hook, whereas true will let it continue onto calling the DB and sending the UPD to the client.
+      //You'd use this for medium to large sized projects with lots of concurrent users. In this function you'd parse the SQL WHERE clauses yourself and look at the dynamic parameters to judge, if the initiator client has altered another client's subscribed rows of data of some tables.
+    }, 
+    ...
+  }
+);
+```
+
 ### Setup of ``SocioClient``
 
-When using SocioSecurity, but advised to always do this, the "socio" [JS Template Literal Tag](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals#tagged_templates) must be used, though it doesnt do much. It is just used to conveniently tag and later find socio strings within source code with regex during the encryption procedure.
+When using SocioSecurity, but advised to always do this, the "socio" [JS Template Literal Tag](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals#tagged_templates) must be used, though it doesnt do much. It is just used to conveniently tag to later find socio strings within source code with regex during the encryption procedure. Kind of like a landmark in the soup of source code.
 
 ```ts
 //browser code - can be inside just a js script that gets loaded with a script tag or in components of whatever framework.
@@ -262,7 +292,7 @@ const success = (await sc.SendBinary(new Blob() | ArrayBuffer | ArrayBufferView)
 //Note that this very primative and a special case. If you need to add extra data to this, then you're gonna have to start creating your own byte formats etc. This is handled on the server via the blob hook, and it will receive this exact same binary data, most likely as a Buffer.
 ```
 
-### Setup of ``SocioSecurity`` and ``SocioSecurityPlugin``
+### Setup of ``SocioSecurity`` and ``SocioSecurityVitePlugin``
 
 ```ts
 //server code
@@ -272,7 +302,7 @@ import { SocioSecurity } from 'socio/dist/secure';
 
 //vite plugin and this instance must share the same private secret key, so perhaps use .env mechanism
 const socsec = new SocioSecurity({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', logging: {verbose:true} });
-const socserv = new SocioServer({ port: ws_port }, { DB_query_function: QueryWrap as QueryFunction, logging: {verbose:true}, socio_security: socsec });
+const socserv = new SocioServer({ ... }, { ... , socio_security: socsec });
 //by default ecrypts all strings that end with the socio marker, but decryption can be individually turned off for either sql or prop key strings.
 ```
 
@@ -280,17 +310,17 @@ const socserv = new SocioServer({ port: ws_port }, { DB_query_function: QueryWra
 //vite.config.ts in a SvelteKit project
 
 import { sveltekit } from '@sveltejs/kit/vite';
-import { viteCommonjs } from '@originjs/vite-plugin-commonjs'
-import { SocioSecurityPlugin } from 'socio/dist/secure';
+import { viteCommonjs } from '@originjs/vite-plugin-commonjs';//you may or may not need this. Idk, in my testing i dont have it.
+import { SocioSecurityVitePlugin } from 'socio/dist/secure';
 
 /** @type {import('vite').UserConfig} */
 const config = {
-	plugins: [SocioSecurityPlugin({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', logging: {verbose:true} }), viteCommonjs(), sveltekit()],
+	plugins: [SocioSecurityVitePlugin({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', logging: {verbose:true} }), viteCommonjs(), sveltekit()],
 };
 
 export default config;
 ```
-The ``SocioSecurityPlugin`` also takes in an extra options object parameter that the base class doesnt. ``include_file_types`` = ``['js', 'svelte', 'vue', 'jsx', 'ts', 'tsx']`` (default) ; ``exclude_file_types`` = [] (default) ; ``exclude_svelte_server_files`` = true (default)
+The ``SocioSecurityVitePlugin`` also takes in an extra options object parameter that the base class doesnt. ``include_file_types`` = ``['js', 'svelte', 'vue', 'jsx', 'ts', 'tsx']`` (default) ; ``exclude_file_types`` = [] (default) ; ``exclude_svelte_server_files`` = true (default)
 
 ### Server Props
 A shared JSON serializable value/object/state on the server that is live synced to subscribed clients and is modifyable by clients.
