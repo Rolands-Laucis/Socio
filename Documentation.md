@@ -172,7 +172,7 @@ You can quite easily mimic HTTP cookie sessions on whatever backend by using Soc
 
 #### DB init object
 ```ts
-//server code - can be in express or SvelteKit's hooks.server.ts/js file or whatever way you have of running server side code once.
+//server code
 
 //the "db" object can have more features than just the hook-up with your backend database.
 type QueryFunction = (client: SocioSession, id: id, sql: string, params?: any) => Promise<object>;
