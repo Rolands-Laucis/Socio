@@ -491,7 +491,7 @@ export class SocioServer extends LogHandler {
 
                     //Arbiter decides if this query needs be updated. TODO needs to know what changed on the DB as well to make a decidion
                     if (this.db?.Arbiter)
-                        if (!this.db.Arbiter({ client: initiator, sql, params }, { client, hook })) //if Arbiter returns false, we skip this hook
+                        if (await this.db.Arbiter({ client: initiator, sql, params }, { client, hook }) === false) //if Arbiter returns false, we skip this hook
                             continue;
 
                     if (cache.has(hook.cache_hash))
