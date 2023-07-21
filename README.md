@@ -40,7 +40,7 @@ import { SocioServer } from 'socio/dist/core'; //this way for both JS and TS. Mi
 import { SocioSecurity } from 'socio/dist/secure';
 import type { QueryFunction, QueryFuncParams } from 'socio/dist/core';
 async function QueryWrap(client: SocioSession, id: id, sql: string, params: object | Array<any> | any):Promise<object> {
-    //do whatever u need to run the sql on your DB and return its result
+    //do whatever u need to run the sql on your DB and return its result. Or any other way you want to retrieve data, like reading a local txt etc.
     //sanatize dynamic params!
 }
 

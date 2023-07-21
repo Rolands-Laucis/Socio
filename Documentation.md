@@ -39,16 +39,16 @@ Interesting note: The snippets marked for browser use cannot be run on Node.js, 
 
 ```ts
 //server code - can be in express or SvelteKit's hooks.server.ts/js file or whatever way you have of running server side code once.
-import { SocioServer } from 'socio/dist/core.js'
-import type { SocioSession } from 'socio/dist/core-session.js'
-import type { IncomingMessage } from 'http'
+import { SocioServer } from 'socio/dist/core.js';
+import type { SocioSession } from 'socio/dist/core-session.js';
+import type { IncomingMessage } from 'http';
 import type { QueryFunction } from 'socio/dist/core';
 import type { id, Admin_Hook } from 'socio/dist/types';
 
-//SocioServer needs a "query" function that it can call to fetch data. This would usually be your preffered ORM lib interface raw query function, but really this function is as simple as input and output, so it can do whatever you want. Like read from a txt file or whatever. It should be async and Socio will always await its response to send back to the client.
+//SocioServer needs a "query" function that it can call to fetch data from your DB. This would usually be your preffered ORM lib interface raw query function, but really this function is as simple as input and output, so it can work however you want. Like read from a local txt file or whatever. Socio will always await its response to send back to the client.
 //id is a unique auto incrementing index for the query itself that is sent from the client - not really important for you, but perhaps for debugging.
 const QueryWrap = async (client:SocioSession, id:id, sql:string, params: object | null | Array<any> = {}) => (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))?.at(0)
-//https://sequelize.org/docs/v6/core-concepts/raw-queries/#replacements how replacements work
+//https://sequelize.org/docs/v6/core-concepts/raw-queries/#replacements how replacements work. I use the sequelize lib here and in demos and my personal projects, but it should be noted that i despise this ORM to my very core, its unreal.
 
 //Instance of SocioServer on port 3000 using the created query function. Verbose will make it print all incoming and outgoing traffic from all sockets. The first object is WSS Options - https://github.com/websockets/ws/blob/master/doc/ws.md#new-websocketserveroptions-callback
 const socserv = new SocioServer({ port: 3000 }, {
