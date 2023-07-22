@@ -23,7 +23,7 @@ export type LoggingOpts = { logging?: LogHandlerOptions };
 
 //msg kinds
 export type CoreMessageKind = 'SUB' | 'UNSUB' | 'SQL' | 'PING' | 'AUTH' | 'GET_PERM' | 'PROP_SUB' | 'PROP_UNSUB' | 'PROP_GET' | 'PROP_SET' | 'SERV' | 'ADMIN' | 'RECON' | 'UP_FILES' | 'GET_FILES';
-export type ClientMessageKind = 'CON' | 'UPD' | 'PONG' | 'AUTH' | 'GET_PERM' | 'RES' | 'ERR' | 'PROP_UPD' | 'CMD' | 'RECON' | 'RECV_FILES' | 'TIMEOUT';
+export type ClientMessageKind = 'CON' | 'UPD' | 'PONG' | 'AUTH' | 'GET_PERM' | 'RES' | 'ERR' | 'PROP_UPD' | 'PROP_DROP' | 'CMD' | 'RECON' | 'RECV_FILES' | 'TIMEOUT';
 
 //server hook functions
 export type ServerLifecycleHooks = { con?: Con_Hook, discon?: Discon_Hook, msg?: Msg_Hook, sub?: Sub_Hook, unsub?: Unsub_Hook, upd?: Upd_Hook, auth?: Auth_Hook, gen_client_id?: GenCLientID_Hook, grant_perm?: GrantPerm_Hook, serv?: Serv_Hook, admin?: Admin_Hook, blob?: Blob_Hook, file_upload?: FileUpload_Hook, file_download?: FileDownload_Hook, endpoint?: Endpoint_Hook };
@@ -45,9 +45,10 @@ export type Endpoint_Hook = (client: SocioSession, endpoint:string) => string | 
 // export type _Hook = (client: SocioSession) => boolean;
 
 //client hook functions
-export type ClientLifecycleHooks = { discon?: Discon_ClientHook, msg?: Msg_ClientHook, cmd?: Cmd_ClientHook, timeout?: Timeout_ClientHook };
+export type ClientLifecycleHooks = { discon?: Discon_ClientHook, msg?: Msg_ClientHook, cmd?: Cmd_ClientHook, timeout?: Timeout_ClientHook, prop_drop?: PropDrop_ClientHook };
 export type Discon_ClientHook = (name:string, client_id:ClientID, url:string, keep_alive:boolean, verbose:boolean, reconnect_tries:number) => void;
 export type Msg_ClientHook = (name: string, client_id: ClientID, kind: ClientMessageKind, data: ClientMessageDataObj) => boolean | void | Promise<boolean> | Promise<void>;
 export type Cmd_ClientHook = (data:ClientMessageDataObj) => void;
 export type Timeout_ClientHook = (name: string, client_id: ClientID) => void;
+export type PropDrop_ClientHook = (name: string, client_id: ClientID, prop_key:PropKey, sub_id:id) => void;
 // export type _ClientHook = (name: string, client_id: ClientID,) => boolean;

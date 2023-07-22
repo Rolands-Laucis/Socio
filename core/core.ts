@@ -489,7 +489,7 @@ export class SocioServer extends LogHandler {
                     //rate limit check
                     if (hook.rate_limiter && hook.rate_limiter.CheckLimit()) return;
 
-                    //Arbiter decides if this query needs be updated. TODO needs to know what changed on the DB as well to make a decidion
+                    //Arbiter decides if this query needs be updated. Can do WHERE clause checking yourself here as an optimization for large projects.
                     if (this.db?.Arbiter)
                         if (await this.db.Arbiter({ client: initiator, sql, params }, { client, hook }) === false) //if Arbiter returns false, we skip this hook
                             continue;
@@ -581,9 +581,19 @@ export class SocioServer extends LogHandler {
     }
     UnRegisterProp(key: PropKey){
         try {
-            //TODO more graceful unregister, bcs the clients dont know about this, and their queries will just fail, which is needless traffic.
+            const prop = this.#props.get(key);
+            if (!prop) throw new E(`Prop key [${key}] not registered! [#UnRegisterProp-prop-not-found]`);
+
+            //inform all subbed clients that this prop has been dropped
+            for (const [client_id, args] of prop.updates.entries()) {
+                if (this.#sessions.has(client_id))
+                    this.#sessions.get(client_id)?.Send('PROP_DROP', { id: args.id, prop: key });
+                else this.#sessions.delete(client_id); //the client_id doesnt exist anymore for some reason, so unsubscribe
+            }
+
+            //drop the prop
             if (!this.#props.delete(key))
-                throw new E(`Prop key [${key}] hasnt been registered. [#prop-key-not-exists]`);
+                throw new E(`Error deleting prop key [${key}]. [#prop-key-del-error]`);
         } catch (e: err) { this.HandleError(e) }
     }
     GetPropVal(key: PropKey){

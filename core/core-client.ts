@@ -41,7 +41,7 @@ export class SocioClient extends LogHandler {
     verbose:boolean;
     key_generator: (() => number | string) | undefined;
     persistent: boolean = false;
-    lifecycle_hooks: ClientLifecycleHooks = { discon: undefined, msg: undefined, cmd: undefined, timeout: undefined }; //assign your function to hook on these. They will be called if they exist
+    lifecycle_hooks: ClientLifecycleHooks = { discon: undefined, msg: undefined, cmd: undefined, timeout: undefined, prop_drop:undefined }; //assign your function to hook on these. They will be called if they exist
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
     // progs: Map<Promise<any>, number> = new Map(); //the promise is that of a socio generic data going out from client async. Number is WS send buffer payload size at the time of query
@@ -159,6 +159,18 @@ export class SocioClient extends LogHandler {
                         if (this.#queries.has(data.id))
                             (this.#queries.get(data.id) as QueryPromise).res(data.prop_val as PropValue); //resolve the promise
                     }else throw new E('Not enough prop info sent from server to perform prop update.', data)
+                    break;
+                case 'PROP_DROP':
+                    if (data?.prop && data.hasOwnProperty('id')) {
+                        if (this.#props.has(data.prop)){
+                            delete this.#props.get(data.prop)?.subs[data.id];
+
+                            //tell the dev that this prop has been dropped by the server.
+                            if(this.lifecycle_hooks.prop_drop)
+                                this.lifecycle_hooks.prop_drop(this.name, this.#client_id, data.prop, data.id);
+                        }
+                        else throw new E('Cant drop unsubbed prop!', data)
+                    } else throw new E('Not enough prop info sent from server to perform prop drop.', data)
                     break;
                 case 'CMD': if(this.lifecycle_hooks.cmd) this.lifecycle_hooks.cmd(data); break; //the server pushed some data to this client, let the dev handle it
                 case 'ERR'://The result field is sometimes used as a cause of error msg on the backend

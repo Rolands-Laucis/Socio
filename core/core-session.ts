@@ -61,7 +61,6 @@ export class SocioSession extends LogHandler {
         this.last_seen_now();
     }
 
-    //TODO this used to be well optimized datastructures back in 0.2.1, but had to simplify down, bcs it gets complicated
     RegisterSub(tables: string[], id: id, sql:string, params?: object, rate_limit?:RateLimit) {
         if (!this.#subs.has(id))
             this.#subs.set(id, { tables, sql, params, rate_limiter: rate_limit ? new RateLimiter(rate_limit) : undefined, cache_hash: FastHash(sql+JSON.stringify(params)) });
@@ -70,6 +69,7 @@ export class SocioSession extends LogHandler {
     UnRegisterSub(id: id): Bit {
         return this.#subs.delete(id) ? 1 : 0;
     }
+    //idk if this is actually faster than building an array. The previous version would actually create 3 arrays back to back. But generator functions are in general slower than building an array. Still, this code is more readable, and fun that in the case of an error in the Update() this wont waste time doing array iters on elements never to be seen. Also uses less RAM.
     * GetSubsForTables(tables: string[]=[]){
         for (const [id, hook] of this.#subs.entries())
             if (hook.tables.some(t => tables.includes(t)))
