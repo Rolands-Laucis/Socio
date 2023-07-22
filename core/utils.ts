@@ -5,7 +5,7 @@ import type { QueryMarker } from "./types.js";
 export type SocioStringObj = { str: string, markers: string[] };
 
 //regex
-export const socio_string_regex = /socio`(?<sql>.*?)`/is;
+export const socio_string_regex = /socio`(?<sql>.*?)`/igs;
 export const table_names_regex = /(?:FROM|INTO)[\s]+(?<tables>[\w,\s]+?)([\s]+)?(?:\(|WHERE|VALUES|;|LIMIT|GROUP|ORDER|$)/mi;
 export const socio_string_markers_regex = /--(?<markers>(?:-?(?:socio|auth|perm))*)/i;
 
