@@ -12,7 +12,7 @@ export type Base64String = string;
 
 //props
 export type PropKey = string;
-export type PropValue = object | string | number | null;
+export type PropValue = any;
 export type PropAssigner = (key: PropKey, new_val:PropValue) => boolean;
 
 //misc
