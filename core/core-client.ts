@@ -177,7 +177,7 @@ export class SocioClient extends LogHandler {
                     if (typeof this.#queries.get(data.id) == 'function')
                         (this.#queries.get(data.id) as QueryPromise).res();
 
-                    this.HandleError(new E(`Request to Server returned ERROR response for query id, reason #[err-msg-kind]`, data?.id, data?.result as Bit));
+                    this.HandleError(new E(`Request to Server returned ERROR response. [#err-msg-kind]`, { id:data?.id, reason:data?.result }));
                     break;
                 case 'RECON': 
                     this.#FindID(kind, data?.id);
