@@ -15,7 +15,7 @@ import { RateLimiter } from './ratelimit.js';
 //types
 import type { ServerOptions, WebSocket, AddressInfo } from 'ws';
 import type { IncomingMessage } from 'http';
-import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind, SocioFiles, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts } from './types.js';
+import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind, SocioFiles, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts, Bit } from './types.js';
 import type { RateLimit } from './ratelimit.js';
 export type MessageDataObj = { id?: id, sql?: string, endpoint?: string, params?: any, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val: PropValue, data?: any, rate_limit?: RateLimit, files?: SocioFiles, sql_is_endpoint?:boolean };
 export type QueryFuncParams = { id?: id, sql: string, params?: any };
@@ -347,8 +347,8 @@ export class SocioServer extends LogHandler {
                     try {
                         if(this.#props.get(data.prop as string)?.client_writable){
                             //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value.
-                            this.UpdatePropVal(data.prop as string, data?.prop_val, client.id);
-                            client.Send('RES', { id: data.id, result: 1 }); //resolve this request to true, so the client knows everything went fine.
+                            const result = this.UpdatePropVal(data.prop as string, data?.prop_val, client.id); //the assigner inside Update dictates, if this was a successful set.
+                            client.Send('RES', { id: data.id, result }); //resolve this request to true, so the client knows everything went fine.
                         }else throw new E('Prop is not client_writable.', data);
                     } catch (e: err) {
                         //send response
@@ -501,7 +501,7 @@ export class SocioServer extends LogHandler {
                             status: 'success'
                         });
                     else
-                        this.db.Query(client, hook.id, hook.sql)
+                        this.db.Query(client, hook.id, hook.sql, hook.params)
                             .then(res => {
                                 client.Send('UPD', {
                                     id: hook.id,
@@ -551,7 +551,6 @@ export class SocioServer extends LogHandler {
             if (f_name in this.#ratelimits){
                 if (ratelimit) {
                     this.#ratelimits[f_name] = new RateLimiter(ratelimit);
-                    log('registered')
                 }
             }
             else throw new E(`Rate Limits hook [${f_name}] is not settable! Settable: ${this.RateLimitNames}`)
@@ -571,7 +570,7 @@ export class SocioServer extends LogHandler {
     }
 
     //assigner defaults to basic setter
-    RegisterProp(key: PropKey, val: PropValue, { assigner = this.SetPropVal, client_writable = true, send_as_diff = undefined }: { assigner?: PropAssigner, client_writable?: boolean, send_as_diff?: boolean | undefined} = {}){
+    RegisterProp(key: PropKey, val: PropValue, { assigner = this.SetPropVal.bind(this), client_writable = true, send_as_diff = undefined }: { assigner?: PropAssigner, client_writable?: boolean, send_as_diff?: boolean | undefined} = {}){
         try{
             if (this.#props.has(key))
                 throw new E(`Prop key [${key}] has already been registered and for client continuity is forbiden to over-write at runtime. [#prop-key-exists]`)
@@ -600,7 +599,7 @@ export class SocioServer extends LogHandler {
         return this.#props.get(key)?.val;
     }
     //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value.
-    UpdatePropVal(key: PropKey, new_val: PropValue, client_id: id | null, send_as_diff = this.#prop_upd_diff):void{//this will propogate the change, if it is assigned, to all subscriptions
+    UpdatePropVal(key: PropKey, new_val: PropValue, client_id: id | null, send_as_diff = this.#prop_upd_diff):Bit{//this will propogate the change, if it is assigned, to all subscriptions
         const prop = this.#props.get(key);
         if (!prop) throw new E(`Prop key [${key}] not registered! [#prop-update-not-found]`);
         
@@ -609,22 +608,26 @@ export class SocioServer extends LogHandler {
         //This idea works bcs the mutator of the data should be the first to run this and all other session will get informed here with that sessions diff.
 
         if (prop.assigner(key, new_val)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
+            const new_assigned_prop_val = this.GetPropVal(key); //should be GetPropVal, bcs i cant know how the assigner changed the val. But since it runs once per update, then i can cache this call here right after the assigner.
+            
             for (const [client_id, args] of prop.updates.entries()) {
-                if (args?.rate_limiter && args.rate_limiter?.CheckLimit()) return; //ratelimit check
+                if (args?.rate_limiter && args.rate_limiter?.CheckLimit()) continue; //ratelimit check for this client
 
                 //do the thing
                 if (this.#sessions.has(client_id)){
-                    //construct either concrete value or diff of it.
+                    //prepare object of both cases
                     const upd_data = { id: args.id, prop:key };
 
                     //overload the global Socio Server flag with a per prop flag
                     if (prop?.send_as_diff && typeof prop?.send_as_diff == 'boolean') send_as_diff = prop.send_as_diff;
 
+                    //construct either concrete value or diff of it.
                     if (send_as_diff)
-                        upd_data['prop_val_diff'] = diff_lib.getDiff(old_prop_val, this.GetPropVal(key));
+                        upd_data['prop_val_diff'] = diff_lib.getDiff(old_prop_val, new_assigned_prop_val);
                     else
-                        upd_data['prop_val'] = this.GetPropVal(key); //should be GetPropVal, bcs i cant know how the assigner changed the val
+                        upd_data['prop_val'] = new_assigned_prop_val;
 
+                    //send to client
                     this.#sessions.get(client_id)?.Send('PROP_UPD', upd_data);
                 }
                 else {//the client_id doesnt exist anymore for some reason, so unsubscribe
@@ -632,14 +635,18 @@ export class SocioServer extends LogHandler {
                     this.#sessions.delete(client_id);
                 }
             }
+            return 1;
         }
-        else throw new E(`Tried to set an invalid prop value! [#prop-set-not-valid].`, { key, new_val, client_id });
+        this.HandleDebug(`Assigner denied setting the new prop value! [#prop-set-not-valid].`, { key, old_prop_val, new_val, client_id });
+        return 0;
     }
     SetPropVal(key: PropKey, new_val: PropValue): boolean { //this hard sets the value without checks or updating clients
         try{
-            if (this.#props.has(key)) //@ts-expect-error
-                this.#props.get(key).val = new_val;
-            else throw new E(`Prop key [${key}] not registered! [#prop-set-not-found]`);
+            const prop = this.#props.get(key);
+            if (prop === undefined)
+                throw new E(`Prop key [${key}] not registered! [#prop-set-not-found]`);
+
+            prop.val = new_val;
             return true;
         } catch (e: err) { this.HandleError(e); return false; }
     }
