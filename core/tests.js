@@ -27,28 +27,28 @@ function test_obj(name, generated, expected) {
 if (test_cases.includes('socio_regex') || all){
     log('📝', 'Testing socio security socio string regex finder...')
 
-    let str = 'SELECT * FROM Users;--socio'
-    test('socio marker', `socio\`${str}\``.match(socio_string_regex)?.groups?.sql, str);
+    let str = 'SELECT * FROM Users;--socio';
+    test('socio marker', [...`socio\`${str}\``.matchAll(socio_string_regex)][0]?.groups?.sql, str);
 
     str = 'SELECT * FROM Users;'
-    test('without socio marker', `socio\`${str}\``.match(socio_string_regex)?.groups?.sql, str);
+    test('without socio marker', [...`socio\`${str}\``.matchAll(socio_string_regex)][0]?.groups?.sql, str);
 
     str = 'SELECT * FROM Users'
-    test('without end ;', `socio\`${str}\``.match(socio_string_regex)?.groups?.sql, str);
+    test('without end ;', [...`socio\`${str}\``.matchAll(socio_string_regex)][0]?.groups?.sql, str);
 
     str = 'SELECT * FROM Users;'
-    test('wrong string literal quote \'', `socio\'${str}\'`.match(socio_string_regex)?.groups?.sql, undefined);
+    test('wrong string literal quote \'', [...`socio\'${str}\'`.matchAll(socio_string_regex)][0]?.groups?.sql, undefined);
 
     str = 'SELECT * FROM Users;'
-    test('wrong string literal quote \"', `socio\"${str}\"`.match(socio_string_regex)?.groups?.sql, undefined);
+    test('wrong string literal quote \"', [...`socio\"${str}\"`.matchAll(socio_string_regex)][0]?.groups?.sql, undefined);
 
     str = `SELECT * FROM Users;
             SELECT * FROM Users;`
-    test('multiline sql', `socio\`${str}\``.match(socio_string_regex)?.groups?.sql, str);
+    test('multiline sql', [...`socio\`${str}\``.matchAll(socio_string_regex)][0]?.groups?.sql, str);
 
     str = `SELECT * FROM Users;
-            SELECT * FROM Users;`
-    test('multiline sql with surrounding garbo', `hasgdajhs asgdjhas socio\`${str}\` ajshdkaj asjdaj`.match(socio_string_regex)?.groups?.sql, str);
+            SELECT * FROM Users;`;
+    test('multiline sql with surrounding garbo', [...`hasgdajhs asgdjhas socio\`${str}\` ajshdkaj asjdaj`.matchAll(socio_string_regex)][0]?.groups?.sql, str);
 }
 
 if (test_cases.includes('marker_parsing') || all) {
