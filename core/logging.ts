@@ -49,13 +49,14 @@ export class E extends Error {
 //for extending my classes with standardized logging methods
 export class LogHandler {
     //public:
-    log_handlers: { [key: string]: Function | null; } = { error: null, info: null } //register your logger functions here. By default like this it will log to console, if verbose. It is recommended to turn off verbose in prod.
+    log_handlers: { [key: string]: Function | null; } = { error: null, info: null, debug:null } //register your logger functions here. By default like this it will log to console, if verbose. It is recommended to turn off verbose in prod.
     hard_crash:boolean;
     verbose: boolean;
     use_prefix:string;
     static use_color:boolean = true;
 
-    constructor({ verbose = false, hard_crash = false, prefix = '', use_color = undefined, info_handler = null, error_handler = null } = {}){
+    constructor({ verbose = false, hard_crash = false, prefix = '', use_color = undefined, info_handler = null, error_handler = null, debug_handler = null } = {}){
+        this.log_handlers.debug = debug_handler;
         this.log_handlers.info = info_handler;
         this.log_handlers.error = error_handler;
         this.verbose = verbose;
@@ -64,7 +65,7 @@ export class LogHandler {
         if(use_color !== undefined) LogHandler.use_color = use_color;
     }
 
-    HandleError(e: E | Error | undefined | string) { //e is of type class E ^
+    HandleError(e: E | Error | undefined | string){ //e is of type class E ^
         if (this.hard_crash) throw e;
         if (this.log_handlers?.error) this.log_handlers.error(e);
         if (this.verbose) {
@@ -73,14 +74,24 @@ export class LogHandler {
                 this.soft_error(e, ...("logs" in e ? e.logs : []));
         }
     }
-    HandleInfo(...args: any[]) {
+    HandleInfo(...args: any[]){
         if (this.log_handlers.info) this.log_handlers.info(...args);
         //@ts-expect-error
         if (this.verbose) this.info(...args);
     }
+    HandleDebug(...args: any[]){
+        if (this.log_handlers.debug) this.log_handlers.debug(...args);
+    }
 
     static prefix(p:string, color:string) {return p ? `${LogHandler.use_color ? color : ''}[${p}]${LogHandler.use_color ? colors.Reset : ''}` : ''}
     static log(...args: any[]) { console.log(...args) }
+
+    debug(msg: any, ...args: any[]) {
+        console.log(`[${this.use_prefix + 'DEBUG'}] ${msg}`, ...args);
+    }
+    static debug(msg: any, ...args: any[]) {
+        console.log(`[Socio DEBUG] ${msg}`, ...args);
+    }
 
     info(msg:any, ...args:any[]) {
         console.log(`${LogHandler.prefix(this.use_prefix, colors.BgYellow)} ${msg}`, ...args);
