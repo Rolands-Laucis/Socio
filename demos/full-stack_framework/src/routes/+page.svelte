@@ -1,9 +1,8 @@
 <script lang="ts">
     //imports
     import { SocioClient } from "socio/dist/core-client";
-    import type {id} from 'socio/dist/types'
     import { onMount, onDestroy } from "svelte";
-    import {socio} from 'socio/dist/utils'
+    import {socio} from 'socio/dist/utils';
 
     import { slide } from "svelte/transition";
     import toast from 'svelte-french-toast'; //https://github.com/kbrgl/svelte-french-toast
@@ -32,7 +31,7 @@
 
     //variables
     let ready = false;
-    let user_count = 0, users: { userid: number; name: string; num: number }[] = [];
+    let user_count = 0, Users: { userid: number; name: string; num: number }[] = [];
     let insert_fields = { name: "Bob", num: 42 };
     let color_prop = "#ffffff", num = 0;
     let progress = writable(0);
@@ -41,13 +40,13 @@
         ready = await sc.ready();
         toast.success('Socio Client connected!', {icon:'🥳', style:'padding:2px;',position: "bottom-center", duration:1500});
         
-        const id = sc.Subscribe({sql: socio`SELECT COUNT(*) AS RES FROM users WHERE name = :name;`, params: { name: "John" }}, (res:any) => {
+        const id = sc.Subscribe({sql: socio`SELECT COUNT(*) AS RES FROM Users WHERE name = :name;`, params: { name: "John" }}, (res:any) => {
                 user_count = res[0].RES as number; //res is whatever object your particular DB interface lib returns from a raw query
             }
         );
 
-        sc.Subscribe({ sql: socio`SELECT * FROM users;` },(res:any) => {
-                users = res as { userid: number; name: string; num: number }[]; //res is whatever object your particular DB interface lib returns from a raw query
+        sc.Subscribe({ sql: socio`SELECT * FROM Users;` },(res:any) => {
+                Users = res as { userid: number; name: string; num: number }[]; //res is whatever object your particular DB interface lib returns from a raw query
             }
         );
 
@@ -91,8 +90,8 @@
             <h6 class="darker_text bold">subscribed sql query:</h6>
 
             <h4>
-                SELECT COUNT(*) FROM users WHERE name = :name <span class="h5 darker_text bold">(John)</span>; =
-                {#if user_count}
+                SELECT COUNT(*) FROM Users WHERE name = :name <span class="h5 darker_text bold">(John)</span>; =
+                {#if typeof user_count == 'number'}
                     <span class="bold">{user_count}</span>
                 {:else}
                     <Bloom><Spinner style="--h:24px;--t:6px;" /></Bloom>
@@ -112,18 +111,18 @@
                     style="width:100%;"
                     on:click={async () =>
                         await sc.Query(
-                            socio`INSERT INTO users (name, num) VALUES(:name, :num);`,
+                            socio`INSERT INTO Users (name, num) VALUES(:name, :num);`,
                             insert_fields
                         )}
                 >
-                    INSERT INTO users (name, num) VALUES("<span class="acc1 norm">{insert_fields.name}</span>",
+                    INSERT INTO Users (name, num) VALUES("<span class="acc1 norm">{insert_fields.name}</span>",
                     <span class="acc1 norm">{insert_fields.num || 0}</span>);
                 </Button>
             </Bloom>
         </section>
 
-        <section class="vert users">
-            {#each users as u (u.userid)}
+        <section class="vert Users">
+            {#each Users as u (u.userid)}
                 <div class="user" transition:slide>
                     <h4>{u.userid}</h4>
                     <h4 class="acc1">|</h4>
@@ -207,7 +206,7 @@
         outline: none;
     }
 
-    .users {
+    .Users {
         max-width: 600px;
         width: 600px;
         gap: $pad_small;
