@@ -87,7 +87,7 @@ export class SocioServer extends LogHandler {
             setInterval(this.#CheckSessionsTimeouts.bind(this), this.session_defaults.timeouts_check_interval_ms);
 
         const addr: AddressInfo = this.#wss.address() as AddressInfo;
-        this.done(`Created SocioServer on `, addr);
+        if (this.verbose) this.done(`Created SocioServer on `, addr);
         // if (addr.family == 'ws')
         //     this.HandleInfo('WARNING! Your server is using an unsecure WebSocket protocol, setup wss:// instead, when you can!');
     }
@@ -155,52 +155,13 @@ export class SocioServer extends LogHandler {
             }
 
             const { kind, data }: { kind: CoreMessageKind; data: MessageDataObj } = JSON.parse(req.toString(), MapReviver);
-            const client_id = client.id;
+            const client_id = client.id; //cache the ID, since its used so much here
 
-            //if the socio security instance exists and either sql or/and prop was recieved and they are to be decrypted, then do so here
-            //this assumes that the incoming message doesnt have both sql and prop in data at the same time.
-            if (this.#secure.socio_security && ((data?.sql && this.#secure.decrypt_sql) || (data?.prop && this.#secure.decrypt_prop) || (data?.endpoint && this.#secure.decrypt_endpoint))) {
-                let str: string = (data?.sql ? data.sql : data?.prop) || '', markers:string[]|undefined;
-
-                //check crypt format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where each part is base64 encoded
-                if (!str.includes(' '))
-                    throw new E('encrypted query string does not contain a space, therefor is not of format "iv_base64 original_query_base64 auth_tag_base64" and cannot be processed. [#enc-wrong-format]', { client_id, kind, data });
-
-                const parts = str.split(' '); 
-                if (parts.length != 3)
-                    throw new E('the cipher text does not contain exactly 3 space seperated parts, therefor is invalid. [#cipher-text-invalid-format]', parts);
-
-                //decrypt
-                str = this.#secure.socio_security.DecryptString(parts[0], parts[1], parts[2]);
-                str = this.#secure.socio_security.RemoveRandInts(str);
-                ;({ str, markers } = SocioStringParse(str));
-                
-                //assign it back like nothing happened
-                if(data?.sql) data.sql = str; 
-                else data.prop = str;
-
-                //perform marker checks
-                // if (!markers?.includes('socio')) //secured sql queries must end with the marker, to validate that they havent been tampered with and are not giberish.
-                //     throw new E('Decrypted string does not end with the --socio marker, therefor is invalid. [#marker-issue]', client_id, kind, data, markers);
-
-                if (markers?.includes('auth'))//query requiers auth to execute
-                    if (!client.authenticated)
-                        throw new E(`Client ${client_id} tried to execute an auth query without being authenticated. [#auth-issue]`);
-
-                if (markers?.includes('perm')) {//query requiers perm to execute
-                    if(data?.sql){
-                        const verb = ParseQueryVerb(data.sql);
-                        if (!verb)
-                            throw new E(`Client ${client_id} sent an unrecognized SQL query first clause. [#verb-issue]`, data.sql);
-
-                        const tables = ParseQueryTables(data.sql);
-                        if (!tables)
-                            throw new E(`Client ${client_id} sent an SQL query without table names. [#table-name-issue]`, data.sql);
-
-                        if (!tables.every((t) => client.HasPermFor(verb, t)))
-                            throw new E(`Client ${client_id} tried to execute a perms query without having the required permissions. [#perm-issue]`, {verb, tables});
-                    }else if (data?.prop) throw new E('Perm checking for server props is currently unsupported! #[unsupported-feature]', {data, markers})
-                }
+            //if the socio security instance exists and some specific string fields was recieved and they are to be decrypted, then do so here
+            if (this.#secure.socio_security) {
+                for(const field of ['sql', 'prop', 'endpoint'])
+                    if (data[field] && this.#secure['decrypt_' + field])
+                        data[field] = this.#Decrypt(client, data[field], field === 'sql');
             }
             
             this.HandleInfo(`recv: ${kind} from ${client_id}`, kind != 'UP_FILES' ? data : `File count: ${data.files?.size}`);
@@ -464,6 +425,43 @@ export class SocioServer extends LogHandler {
                 default: throw new E(`Unrecognized message kind! [#unknown-msg-kind]`, {kind, data});
             }
         } catch (e: err) { this.HandleError(e); }
+    }
+
+    //this assumes that this.#secure.socio_security is properly assigned
+    #Decrypt(client:SocioSession, str:string, is_sql:boolean):string{
+        let markers: string[] | undefined;
+
+        //check crypt format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where each part is base64 encoded
+        const parts = str.includes(' ') ? str.split(' ') : [];
+        if (parts.length != 3)
+            throw new E('the cipher text does not contain exactly 3 space seperated parts, therefor is invalid. [#cipher-text-invalid-format]', { client, str });
+
+        //decrypt
+        str = (this.#secure.socio_security as SocioSecurity).DecryptString(parts[0], parts[1], parts[2]);
+        str = (this.#secure.socio_security as SocioSecurity).RemoveRandInts(str);
+        
+        //get markers from string, if they exist. Can be done for SQL, props, endpoints
+        ; ({ str, markers } = SocioStringParse(str)); //forgot what this neat js trick is called. 
+
+        //perform marker checks
+        if (markers?.includes('auth'))//requiers auth to execute
+            if (!client.authenticated)
+                throw new E(`Client tried to execute an auth query without being authenticated. [#auth-issue]`, { client });
+
+        if (is_sql && markers?.includes('perm')) { //SQL requiers perms on tables to execute
+            const verb = ParseQueryVerb(str);
+            if (!verb)
+                throw new E(`Client sent an unrecognized SQL query verb. [#verb-issue]`, { client, str });
+
+            const tables = ParseQueryTables(str);
+            if (!tables)
+                throw new E(`Client sent an SQL query without table names. [#table-names-not-found]`, { client, str });
+
+            if (!tables.every((t) => client.HasPermFor(verb, t)))
+                throw new E(`Client tried to execute a perms query without having the required permissions. [#perm-issue]`, { client, str, verb, tables });
+        }
+
+        return str;
     }
 
     async Update(initiator:SocioSession, sql:string, params:object){        
