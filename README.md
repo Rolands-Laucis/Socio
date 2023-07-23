@@ -1,15 +1,21 @@
 # Socio - A WebSocket Real-Time Communication (RTC) API framework.
 
 <p align="center"><img src="https://github.com/Rolands-Laucis/Socio/blob/master/banner.webp" alt="socio logo banner"/></p>
+
 ---
+
 * <a href="https://www.youtube.com/watch?v=iJIC9B3cKME&ab_channel=CepuminsLV" target="_blank">3 min video - Introduction demo.</a>
 * <a href="https://www.youtube.com/watch?v=t8_QBzk5bUk" target="_blank">16 min video - Getting started with Socio 0.7, SvelteKit, Vite.</a>
+
 ---
+
 * [Interactive Basic Demo project](https://github.com/Rolands-Laucis/Socio/blob/master/demos/basic/readme.md)
 * [Interactive Secure Full-Stack Framework Demo project](https://github.com/Rolands-Laucis/Socio/tree/master/demos/full-stack_framework#readme) with SvelteKit and Vite.
 * [Simple Documentation](https://github.com/Rolands-Laucis/Socio/blob/master/Documentation.md)
 * [Website made with Socio](http://riga.rolandslaucis.lv/) by me. Real-time rent prices in Riga, Latvia. SvelteKit, Vite, Socio, NginX, Ubuntu server.
+
 ---
+
 No more API middleware and backend DB interfacing functions and wrappers and handlers. Write your SQL queries on the frontend and have their results be automagically refreshed on all clients when a resource is changed on the server DB. This is secure.
 
 Agnostic of framework, build tool, server lib and SQL database. Requires Node.js >= 16 LTS.
