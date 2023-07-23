@@ -9,23 +9,14 @@ export const socio_string_regex = /socio`(?<sql>.*?)`/igs;
 export const table_names_regex = /(?:FROM|INTO)[\s]+(?<tables>[\w,\s]+?)([\s]+)?(?:\(|WHERE|VALUES|;|LIMIT|GROUP|ORDER|$)/mi;
 export const socio_string_markers_regex = /--(?<markers>(?:-?(?:socio|auth|perm))*)/i;
 
-//socio template literal tag. Dummy function, that doesnt ever get used, but can be. Will insert all template variables in correct order and return the string.
-export function socio(strings: TemplateStringsArray, ...vars){
-    const interweaved:string[] = [];
-    for (let i = 0; i < strings.length; i++){
-        interweaved.push(strings[i]);
-        if(i < vars.length)
-            interweaved.push(vars[i]);
-    }
-    return interweaved.join('');
-}
+//socio template literal tag. Dummy function, that doesnt ever get used. See Socio <= 1.3.4 on github for a working implementation of this function.
+export function socio(strings: TemplateStringsArray, ...vars){return '';}
 
 //query helper functions
 export function QueryIsSelect(sql: string): boolean {
     return /^(\s+)?SELECT/im.test(sql)
 }
 
-// /(?:FROM|INTO)[\s\n\t](?<tables>[\w,\s\n\t]+?)[\s\n\t]?(?:\([\w\s,]+\)|WHERE|VALUES|;|LIMIT|GROUP|ORDER)/mi
 export function ParseQueryTables(q: string): string[] {
     return q
         .match(table_names_regex)
@@ -49,7 +40,7 @@ export function SocioMarkerHas(marker: QueryMarker, { parsed = null, str = '' }:
     return marker ? (parsed ? parsed.includes(marker) : (str ? SocioStringParse(str).markers.includes(marker) : false)) : false
 }
 
-//random
+//misc
 export function sleep(seconds: number = 2) {
     return new Promise(res => setTimeout(res, seconds * 1000))
 }
@@ -57,7 +48,7 @@ export function clamp(x:number, min:number, max:number){
     return Math.min(Math.max(x, min), max);
 }
 
-//https://stackoverflow.com/a/40577337/8422448
+//Credit: https://stackoverflow.com/a/40577337/8422448 (modified)
 export function GetAllMethodNamesOf(obj: any): string[] {
     const methods: Set<string> = new Set();
     while (obj = Reflect.getPrototypeOf(obj)) {
@@ -71,7 +62,7 @@ export function GetAllMethodNamesOf(obj: any): string[] {
     return [...methods];
 }
 
-//https://github.com/websockets/ws/blob/master/doc/ws.md#new-websocketserveroptions-callback:~:text=subprotocols%20is%20used.-,perMessageDeflate,-can%20be%20used
+//copy pasted from WS repo: https://github.com/websockets/ws/blob/master/doc/ws.md#new-websocketserveroptions-callback:~:text=subprotocols%20is%20used.-,perMessageDeflate,-can%20be%20used
 export const perMessageDeflate = {
     zlibDeflateOptions: {
         // See zlib defaults.
@@ -92,7 +83,7 @@ export const perMessageDeflate = {
     // should not be compressed if context takeover is disabled.
 }
 
-//JSON utils for Maps ------------- credit: STEVE SEWELL https://www.builder.io/blog/maps
+//JSON utils for Maps ------------- Credit: STEVE SEWELL https://www.builder.io/blog/maps
 export function MapReplacer(key: string, value: any) {
     if (value instanceof Map) {
         return { __type: 'Map', value: Object.fromEntries(value) }
@@ -112,7 +103,7 @@ export function MapReviver(key: string, value: any) {
     return value
 }
 
-// (modified) CREDIT: https://gist.github.com/jlevy/c246006675becc446360a798e2b2d781
+// Credit: https://gist.github.com/jlevy/c246006675becc446360a798e2b2d781 (modified) 
 // super simple, naive, yet fast way to generate a hash for a subscription query. Used to keep a cache while in the core Update function.
 export function FastHash(str:string) {
     let hash = 0;
