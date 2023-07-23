@@ -1,6 +1,6 @@
 {
   "name": "socio",
-  "version": "1.3.4",
+  "version": "1.3.5",
   "description": "A WebSocket Real-Time Communication (RTC) API framework.",
   "main": "./dist/core.js",
   "type": "module",
