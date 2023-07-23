@@ -13,7 +13,7 @@ export const colors = {
     // Reverse: "\x1b[7m",
     // Hidden: "\x1b[8m",
 
-    // FgBlack: "\x1b[30m",
+    FgBlack: "\x1b[30m",
     // FgRed: "\x1b[31m",
     // FgGreen: "\x1b[32m",
     // FgYellow: "\x1b[33m",
@@ -49,20 +49,26 @@ export class E extends Error {
 //for extending my classes with standardized logging methods
 export class LogHandler {
     //public:
-    log_handlers: { [key: string]: Function | null; } = { error: null, info: null, debug:null } //register your logger functions here. By default like this it will log to console, if verbose. It is recommended to turn off verbose in prod.
-    hard_crash:boolean;
     verbose: boolean;
-    use_prefix:string;
+    hard_crash: boolean;
+    prefix: string;
+
+    LogLevelStringToNumber = { 'DEBUG': 10, 'INFO': 20, 'WARN': 30, 'ERROR': 40 };
+    log_level: number = this.LogLevelStringToNumber['INFO'];
+    log_handlers: { [key: string]: Function | null; } = { error: null, info: null, debug:null } //register your logger functions here. By default like this it will log to console, if verbose. It is recommended to turn off verbose in prod.    
+    
     static use_color:boolean = true;
 
-    constructor({ verbose = false, hard_crash = false, prefix = '', use_color = undefined, info_handler = null, error_handler = null, debug_handler = null } = {}){
-        this.log_handlers.debug = debug_handler;
-        this.log_handlers.info = info_handler;
-        this.log_handlers.error = error_handler;
+    constructor({ verbose = false, hard_crash = false, prefix = '', use_color = undefined } = {}){
         this.verbose = verbose;
         this.hard_crash = hard_crash;
-        this.use_prefix = prefix;
+        this.prefix = prefix;
         if(use_color !== undefined) LogHandler.use_color = use_color;
+    }
+
+    BaseLog(level:string, prefix: string, color: string, msg:string, ...args:any[]){
+        if (this.LogLevelStringToNumber[level] >= this.log_level)
+            console.log(`${LogHandler.prefix(prefix, color)} ${msg}`, ...args);
     }
 
     HandleError(e: E | Error | undefined | string){ //e is of type class E ^
@@ -87,40 +93,40 @@ export class LogHandler {
     static log(...args: any[]) { console.log(...args) }
 
     debug(msg: any, ...args: any[]) {
-        console.log(`[${this.use_prefix + 'DEBUG'}] ${msg}`, ...args);
+        this.BaseLog('DEBUG', this.prefix, '', msg, ...args);
     }
     static debug(msg: any, ...args: any[]) {
         console.log(`[Socio DEBUG] ${msg}`, ...args);
     }
 
     info(msg:any, ...args:any[]) {
-        console.log(`${LogHandler.prefix(this.use_prefix, colors.BgYellow)} ${msg}`, ...args);
+        this.BaseLog('INFO', this.prefix, colors.BgYellow + colors.FgBlack, msg, ...args);
     }
     static info(msg: any, ...args: any[]) {
-        console.log(`${LogHandler.prefix('Socio', colors.BgYellow)} ${msg}`, ...args);
+        console.log(`${LogHandler.prefix('Socio', colors.BgYellow + colors.FgBlack)} ${msg}`, ...args);
     }
     
     done(msg: string, ...args: any[]) {
-        console.log(`${LogHandler.prefix(this.use_prefix, colors.BgGreen)} ${msg}`, ...args);
+        this.BaseLog('INFO', this.prefix, colors.BgGreen + colors.FgBlack, msg, ...args);
     }
     static done(msg: string, ...args: any[]) {
-        console.log(`${LogHandler.prefix('Socio', colors.BgGreen)} ${msg}`, ...args);
+        console.log(`${LogHandler.prefix('Socio', colors.BgGreen + colors.FgBlack)} ${msg}`, ...args);
     }
 
     error(msg: any, ...args: any[]) {
-        console.log(`${LogHandler.prefix(`${this.use_prefix} ERROR`, colors.BgRed + colors.FgWhite)} ${msg}`);
+        this.BaseLog('ERROR', this.prefix + ' ERROR', colors.BgRed + colors.FgBlack, msg);
         if (args)
             console.log(...args, '\n');
 
         throw new Error(msg);
     }
     soft_error(msg: any, ...args: any[]) {
-        console.log(`${LogHandler.prefix(`${this.use_prefix} ERROR`, colors.BgRed + colors.FgWhite)} ${msg}`);
+        this.BaseLog('WARN', this.prefix + ' WARN', colors.BgRed + colors.FgBlack, msg);
         if (args)
             console.log(...args, '\n');
     }
     static soft_error(msg: any, ...args: any[]) {
-        console.log(`${LogHandler.prefix(`Socio ERROR`, colors.BgRed + colors.FgWhite)} ${msg}`);
+        console.log(`${LogHandler.prefix(`Socio WARN`, colors.BgRed + colors.FgBlack)} ${msg}`);
         if (args)
             console.log(...args, '\n');
     }
