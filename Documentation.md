@@ -144,7 +144,7 @@ sc.Query('all', {sql_is_endpoint:true, params:{}}, (val) => { //params is, as al
 You may want to compress incoming and outgoing messages of your WebSockets for less network traffic. However, note that the use of compression would obviously add to CPU and RAM loads. In addition, see other concerns - [slow speed and possible memory leaks](https://github.com/websockets/ws/issues/1369) [ws readme](https://github.com/websockets/ws#websocket-compression). I have provided the ``perMessageDeflate`` object for convenience, which is the default from the ws readme. From my investigation, this is enough to get it working. [See here](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket#instance_properties) and check on SocioClient.ws.extensions
 
 ```ts
-import { perMessageDeflate } from 'socio/utils';
+import { perMessageDeflate } from 'socio/dist/utils';
 const socserv = new SocioServer({ port: 3000, perMessageDeflate }, {...} );
 ```
 
