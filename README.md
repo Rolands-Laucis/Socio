@@ -1,6 +1,6 @@
 # Socio - A WebSocket Real-Time Communication (RTC) API framework.
 
-<p align="center"><img src="https://github.com/Rolands-Laucis/Socio/blob/master/banner.webp" alt="socio logo banner"/></p>
+<p align="center"><img src="https://github.com/Rolands-Laucis/Socio/blob/main/banner.webp" alt="socio logo banner"/></p>
 
 ---
 
@@ -9,9 +9,9 @@
 
 ---
 
-* [Interactive Basic Demo project](https://github.com/Rolands-Laucis/Socio/blob/master/demos/basic/readme.md)
-* [Interactive Secure Full-Stack Framework Demo project](https://github.com/Rolands-Laucis/Socio/tree/master/demos/full-stack_framework#readme) with SvelteKit and Vite.
-* [Simple Documentation](https://github.com/Rolands-Laucis/Socio/blob/master/Documentation.md)
+* [Interactive Basic Demo project](https://github.com/Rolands-Laucis/Socio/blob/main/demos/basic/readme.md)
+* [Interactive Secure Full-Stack Framework Demo project](https://github.com/Rolands-Laucis/Socio/tree/main/demos/full-stack_framework#readme) with SvelteKit and Vite.
+* [Simple Documentation](https://github.com/Rolands-Laucis/Socio/blob/main/Documentation.md)
 * [Website made with Socio](http://riga.rolandslaucis.lv/) by me. Real-time rent prices in Riga, Latvia. SvelteKit, Vite, Socio, NginX, Ubuntu server.
 
 ---
