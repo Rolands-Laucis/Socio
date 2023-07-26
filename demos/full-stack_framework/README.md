@@ -10,7 +10,7 @@
 * ```npm i```
 * ```npm run dev```
 
-Should start the SvelteKit Vite local webserver and print out its url, that you can visit on your browser to begin the interactive demo.
+That should start the SvelteKit Vite local webserver and print out its url, that you can visit on your browser to begin the interactive demo.
 Should also log some startup status messages upon the first http request.
 
 * Visi the URL on one or multiple tabs or browser instances. 
@@ -23,9 +23,9 @@ This is powerful because you nolonger need to write a REST API middle layer betw
 
 In addition, this demo makes use of the included SocioSecure Vite plugin to encrypt the actual SQL queries on the front end source code. You can check the console logs, websocket messages in the browser Network panel or the Svelte source code on the browser. The sent SQL messages are scrambled gibberish. However, the dynamic parameters are not.
 
-## Next check out the [src/routes/+page.svelte](https://github.com/Rolands-Laucis/Socio/blob/master/demos/full-stack_framework/src/routes/%2Bpage.svelte) file to see how the magic is done on the frontend - it's super simple ;)
-
-This is because im new to TypeScript and am not yet aware of the configuration options i need to get stuff working for everyone. Would be nice, if someone could help with this :)
+## Next check out
+* [src/routes/+page.svelte](./src/routes/+page.svelte) file to see how the magic is done on the frontend - it's super simple ;)
+* [src/hooks.server.ts](./src/hooks.server.ts) file to see how the magic is done on the backend. SocioServer is created here.
 
 ## Building this for production
 * ```npm i @sveltejs/adapter-node``` or other production adapter you need. For Node.js backend servers, this will work.
