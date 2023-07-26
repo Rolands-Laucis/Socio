@@ -10,7 +10,7 @@
 * ```npm i```
 * ```npm run demo```
 
-Should start the express webserver and print out its url, that you can visit on your fav browser to begin the interactive demo.
+This should start the express webserver and print out its url, that you can visit on your fav browser to begin the interactive demo.
 
 * Visi the URL on one or multiple tabs or browser instances. 
 * Then press the big INSERT button, which will insert a new row into the DB on the users table. 
@@ -20,4 +20,6 @@ As you will notice, all instances of the browsers and their tabs update their va
 
 This is powerful because you nolonger need to write a REST API middle layer between front and back end and manually sync states and data, which in practice is often challenging and laborious. With Socio this is all done automagically for you. As well as no need to write DB query interfacing middle layers, since your SQL queries can just sit in one place - the front end - where their use sits.
 
-## Next check out the ``client.js`` file to see how the magic is done on the frontend - its super simple ;)
+## Next check out
+* [client.js](./client.js) file to see how the magic is done on the frontend - it's super simple ;)
+* [server.js](./server.js) file to see how the magic is done on the backend. The Express.js http server and SocioServer is created here.
