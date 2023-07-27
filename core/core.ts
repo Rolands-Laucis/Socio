@@ -17,7 +17,7 @@ import type { ServerOptions, WebSocket, AddressInfo } from 'ws';
 import type { IncomingMessage } from 'http';
 import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind, SocioFiles, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts, Bit } from './types.js';
 import type { RateLimit } from './ratelimit.js';
-export type MessageDataObj = { id?: id, sql?: string, endpoint?: string, params?: any, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val: PropValue, data?: any, rate_limit?: RateLimit, files?: SocioFiles, sql_is_endpoint?:boolean };
+export type MessageDataObj = { id?: id, sql?: string, endpoint?: string, params?: any, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val?: PropValue, prop_upd_as_diff?:boolean, data?: any, rate_limit?: RateLimit, files?: SocioFiles, sql_is_endpoint?:boolean };
 export type QueryFuncParams = { id?: id, sql: string, params?: any };
 export type QueryFunction = (client: SocioSession, id: id, sql: string, params?: any) => Promise<object>;
 type SessionsDefaults = { timeouts: boolean, timeouts_check_interval_ms?: number, ttl_ms?: number, session_delete_delay_ms?: number, recon_ttl_ms?: number };
@@ -308,7 +308,7 @@ export class SocioServer extends LogHandler {
                     try {
                         if(this.#props.get(data.prop as string)?.client_writable){
                             //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value.
-                            const result = this.UpdatePropVal(data.prop as string, data?.prop_val, client.id); //the assigner inside Update dictates, if this was a successful set.
+                            const result = this.UpdatePropVal(data.prop as string, data?.prop_val, client.id, data.hasOwnProperty('prop_upd_as_diff') ? data.prop_upd_as_diff : this.#prop_upd_diff); //the assigner inside Update dictates, if this was a successful set.
                             client.Send('RES', { id: data.id, result }); //resolve this request to true, so the client knows everything went fine.
                         }else throw new E('Prop is not client_writable.', data);
                     } catch (e: err) {

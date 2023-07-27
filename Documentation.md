@@ -362,7 +362,7 @@ col = sc.GetProp('color', true); //last arg local=true
 
 Though usable for realtime web chat applications, i advise against that. There is a socio/chat.ts file that handles such a usecase in a more generic and extendable way.
 
-To be more network efficient, Socio can be set to use the [recursive-diff](https://www.npmjs.com/package/recursive-diff) lib for props. This is a good idea when your prop is a generic, large or deeply nested JS object and only small parts of its structure get updated. Only differeneces in this object will be sent through the network on PROP_UPD msgs. Keep in mind, that if one of these msgs gets lost for a client, then its frontend prop will go out of sync unnoticeably and irreparably. The setup is a flag on the SocioServer constructor options:
+To be more network efficient, Socio can be set to use the [recursive-diff](https://www.npmjs.com/package/recursive-diff) lib for props. This is a good idea when your prop is a large or deeply nested JS object and only small parts of its structure get updated. Only differeneces in this object will be sent through the network on PROP_UPD msgs. Keep in mind, that if one of these msgs gets lost for a client, then its frontend prop will go out of sync unnoticeably and irreparably. The setup is a flag on the SocioServer constructor options:
 
 ```ts
 //server code
@@ -371,7 +371,9 @@ socserv.RegisterProp(...);
 
 //this global flag can be overwritten per UpdatePropVal call, to force either full or diff val to be sent:
 socserv.UpdatePropVal(..., true); //last arg send_as_diff overwrites prop_upd_diff for this send to all subs.
-socserv.UnRegisterProp(...);
+
+//AND on the client side:
+socio_client.SetProp(..., true); //set the prop_upd_as_diff flag to a value, which will overwrite the socserv.prop_upd_diff global flag.
 ```
 
 For more security/paranoia, props can be registered such that clients are not allowed to write, just read props.
