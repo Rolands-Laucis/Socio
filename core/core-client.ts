@@ -528,7 +528,7 @@ export class SocioClient extends LogHandler {
     // Sets a timer to calculate the progress of a pending query promise, returns it to the user @ 30fps. 
     // Returns the timer ID, in case the dev wants to stop it manually.
     // This might call onUpdate multiple times with 0 before the % starts going up.
-    // TODO, use request anim frame instead? Canceling it is a bit of a hastle and it would run faster than needed sometimes. But no slower than the framerate.
+    // NOTE, use request anim frame instead? Canceling it is a bit of a hastle and it would run faster than needed sometimes. But no slower than the framerate.
     #CreateProgTrackingTimer(query_id: id, start_buff: number, payload_size: number, onUpdate: ProgressOnUpdate, freq_ms = 33.34){
         let last_buff_size = this.#ws?.bufferedAmount || 0;
         const intervalID = setInterval(() => {

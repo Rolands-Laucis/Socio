@@ -35,15 +35,3 @@ export function MapPathsToFolder(folder_path: string[], relative_file_paths: str
     const fp = os_path.join(...folder_path);
     return relative_file_paths.map(p => os_path.join(fp, p));
 }
-
-//Persisting Maps -------------
-// export function SaveQueryMap(string_array_path: string[] = ['.', 'SocioQueryMap.json'], map: Map<string, string>) {
-//     const file_path = os_path.join(...string_array_path);
-//     const json = JSON.stringify(map, MapReplacer);
-//     fs.writeFileSync(file_path, json, { flag: 'w' });
-// }
-// export function ReadQueryMap(string_array_path: string[] = ['.', 'SocioQueryMap.json']): QueryMapType {
-//     const file_path = os_path.join(process.cwd(), ...string_array_path);
-//     const json_obj = JSON.parse(fs.readFileSync(file_path, { flag: 'r', encoding: 'utf8' }), MapReviver);
-//     return new Map(Object.entries(json_obj));
-// }
