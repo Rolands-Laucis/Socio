@@ -20,7 +20,7 @@ try {
 
     //load in the secure_private_key with dotenv or smth. Dont hardcode like this
     const socsec = new SocioSecurity({ secure_private_key: 'skk#$U#Y$7643GJHKGDHJH#$K#$HLI#H$KBKDBDFKU34534', logging: { verbose: false } });
-    const socserv = new SocioServer({ port: 3000 }, { db: db_interface, logging: { verbose: true, hard_crash: false }, socio_security: socsec });
+    const socserv = new SocioServer({ port: 3000, perMessageDeflate }, { db: db_interface, logging: { verbose: true, hard_crash: false }, socio_security: socsec });
 
     socserv.RegisterProp('color', '#ffffff', {
         // assigner is optional and has a default to just accept whatever new value comes in.
