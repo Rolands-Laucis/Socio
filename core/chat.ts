@@ -80,9 +80,9 @@ export function HandleChatRoomServ(client: SocioSession, data: MessageDataObj, c
         const chat = chat_rooms.find(c => c.room_id === data.data?.room_id);
         if(!chat) return;
         switch(data.data?.type){
-            case 'join': chat.Join(client.id); break;
-            case 'leave': chat.Leave(client.id); break;
-            case 'new_msg': chat.Post(client.id, data.data?.text); break;
+            case 'join': {chat.Join(client.id); break;}
+            case 'leave': {chat.Leave(client.id); break;}
+            case 'new_msg': {chat.Post(client.id, data.data?.text); break;}
             default: throw new E('Unknown SocioChatRoom SERV msg type!');
         }
     }
@@ -91,8 +91,8 @@ export function HandleChatRoomServ(client: SocioSession, data: MessageDataObj, c
 export function HandleChatRoomCMD(data:any, chat:ChatRoomClient) {
     if (data?.rel == 'SocioChatRoom') {
         switch (data?.type) {
-            case 'msg_history': chat.Receive(data?.msgs); break;
-            case 'new_msg': chat.Receive(data?.msgs); break;
+            case 'msg_history': {chat.Receive(data?.msgs); break;}
+            case 'new_msg': {chat.Receive(data?.msgs); break;}
             default: throw new E('Unknown SocioChatRoom CMD msg type!');
         }
     }

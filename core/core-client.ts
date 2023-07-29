@@ -100,7 +100,7 @@ export class SocioClient extends LogHandler {
                     return;
 
             switch (kind) {
-                case 'CON':
+                case 'CON':{
                     //@ts-expect-error
                     this.#client_id = data as string;//should just be a string
                     this.#latency = (new Date()).getTime() - this.#latency;
@@ -118,15 +118,18 @@ export class SocioClient extends LogHandler {
 
                     this.#is_ready = true;
                     break;
-                case 'UPD':
+                }
+                case 'UPD':{
                     this.#FindID(kind, data?.id);
                     (this.#queries.get(data.id) as QueryObject).onUpdate[data.status as string](data.result); //status might be success or error, and error might not be defined
                     break;
-                case 'PONG': 
-                    this.#FindID(kind, data?.id)    
-                    this.HandleInfo('pong', data?.id); 
+                }
+                case 'PONG':{
+                    this.#FindID(kind, data?.id)
+                    this.HandleInfo('pong', data?.id);
                     break;
-                case 'AUTH':
+                }
+                case 'AUTH':{
                     this.#FindID(kind, data?.id)
                     if (data?.result as Bit !== 1)
                         this.HandleInfo(`AUTH returned FALSE, which means websocket has not authenticated.`);
@@ -135,60 +138,67 @@ export class SocioClient extends LogHandler {
                     (this.#queries.get(data.id) as QueryPromise).res(this.#authenticated); //result should be either True or False to indicate success status
                     this.#queries.delete(data.id); //clear memory
                     break;
-                case 'GET_PERM':
+                }
+                case 'GET_PERM':{
                     this.#FindID(kind, data?.id)
-                    if (data?.result as Bit !== 1) 
+                    if (data?.result as Bit !== 1)
                         this.HandleInfo(`Server rejected grant perm for ${data?.verb} on ${data?.table}.`);
 
                     (this.#queries.get(data.id) as QueryPromise).res(data?.result as Bit === 1); //result should be either True or False to indicate success status
                     this.#queries.delete(data.id) //clear memory
                     break;
-                case 'RES':
+                }
+                case 'RES':{
                     this.#HandleBasicPromiseMessage(kind, data)
                     break;
-                case 'PROP_UPD':
-                    if (data?.prop && data.hasOwnProperty('id') && (data.hasOwnProperty('prop_val') || data.hasOwnProperty('prop_val_diff'))){
+                }
+                case 'PROP_UPD':{
+                    if (data?.prop && data.hasOwnProperty('id') && (data.hasOwnProperty('prop_val') || data.hasOwnProperty('prop_val_diff'))) {
                         const prop = this.#props.get(data.prop as string);
-                        if (prop && prop.subs.hasOwnProperty(data.id as id) && typeof prop.subs[data.id as id] === 'function'){
+                        if (prop && prop.subs.hasOwnProperty(data.id as id) && typeof prop.subs[data.id as id] === 'function') {
                             const prop_val = data.hasOwnProperty('prop_val') ? data.prop_val : diff_lib.applyDiff(prop.val, data.prop_val_diff);
                             //@ts-expect-error
                             prop.subs[data.id as id](prop_val as PropValue);
                             prop.val = prop_val; //set the new val
                         }//@ts-expect-error 
-                        else throw new E('Prop UPD called, but subscribed prop does not have a callback.', { data, callback: prop.subs[data.id as id]});
+                        else throw new E('Prop UPD called, but subscribed prop does not have a callback.', { data, callback: prop.subs[data.id as id] });
                         if (this.#queries.has(data.id))
                             (this.#queries.get(data.id) as QueryPromise).res(data.prop_val as PropValue); //resolve the promise
-                    }else throw new E('Not enough prop info sent from server to perform prop update.', data)
+                    } else throw new E('Not enough prop info sent from server to perform prop update.', data)
                     break;
-                case 'PROP_DROP':
+                }
+                case 'PROP_DROP':{
                     if (data?.prop && data.hasOwnProperty('id')) {
-                        if (this.#props.has(data.prop)){
+                        if (this.#props.has(data.prop)) {
                             delete this.#props.get(data.prop)?.subs[data.id];
 
                             //tell the dev that this prop has been dropped by the server.
-                            if(this.lifecycle_hooks.prop_drop)
+                            if (this.lifecycle_hooks.prop_drop)
                                 this.lifecycle_hooks.prop_drop(this.name, this.#client_id, data.prop, data.id);
                         }
                         else throw new E('Cant drop unsubbed prop!', data)
                     } else throw new E('Not enough prop info sent from server to perform prop drop.', data)
                     break;
-                case 'CMD': if(this.lifecycle_hooks.cmd) this.lifecycle_hooks.cmd(data); break; //the server pushed some data to this client, let the dev handle it
-                case 'ERR'://The result field is sometimes used as a cause of error msg on the backend
+                }
+                case 'CMD': {if(this.lifecycle_hooks.cmd) this.lifecycle_hooks.cmd(data); break;} //the server pushed some data to this client, let the dev handle it
+                case 'ERR': {//The result field is sometimes used as a cause of error msg on the backend
                     if (typeof this.#queries.get(data.id) == 'function')
                         (this.#queries.get(data.id) as QueryPromise).res();
 
-                    this.HandleError(new E(`Request to Server returned ERROR response. [#err-msg-kind]`, { id:data?.id, reason:data?.result }));
+                    this.HandleError(new E(`Request to Server returned ERROR response. [#err-msg-kind]`, { id: data?.id, reason: data?.result }));
                     break;
-                case 'RECON': 
+                }
+                case 'RECON':{
                     this.#FindID(kind, data?.id);
                     //@ts-expect-error
                     this.#queries.get(data.id)(data);
                     this.#queries.delete(data.id); //clear memory
                     break;
-                case 'RECV_FILES':
+                }
+                case 'RECV_FILES':{
                     this.#FindID(kind, data?.id);
-                    
-                    if (data?.result && data?.files){
+
+                    if (data?.result && data?.files) {
                         const files = ParseSocioFiles(data?.files as SocioFiles);
                         //@ts-expect-error
                         this.#queries.get(data.id)(files);
@@ -200,11 +210,13 @@ export class SocioClient extends LogHandler {
 
                     this.#queries.delete(data.id); //clear memory
                     break;
-                case 'TIMEOUT': 
+                }
+                case 'TIMEOUT':{
                     if (this.lifecycle_hooks.timeout)
                         this.lifecycle_hooks.timeout(this.name, this.#client_id);
                     break;
-                // case '': break;
+                }
+                // case '': {break;}
                 default: throw new E(`Unrecognized message kind!`, {kind, data});
             }
         } catch (e:err) { this.HandleError(e) }

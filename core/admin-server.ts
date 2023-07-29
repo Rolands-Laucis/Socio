@@ -36,8 +36,8 @@ export class AdminClient extends LogHandler{
         const { kind, data }: { kind: ClientMessageKind; data: MessageDataObj } = JSON.parse(d, MapReviver)
 
         switch(kind){
-            case 'CON': 
-                //@ts-ignore
+            case 'CON':{
+                //@ts-expect-error
                 this.#client_id = data;//should just be a string
                 if (this.#is_ready !== false && typeof this.#is_ready === "function")
                     this.#is_ready(true); //resolve promise to true
@@ -45,14 +45,17 @@ export class AdminClient extends LogHandler{
 
                 this.#is_ready = true;
                 break;
-            case 'RES': 
+            }
+            case 'RES':{
                 this.HandleInfo('recv:', kind, data);
                 this.#HandleBasicPromiseMessage(data);
                 break;
-            case 'ERR':
+            }
+            case 'ERR':{
                 this.HandleError(new E('recv:', kind, data));
                 this.#HandleBasicPromiseMessage(data);
                 break;
+            }
             default: throw new E(`Unrecognized message kind!`, kind, data);
         }
     }
