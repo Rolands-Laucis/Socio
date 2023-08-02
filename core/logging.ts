@@ -35,14 +35,17 @@ export const colors = {
 //types
 export type err = E | string | any;
 export type LogHandlerOptions = { info_handler?: Function, error_handler?: Function | null, verbose?: boolean, hard_crash?: boolean, prefix?:string, use_color?: boolean};
+enum LogLevel{
+    DEBUG, INFO, DONE, WARN, ERROR
+}
 
 //for my own error throwing, bcs i want to throw a msg + some objects maybe to log the current state of the program
 export class E extends Error {
     logs: any[];
 
     constructor(msg = '', ...logs) {
-        super(msg)
-        this.logs = logs
+        super(msg);
+        this.logs = logs;
     }
 }
 
@@ -53,8 +56,7 @@ export class LogHandler {
     hard_crash: boolean;
     prefix: string;
 
-    LogLevelStringToNumber = { 'DEBUG': 10, 'INFO': 20, 'WARN': 30, 'ERROR': 40 };
-    log_level: number = this.LogLevelStringToNumber['INFO'];
+    log_level: LogLevel = LogLevel.INFO;
     log_handlers: { [key: string]: Function | null; } = { error: null, info: null, debug:null } //register your logger functions here. By default like this it will log to console, if verbose. It is recommended to turn off verbose in prod.    
     
     static use_color:boolean = true;
@@ -66,8 +68,8 @@ export class LogHandler {
         if(use_color !== undefined) LogHandler.use_color = use_color;
     }
 
-    BaseLog(level:string, prefix: string, color: string, msg:string, ...args:any[]){
-        if (this.LogLevelStringToNumber[level] >= this.log_level)
+    BaseLog(level:number, prefix: string, color: string, msg:string, ...args:any[]){
+        if (level >= this.log_level)
             console.log(`${LogHandler.prefix(prefix, color)} ${msg}`, ...args);
     }
 
@@ -93,35 +95,28 @@ export class LogHandler {
     static log(...args: any[]) { console.log(...args) }
 
     debug(msg: any, ...args: any[]) {
-        this.BaseLog('DEBUG', this.prefix, '', msg, ...args);
+        this.BaseLog(LogLevel.DEBUG, this.prefix, '', msg, ...args);
     }
     static debug(msg: any, ...args: any[]) {
         console.log(`[Socio DEBUG] ${msg}`, ...args);
     }
 
     info(msg:any, ...args:any[]) {
-        this.BaseLog('INFO', this.prefix, colors.BgYellow + colors.FgBlack, msg, ...args);
+        this.BaseLog(LogLevel.INFO, this.prefix, colors.BgYellow + colors.FgBlack, msg, ...args);
     }
     static info(msg: any, ...args: any[]) {
         console.log(`${LogHandler.prefix('Socio', colors.BgYellow + colors.FgBlack)} ${msg}`, ...args);
     }
     
     done(msg: string, ...args: any[]) {
-        this.BaseLog('INFO', this.prefix, colors.BgGreen + colors.FgBlack, msg, ...args);
+        this.BaseLog(LogLevel.DONE, this.prefix, colors.BgGreen + colors.FgBlack, msg, ...args);
     }
     static done(msg: string, ...args: any[]) {
         console.log(`${LogHandler.prefix('Socio', colors.BgGreen + colors.FgBlack)} ${msg}`, ...args);
     }
 
-    error(msg: any, ...args: any[]) {
-        this.BaseLog('ERROR', this.prefix + ' ERROR', colors.BgRed + colors.FgBlack, msg);
-        if (args)
-            console.log(...args, '\n');
-
-        throw new Error(msg);
-    }
     soft_error(msg: any, ...args: any[]) {
-        this.BaseLog('WARN', this.prefix + ' WARN', colors.BgRed + colors.FgBlack, msg);
+        this.BaseLog(LogLevel.WARN, this.prefix + ' WARN', colors.BgRed + colors.FgBlack, msg);
         if (args)
             console.log(...args, '\n');
     }
@@ -130,6 +125,13 @@ export class LogHandler {
         if (args)
             console.log(...args, '\n');
     }
+    // error(msg: any, ...args: any[]) {
+    //     this.BaseLog(LogLevel.ERROR, this.prefix + ' ERROR', colors.BgRed + colors.FgBlack, msg);
+    //     if (args)
+    //         console.log(...args, '\n');
+
+    //     throw new Error(msg);
+    // }
 }
 
 //static f wrappers for quick log writing
