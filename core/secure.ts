@@ -3,21 +3,21 @@
 "use strict";
 
 import MagicString from 'magic-string'; //https://github.com/Rich-Harris/magic-string
-import { randomUUID, createCipheriv, createDecipheriv, getCiphers, randomBytes, createHash } from 'crypto'; //https://nodejs.org/api/crypto.html
+import { randomUUID, createCipheriv, createDecipheriv, getCiphers, randomBytes, createHash, type CipherGCMTypes } from 'crypto'; //https://nodejs.org/api/crypto.html
 import { socio_string_regex } from './utils.js';
-import { LogHandler, LogHandlerOptions, E, log, info, done } from './logging.js';
+import { LogHandler, E, log, info, done } from './logging.js';
 import { extname } from 'path';
 
 //types
-import type { CipherGCMTypes } from 'crypto';
-export type SocioSecurityOptions = { secure_private_key: Buffer | string, rand_int_gen?: ((min: number, max: number) => number), logging?: LogHandlerOptions };
+import type { LoggingOpts } from './types.js';
+export type SocioSecurityOptions = { secure_private_key: Buffer | string, rand_int_gen?: ((min: number, max: number) => number) } & LoggingOpts;
 export type SocioSecurityPluginOptions = { include_file_types?: string[], exclude_file_types?: string[], exclude_svelte_server_files?: boolean, exclude_regex?:RegExp };
 
 //it was recommended on a forum to use 256 bits, even though 128 is still perfectly safe
 const cipher_algorithm_bits = 256;
 //GCM mode insures these properties of the cipher text - Confidentiality: cant read the msg, Integrity: cant alter the msg, Authenticity: the originator (your server) of the msg can be verified
 //https://nvlpubs.nist.gov/nistpubs/legacy/sp/nistspecialpublication800-38d.pdf
-const cipher_algorithm: CipherGCMTypes = `aes-${cipher_algorithm_bits}-gcm`; //called "default", bcs i used to allow the user to choose the algo, but not anymore.
+const cipher_algorithm: CipherGCMTypes = `aes-${cipher_algorithm_bits}-gcm`;
 
 //https://vitejs.dev/guide/api-plugin.html
 //THE VITE PLUGIN - import into vite config and add into the plugins array with your params.
@@ -60,7 +60,6 @@ export class SocioSecurity extends LogHandler {
     //And a brief discussion on Cryptography Stack Exchange.
     //let me know if i am dumb.
     constructor({ secure_private_key = '', rand_int_gen = undefined, logging = { verbose: false, hard_crash: false } }: SocioSecurityOptions){
-        //@ts-expect-error
         super({ ...logging, prefix: 'SocioSecurity' });
         
         if (!secure_private_key) throw new E(`Missing secure_private_key constructor argument!`);

@@ -59,7 +59,7 @@ export class LogHandler {
     
     static use_color:boolean = true;
 
-    constructor({ verbose = false, hard_crash = false, prefix = '', use_color = undefined } = {}){
+    constructor({ verbose = false, hard_crash = false, prefix = '', use_color = undefined }: LogHandlerOptions = {}){
         this.verbose = verbose;
         this.hard_crash = hard_crash;
         this.prefix = prefix;

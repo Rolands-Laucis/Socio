@@ -1,13 +1,14 @@
 //Homo vitae commodatus non donatus est. - Man's life is lent, not given. /Syrus/
 
-import { LogHandler, LogHandlerOptions, E, log, info, done } from './logging.js';
+import { LogHandler, E, log, info, done } from './logging.js';
 import { RateLimiter } from './ratelimit.js';
 import { MapReplacer, FastHash } from './utils.js';
+import { ClientMessageKind } from './core-client.js';
 
 //types
 import type { WebSocket } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
-import type { id, ClientMessageKind, Bit, LoggingOpts } from './types.js';
-import type { RateLimit } from './ratelimit.js'
+import type { id, Bit, LoggingOpts } from './types.js';
+import type { RateLimit } from './ratelimit.js';
 
 export type SubObj = {
     tables: string[],
@@ -32,7 +33,6 @@ export class SocioSession extends LogHandler {
     ttl_ms: number = Infinity; //ms since epoch showing how long the session is allowed to live.
 
     constructor(client_id: string, ws_client: WebSocket, client_ipAddr: string, { logging = { verbose: false, hard_crash: false }, default_perms, session_timeout_ttl_ms }: SocioSessionOptions  = {}) {
-        // @ts-expect-error
         super({ ...logging, prefix: 'SocioSession' });
         
         //private:
@@ -57,7 +57,7 @@ export class SocioSession extends LogHandler {
         if(this.#destroyed) return; //if this session is marked for destruction
         if (data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, data); //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
         this.#ws.send(JSON.stringify(Object.assign({}, { kind: kind, data: data[0] }, ...data.slice(1)), MapReplacer));
-        this.HandleInfo('sent:', kind, 'to', this.id, ...(kind != 'RECV_FILES' ? data : []));
+        this.HandleInfo('sent:', ClientMessageKind[kind], 'to', this.id, ...(kind != ClientMessageKind.RECV_FILES ? data : []));
         this.last_seen_now();
     }
 

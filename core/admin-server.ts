@@ -1,13 +1,14 @@
 //If God did not exist, it would be necessary to invent Him. /Voltaire/
 
-import { LogHandler, LogHandlerOptions, E } from "./logging.js";
+import { LogHandler, E } from "./logging.js";
 import { WebSocket as nodeWebSocket } from "ws";
-import { MapReplacer, MapReviver } from './utils.js'
+import { MapReplacer, MapReviver } from './utils.js';
 
 //types
-import type { ClientMessageKind, id, PropValue } from './types.js'
+import type { id, PropValue, LoggingOpts } from './types.js';
+import { ClientMessageKind } from './core-client.js';
 type MessageDataObj = { id: id, status?: string, result?: string | object | boolean | PropValue, data?: object };
-type AdminClientOptions = { url: string, client_secret: string, logging?: LogHandlerOptions }
+type AdminClientOptions = { url: string, client_secret: string } & LoggingOpts;
 
 export class AdminClient extends LogHandler{
     //private:
@@ -19,7 +20,6 @@ export class AdminClient extends LogHandler{
     #queries: { [id: id]: Function } = {}; //keeps a dict of all querie promises
 
     constructor({ url = '', client_secret = '', logging = { verbose: false, hard_crash: false } }: AdminClientOptions){
-        //@ts-expect-error
         super({prefix:'SocioAdmin', ...logging});
 
         if (client_secret.length < 16)
@@ -36,7 +36,7 @@ export class AdminClient extends LogHandler{
         const { kind, data }: { kind: ClientMessageKind; data: MessageDataObj } = JSON.parse(d, MapReviver)
 
         switch(kind){
-            case 'CON':{
+            case ClientMessageKind.CON:{
                 //@ts-expect-error
                 this.#client_id = data;//should just be a string
                 if (this.#is_ready !== false && typeof this.#is_ready === "function")
@@ -46,12 +46,12 @@ export class AdminClient extends LogHandler{
                 this.#is_ready = true;
                 break;
             }
-            case 'RES':{
+            case ClientMessageKind.RES:{
                 this.HandleInfo('recv:', kind, data);
                 this.#HandleBasicPromiseMessage(data);
                 break;
             }
-            case 'ERR':{
+            case ClientMessageKind.ERR:{
                 this.HandleError(new E('recv:', kind, data));
                 this.#HandleBasicPromiseMessage(data);
                 break;

@@ -11,15 +11,18 @@ import { E, LogHandler, err, log, info, done } from './logging.js';
 import { UUID, SocioSecurity } from './secure.js';
 import { SocioSession, type SubObj } from './core-session.js';
 import { RateLimiter } from './ratelimit.js';
+import { CoreMessageKind } from './utils.js';
 
 //types
 import type { ServerOptions, WebSocket, AddressInfo } from 'ws';
 import type { IncomingMessage } from 'http';
-import type { id, PropKey, PropValue, PropAssigner, CoreMessageKind, ClientMessageKind, SocioFiles, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts, Bit } from './types.js';
+import type { id, PropKey, PropValue, PropAssigner, SocioFiles, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts, Bit } from './types.js';
+import { ClientMessageKind } from './core-client.js';
 import type { RateLimit } from './ratelimit.js';
 export type MessageDataObj = { id?: id, sql?: string, endpoint?: string, params?: any, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val?: PropValue, prop_upd_as_diff?:boolean, data?: any, rate_limit?: RateLimit, files?: SocioFiles, sql_is_endpoint?:boolean };
 export type QueryFuncParams = { id?: id, sql: string, params?: any };
 export type QueryFunction = (client: SocioSession, id: id, sql: string, params?: any) => Promise<object>;
+
 type SessionsDefaults = { timeouts: boolean, timeouts_check_interval_ms?: number, ttl_ms?: number, session_delete_delay_ms?: number, recon_ttl_ms?: number };
 type DecryptOptions = { decrypt_sql: boolean, decrypt_prop: boolean, decrypt_endpoint: boolean };
 type DBOpts = { Query: QueryFunction, Arbiter?: (initiator: { client: SocioSession, sql: string, params: any }, current: { client: SocioSession, hook: SubObj }) => boolean | Promise<boolean>};
@@ -62,7 +65,6 @@ export class SocioServer extends LogHandler {
     session_defaults: SessionsDefaults = { timeouts: false, timeouts_check_interval_ms: 1000 * 60, ttl_ms:Infinity, session_delete_delay_ms: 1000 * 5, recon_ttl_ms: 1000 * 60 * 60 };
 
     constructor(opts: ServerOptions | undefined = {}, { db, socio_security = null, logging = { verbose: false, hard_crash: false }, decrypt_opts = { decrypt_sql: true, decrypt_prop: false, decrypt_endpoint:false}, session_defaults, prop_upd_diff=false }: SocioServerOptions){
-        //@ts-expect-error
         super({ ...logging, prefix:'SocioServer'});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
         //hard_crash will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
@@ -112,7 +114,7 @@ export class SocioServer extends LogHandler {
                 await this.#lifecycle_hooks.con(client, request); //u can get the client_id and client_ip off the client object
 
             //notify the client of their ID
-            client.Send('CON', client_id);
+            client.Send(ClientMessageKind.CON, client_id);
             this.HandleInfo('CON', client_id); //, this.#wss.clients
 
             //set this client websockets event handlers
@@ -147,10 +149,10 @@ export class SocioServer extends LogHandler {
                 this.HandleInfo(`recv: BLOB from ${client.id}`)
                 if (this.#lifecycle_hooks.blob) {
                     if (await this.#lifecycle_hooks.blob(client, req))
-                        client.Send('RES', { id:'BLOB', result: 1 });
-                    else client.Send('RES', { id: 'BLOB', result: 0 });
+                        client.Send(ClientMessageKind.RES, { id:'BLOB', result: 1 });
+                    else client.Send(ClientMessageKind.RES, { id: 'BLOB', result: 0 });
                 }
-                else client.Send('ERR', { id: 'BLOB', result: 'Server does not handle the BLOB hook.' });
+                else client.Send(ClientMessageKind.ERR, { id: 'BLOB', result: 'Server does not handle the BLOB hook.' });
                 return;
             }
 
@@ -164,7 +166,7 @@ export class SocioServer extends LogHandler {
                         data[field] = this.#Decrypt(client, data[field], field === 'sql');
             }
             
-            this.HandleInfo(`recv: ${kind} from ${client_id}`, kind != 'UP_FILES' ? data : `File count: ${data.files?.size}`);
+            this.HandleInfo(`recv: ${CoreMessageKind[kind]} from ${client_id}`, kind != CoreMessageKind.UP_FILES ? data : `File count: ${data.files?.size}`);
 
             //let the developer handle the msg
             if (this.#lifecycle_hooks.msg)
@@ -172,7 +174,7 @@ export class SocioServer extends LogHandler {
                     return;
 
             switch (kind) {
-                case 'SUB':{
+                case  CoreMessageKind.SUB:{
                     if (this.#lifecycle_hooks.sub)
                         if (await this.#lifecycle_hooks.sub(client, kind, data))
                             return;
@@ -192,32 +194,32 @@ export class SocioServer extends LogHandler {
                                 client.RegisterSub(tables, data.id as id, data.sql || '', data?.params, data?.rate_limit);
 
                             //send response
-                            client.Send('UPD', {
+                            client.Send(ClientMessageKind.UPD, {
                                 id: data.id,
                                 result: await this.db.Query(client, data.id || 0, data.sql || '', data?.params),
                                 status: 'success'
                             });
-                        } else client.Send('ERR', {
+                        } else client.Send(ClientMessageKind.ERR, {
                             id: data.id,
                             result: 'Only SELECT queries may be subscribed to! [#reg-not-select]',
                             status: 'error'
                         });
-                    } else client.Send('ERR', {
+                    } else client.Send(ClientMessageKind.ERR, {
                         id: data.id,
                         result: 'Nothing to subscribed to! [#reg-no-res]',
                         status: 'error'
                     });
                     break;
                 }
-                case 'UNSUB':{
+                case  CoreMessageKind.UNSUB:{
                     if (this.#lifecycle_hooks.unsub)
                         if (await this.#lifecycle_hooks.unsub(client, kind, data))
                             return;
 
-                    client.Send('RES', { id: data.id, result: client.UnRegisterSub(data?.unreg_id || '') });
+                    client.Send(ClientMessageKind.RES, { id: data.id, result: client.UnRegisterSub(data?.unreg_id || '') });
                     break;
                 }
-                case 'SQL':{
+                case  CoreMessageKind.SQL:{
                     //if the client happens to want to use an endpoint keyname instead of SQL, retrieve the SQL string from a hook call and procede with that.
                     if (data?.sql_is_endpoint && data.sql) {
                         if (this.#lifecycle_hooks.endpoint)
@@ -226,7 +228,7 @@ export class SocioServer extends LogHandler {
                     }
                     //have to do the query in every case
                     const res = this.db.Query(client, data.id || 0, data.sql || '', data.params);
-                    client.Send('RES', { id: data.id, result: await res }); //wait for result and send it back
+                    client.Send(ClientMessageKind.RES, { id: data.id, result: await res }); //wait for result and send it back
 
                     //if the sql wasnt a SELECT, but altered some resource, then need to propogate that to other connection hooks
                     if (!QueryIsSelect(data.sql || ''))
@@ -234,36 +236,36 @@ export class SocioServer extends LogHandler {
 
                     break;
                 }
-                case 'PING':{
-                    client.Send('PONG', { id: data?.id });
+                case  CoreMessageKind.PING:{
+                    client.Send(ClientMessageKind.PONG, { id: data?.id });
                     break;
                 }
-                case 'AUTH': {//client requests to authenticate itself with the server
+                case  CoreMessageKind.AUTH: {//client requests to authenticate itself with the server
                     if (client.authenticated) //check if already has auth
-                        client.Send('AUTH', { id: data.id, result: 1 });
+                        client.Send(ClientMessageKind.AUTH, { id: data.id, result: 1 });
                     else if (this.#lifecycle_hooks.auth) {
                         const res = await client.Authenticate(this.#lifecycle_hooks.auth, data.params) //bcs its a private class field, give this function the hook to call and params to it. It will set its field and give back the result. NOTE this is safer than adding a setter to a private field
-                        client.Send('AUTH', { id: data.id, result: res == true ? 1 : 0 }) //authenticated can be any truthy or falsy value, but the client will only receive a boolean, so its safe to set this to like an ID or token or smth for your own use
+                        client.Send(ClientMessageKind.AUTH, { id: data.id, result: res == true ? 1 : 0 }) //authenticated can be any truthy or falsy value, but the client will only receive a boolean, so its safe to set this to like an ID or token or smth for your own use
                     } else {
                         this.HandleError('AUTH function hook not registered, so client not authenticated. [#no-auth-func]')
-                        client.Send('AUTH', { id: data.id, result: 0 })
+                        client.Send(ClientMessageKind.AUTH, { id: data.id, result: 0 })
                     }
                     break;
                 }
-                case 'GET_PERM':{
+                case  CoreMessageKind.GET_PERM:{
                     if (client.HasPermFor(data?.verb, data?.table))//check if already has the perm
-                        client.Send('GET_PERM', { id: data.id, result: 1 });
+                        client.Send(ClientMessageKind.GET_PERM, { id: data.id, result: 1 });
                     else if (this.#lifecycle_hooks.grant_perm) {//otherwise try to grant the perm
                         const granted: boolean = await this.#lifecycle_hooks.grant_perm(client, data);
-                        client.Send('GET_PERM', { id: data.id, result: granted === true ? 1 : 0 }) //the client will only receive a boolean, but still make sure to only return bools as well
+                        client.Send(ClientMessageKind.GET_PERM, { id: data.id, result: granted === true ? 1 : 0 }) //the client will only receive a boolean, but still make sure to only return bools as well
                     }
                     else {
                         this.HandleError('grant_perm function hook not registered, so client not granted perm. [#no-grant_perm-func]')
-                        client.Send('GET_PERM', { id: data.id, result: 0 })
+                        client.Send(ClientMessageKind.GET_PERM, { id: data.id, result: 0 })
                     }
                     break;
                 }
-                case 'PROP_SUB':{
+                case  CoreMessageKind.PROP_SUB:{
                     this.#CheckPropExists(data?.prop, client, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
 
                     if (this.#lifecycle_hooks.sub)
@@ -274,14 +276,14 @@ export class SocioServer extends LogHandler {
                     this.#props.get(data.prop as PropKey)?.updates.set(client_id, { id: data.id as id, rate_limiter: data?.rate_limit ? new RateLimiter(data.rate_limit) : undefined })
 
                     //send response
-                    client.Send('PROP_UPD', {
+                    client.Send(ClientMessageKind.PROP_UPD, {
                         id: data.id,
                         prop: data.prop,
                         prop_val: this.GetPropVal(data.prop as PropKey)
                     })
                     break;
                 }
-                case 'PROP_UNSUB':{
+                case  CoreMessageKind.PROP_UNSUB:{
                     this.#CheckPropExists(data?.prop, client, data?.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
 
                     if (this.#lifecycle_hooks.unsub)
@@ -290,13 +292,13 @@ export class SocioServer extends LogHandler {
 
                     //remove hook
                     try {
-                        client.Send('RES', {
+                        client.Send(ClientMessageKind.RES, {
                             id: data?.id,
                             result: this.#props.get(data.prop as PropKey)?.updates.delete(client_id) ? 1 : 0
                         });
                     } catch (e: err) {
                         //send response
-                        client.Send('ERR', {
+                        client.Send(ClientMessageKind.ERR, {
                             id: data?.id,
                             result: e?.msg
                         });
@@ -304,25 +306,25 @@ export class SocioServer extends LogHandler {
                     }
                     break;
                 }
-                case 'PROP_GET':{
+                case  CoreMessageKind.PROP_GET:{
                     this.#CheckPropExists(data?.prop, client, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
-                    client.Send('RES', {
+                    client.Send(ClientMessageKind.RES, {
                         id: data.id,
                         result: this.GetPropVal(data.prop as string)
                     })
                     break;
                 }
-                case 'PROP_SET':{
+                case  CoreMessageKind.PROP_SET:{
                     this.#CheckPropExists(data?.prop, client, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
                     try {
                         if (this.#props.get(data.prop as string)?.client_writable) {
                             //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value.
                             const result = this.UpdatePropVal(data.prop as string, data?.prop_val, client.id, data.hasOwnProperty('prop_upd_as_diff') ? data.prop_upd_as_diff : this.#prop_upd_diff); //the assigner inside Update dictates, if this was a successful set.
-                            client.Send('RES', { id: data.id, result }); //resolve this request to true, so the client knows everything went fine.
+                            client.Send(ClientMessageKind.RES, { id: data.id, result }); //resolve this request to true, so the client knows everything went fine.
                         } else throw new E('Prop is not client_writable.', data);
                     } catch (e: err) {
                         //send response
-                        client.Send('ERR', {
+                        client.Send(ClientMessageKind.ERR, {
                             id: data.id,
                             result: e?.msg
                         });
@@ -330,22 +332,22 @@ export class SocioServer extends LogHandler {
                     }
                     break;
                 }
-                case 'SERV':{
+                case  CoreMessageKind.SERV:{
                     if (this.#lifecycle_hooks.serv)
                         await this.#lifecycle_hooks.serv(client, data);
                     else throw new E('Client sent generic data to the server, but the hook for it is not registed. [#no-serv-hook]', client_id);
                     break;
                 }
-                case 'ADMIN':{
+                case  CoreMessageKind.ADMIN:{
                     if (this.#lifecycle_hooks.admin)
                         if (await this.#lifecycle_hooks.admin(client, data)) //you get the client, which has its ID, ipAddr and last_seen fields, that can be used to verify access. Also data should contain some secret key, but thats up to you
-                            client.Send('RES', { id: data?.id, result: await this.#Admin(((data as unknown) as AdminMessageDataObj)?.function, ((data as unknown) as AdminMessageDataObj)?.args) });
+                            client.Send(ClientMessageKind.RES, { id: data?.id, result: await this.#Admin(((data as unknown) as AdminMessageDataObj)?.function, ((data as unknown) as AdminMessageDataObj)?.args) });
                         else throw new E('A non Admin send an Admin message, but was not executed.', kind, data, client_id);
                     break;
                 }
-                case 'RECON': {//client attempts to reconnect to its previous session
+                case  CoreMessageKind.RECON: {//client attempts to reconnect to its previous session
                     if (!this.#secure) {
-                        client.Send('ERR', { id: data.id, result: 'Cannot reconnect on this server configuration!', status: 0 });
+                        client.Send(ClientMessageKind.ERR, { id: data.id, result: 'Cannot reconnect on this server configuration!', status: 0 });
                         throw new E(`RECON requires SocioServer to be set up with the Secure class! [#recon-needs-secure]`, { kind, data });
                     }
 
@@ -353,12 +355,12 @@ export class SocioServer extends LogHandler {
                         //@ts-expect-error
                         const token = this.#secure.socio_security.EncryptString([this.#secure.socio_security?.GenRandInt(100_000, 1_000_000), client.ipAddr, client.id, (new Date()).getTime(), this.#secure.socio_security?.GenRandInt(100_000, 1_000_000)].join(' ')); //creates string in the format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where encrypted_text_base64 is a token of format "[rand] [ip] [client_id] [ms_since_epoch] [rand]"
                         this.#tokens.add(token);
-                        client.Send('RES', { id: data.id, result: token, status: 1 }); //send the token to the client for one-time use to reconnect to their established client session
+                        client.Send(ClientMessageKind.RES, { id: data.id, result: token, status: 1 }); //send the token to the client for one-time use to reconnect to their established client session
                     }
                     else if (data?.data?.type == 'POST') {
                         //check for valid token to begin with
                         if (!data?.data?.token || !this.#tokens.has(data.data.token)) {
-                            client.Send('RECON', { id: data.id, result: 'Invalid token', status: 0 });
+                            client.Send(ClientMessageKind.RECON, { id: data.id, result: 'Invalid token', status: 0 });
                             return;
                         }
                         this.#tokens.delete(data.data.token); //single use token, so delete
@@ -368,28 +370,28 @@ export class SocioServer extends LogHandler {
                             if (iv && token && auth_tag)
                                 token = this.#secure.socio_security?.DecryptString(iv, token, auth_tag); //decrypt the payload
                             else
-                                client.Send('RECON', { id: data.id, result: 'Invalid token', status: 0 });
+                                client.Send(ClientMessageKind.RECON, { id: data.id, result: 'Invalid token', status: 0 });
                         } catch (e: err) {
-                            client.Send('RECON', { id: data.id, result: 'Invalid token', status: 0 });
+                            client.Send(ClientMessageKind.RECON, { id: data.id, result: 'Invalid token', status: 0 });
                             return;
                         }
 
                         const [r1, ip, old_c_id, time_stamp, r2] = token.split(' '); //decrypted payload parts
                         //safety check race conditions
                         if (!(r1 && ip && old_c_id && time_stamp && r2)) {
-                            client.Send('RECON', { id: data.id, result: 'Invalid token format', status: 0 });
+                            client.Send(ClientMessageKind.RECON, { id: data.id, result: 'Invalid token format', status: 0 });
                             return;
                         }
                         if (client.ipAddr !== ip) {
-                            client.Send('RECON', { id: data.id, result: 'IP address changed between reconnect', status: 0 });
+                            client.Send(ClientMessageKind.RECON, { id: data.id, result: 'IP address changed between reconnect', status: 0 });
                             return;
                         }
                         else if ((new Date()).getTime() - parseInt(time_stamp) > (this.session_defaults.recon_ttl_ms as number)) {
-                            client.Send('RECON', { id: data.id, result: 'Token has expired', status: 0 });
+                            client.Send(ClientMessageKind.RECON, { id: data.id, result: 'Token has expired', status: 0 });
                             return;
                         }
                         else if (!(this.#sessions.has(old_c_id))) {
-                            client.Send('RECON', { id: data.id, result: 'Old session ID was not found', status: 0 });
+                            client.Send(ClientMessageKind.RECON, { id: data.id, result: 'Old session ID was not found', status: 0 });
                             return;
                         }
 
@@ -409,30 +411,30 @@ export class SocioServer extends LogHandler {
                         }, this.session_defaults.session_delete_delay_ms as number);
 
                         //notify the client 
-                        client.Send('RECON', { id: data.id, result: { old_client_id: old_c_id, auth: client.authenticated }, status: 1 });
+                        client.Send(ClientMessageKind.RECON, { id: data.id, result: { old_client_id: old_c_id, auth: client.authenticated }, status: 1 });
                         this.HandleInfo(`RECON ${old_c_id} -> ${client.id} (old client ID -> new/current client ID)`);
                     }
                     break;
                 } 
-                case 'UP_FILES':{
+                case  CoreMessageKind.UP_FILES:{
                     if (this.#lifecycle_hooks?.file_upload)
-                        client.Send('RES', { id: data.id, result: await this.#lifecycle_hooks.file_upload(client, data?.files, data?.data) ? 1 : 0 });
+                        client.Send(ClientMessageKind.RES, { id: data.id, result: await this.#lifecycle_hooks.file_upload(client, data?.files, data?.data) ? 1 : 0 });
                     else {
                         this.HandleError('file_upload hook not registered. [#no-file_upload-hook]');
-                        client.Send('RES', { id: data.id, result: 0 });
+                        client.Send(ClientMessageKind.RES, { id: data.id, result: 0 });
                     }
                     break;
                 }
-                case 'GET_FILES':{
+                case  CoreMessageKind.GET_FILES:{
                     if (this.#lifecycle_hooks?.file_download) {
                         const response = await this.#lifecycle_hooks.file_download(client, data?.data) as FS_Util_Response;
                         if (!response?.result)
                             this.HandleError(new E('file_download hook returned unsuccessful result.', response?.error));
-                        client.Send('RECV_FILES', { id: data.id, files: response.files, result: response.result });
+                        client.Send(ClientMessageKind.RECV_FILES, { id: data.id, files: response.files, result: response.result });
                     }
                     else {
                         this.HandleError('file_download hook not registered. [#no-file_download-hook]');
-                        client.Send('RES', { id: data.id, result: 0 });
+                        client.Send(ClientMessageKind.RES, { id: data.id, result: 0 });
                     }
                     break;
                 }
@@ -508,7 +510,7 @@ export class SocioServer extends LogHandler {
                             continue;
 
                     if (cache.has(hook.cache_hash))
-                        client.Send('UPD', {
+                        client.Send(ClientMessageKind.UPD, {
                             id: hook.id,
                             result: cache.get(hook.cache_hash),
                             status: 'success'
@@ -516,14 +518,14 @@ export class SocioServer extends LogHandler {
                     else
                         this.db.Query(client, hook.id, hook.sql, hook.params)
                             .then(res => {
-                                client.Send('UPD', {
+                                client.Send(ClientMessageKind.UPD, {
                                     id: hook.id,
                                     result: res,
                                     status: 'success'
                                 });
                                 cache.set(hook.cache_hash, res);
                             })
-                            .catch(err => client.Send('UPD', {
+                            .catch(err => client.Send(ClientMessageKind.UPD, {
                                 id: hook.id,
                                 result: err,
                                 status: 'error'
@@ -535,7 +537,7 @@ export class SocioServer extends LogHandler {
 
     #CheckPropExists(prop: PropKey | undefined, client: SocioSession, msg_id:id, error_msg: string){
         if (!prop || !(this.#props.has(prop))){
-            client.Send('ERR', {
+            client.Send(ClientMessageKind.ERR, {
                 id: msg_id,
                 result: error_msg
             });
@@ -599,7 +601,7 @@ export class SocioServer extends LogHandler {
             //inform all subbed clients that this prop has been dropped
             for (const [client_id, args] of prop.updates.entries()) {
                 if (this.#sessions.has(client_id))
-                    this.#sessions.get(client_id)?.Send('PROP_DROP', { id: args.id, prop: key });
+                    this.#sessions.get(client_id)?.Send(ClientMessageKind.PROP_DROP, { id: args.id, prop: key });
                 else this.#sessions.delete(client_id); //the client_id doesnt exist anymore for some reason, so unsubscribe
             }
 
@@ -641,7 +643,7 @@ export class SocioServer extends LogHandler {
                         upd_data['prop_val'] = new_assigned_prop_val;
 
                     //send to client
-                    this.#sessions.get(client_id)?.Send('PROP_UPD', upd_data);
+                    this.#sessions.get(client_id)?.Send(ClientMessageKind.PROP_UPD, upd_data);
                 }
                 else {//the client_id doesnt exist anymore for some reason, so unsubscribe
                     prop.updates.delete(client_id);
@@ -665,7 +667,7 @@ export class SocioServer extends LogHandler {
     }
 
     //send some data to all clients by their ID. By default emits to all connected clients
-    SendToClients(client_ids: string[] = [], data: object = {}, kind: ClientMessageKind = 'CMD'){
+    SendToClients(client_ids: string[] = [], data: object = {}, kind: ClientMessageKind = ClientMessageKind.CMD){
         if(!client_ids.length)
             for (const s of this.#sessions.values())
                 s.Send(kind, data);
@@ -693,7 +695,7 @@ export class SocioServer extends LogHandler {
         const now = (new Date()).getTime();
         for (const client of this.#sessions.values()){
             if (now >= client.last_seen + client.ttl_ms){
-                client.Send('TIMEOUT', {});
+                client.Send(ClientMessageKind.TIMEOUT, {});
                 client.CloseConnection();
                 this.HandleInfo('Session timed out.', client.id);
             }

@@ -2,6 +2,10 @@
 
 import type { QueryMarker } from "./types.js";
 
+export enum CoreMessageKind {
+    SUB, UNSUB, SQL, PING, AUTH, GET_PERM, PROP_SUB, PROP_UNSUB, PROP_GET, PROP_SET, SERV, ADMIN, RECON, UP_FILES, GET_FILES
+};
+
 export type SocioStringObj = { str: string, markers: string[] };
 
 //regex

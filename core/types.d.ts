@@ -21,10 +21,6 @@ export type QueryMarker = 'socio' | 'auth' | 'perm';
 export type FS_Util_Response = { result: Bit, error?: string | Error | E | object | any, files?: SocioFiles }
 export type LoggingOpts = { logging?: LogHandlerOptions };
 
-//msg kinds
-export type CoreMessageKind = 'SUB' | 'UNSUB' | 'SQL' | 'PING' | 'AUTH' | 'GET_PERM' | 'PROP_SUB' | 'PROP_UNSUB' | 'PROP_GET' | 'PROP_SET' | 'SERV' | 'ADMIN' | 'RECON' | 'UP_FILES' | 'GET_FILES';
-export type ClientMessageKind = 'CON' | 'UPD' | 'PONG' | 'AUTH' | 'GET_PERM' | 'RES' | 'ERR' | 'PROP_UPD' | 'PROP_DROP' | 'CMD' | 'RECON' | 'RECV_FILES' | 'TIMEOUT';
-
 //server hook functions
 export type ServerLifecycleHooks = { con?: Con_Hook, discon?: Discon_Hook, msg?: Msg_Hook, sub?: Sub_Hook, unsub?: Unsub_Hook, upd?: Upd_Hook, auth?: Auth_Hook, gen_client_id?: GenCLientID_Hook, grant_perm?: GrantPerm_Hook, serv?: Serv_Hook, admin?: Admin_Hook, blob?: Blob_Hook, file_upload?: FileUpload_Hook, file_download?: FileDownload_Hook, endpoint?: Endpoint_Hook };
 export type GenCLientID_Hook = () => ClientID | Promise<ClientID>;
