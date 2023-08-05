@@ -1,8 +1,6 @@
-# Socio - A WebSocket Real-Time Communication (RTC) API framework.
+<p align="center"><a href="https://www.npmjs.com/package/socio" target="_blank" rel="noopener noreferrer"><img height="100" src="https://github.com/Rolands-Laucis/Socio/blob/main/SocioLogo.webp" alt="Socio logo"></a></p>
 
-<p align="center"><img src="https://github.com/Rolands-Laucis/Socio/blob/main/banner.webp" alt="socio logo banner"/></p>
-
----
+# Socio - A WebSocket Real-Time Communication (RTC) API framework. Realtime Front-end, Back-end reactivity.
 
 * <a href="https://www.youtube.com/watch?v=iJIC9B3cKME&ab_channel=CepuminsLV" target="_blank">3 min video - Introduction demo.</a>
 * <a href="https://www.youtube.com/watch?v=t8_QBzk5bUk" target="_blank">16 min video - Getting started with Socio 0.7, SvelteKit, Vite.</a>
