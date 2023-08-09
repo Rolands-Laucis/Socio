@@ -112,13 +112,14 @@ export class SocioSecurity extends LogHandler {
     EncryptSocioString(sql: string = ''){
         let randint_sql = '';
         for(const l of sql){
-            if (l == ' ') randint_sql += `-;¦${this.GenRandInt(10,99)}`;
+            if (l == ' ') randint_sql += `-;¦${this.GenRandInt(100,999)}`;
             else randint_sql += l;
         }
+        randint_sql = `-;¦${this.GenRandInt(100, 999)}${randint_sql}-;¦${this.GenRandInt(100, 999)}`
         return `\`${this.EncryptString(randint_sql)}\``;
     }
     RemoveRandInts(randint_sql: string =''){
-        return randint_sql.replace(/-;¦\d{2}/gi, ' ');
+        return randint_sql.replace(/-;¦\d{3}/gi, ' ');
     }
 
     GenRandInt(min:number = 10_000, max:number = 100_000_000):number{
