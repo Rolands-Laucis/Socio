@@ -104,6 +104,7 @@ You should be using WSS:// and HTTPS:// protocols for everything, so that the da
 * [PocketBase](https://pocketbase.io/) serverless database.
 * [SurrealDB](https://surrealdb.com/) serverless database.
 * [RethinkDB](https://rethinkdb.com/) distributed architecture serverless database.
+* [SpacetimeDB](https://github.com/clockworklabs/SpacetimeDB) realtime DB and web-server.
 * [WebRTC standard](https://webrtc.org/) another web protocol, but aimed at realtime binary data transmission like audio and video over UDP.
 * [gRPC](https://grpc.io/) Google's Remote Procedure Call (RPC, another web protocol) framework, for interconnecting computers over a standardized data format between and inside data center machines and devices.
 * [CRDT](https://crdt.tech/) "Conflict-free Replicated Data Type" a data structure that simplifies distributed data storage systems and multi-user applications.
