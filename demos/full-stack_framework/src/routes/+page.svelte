@@ -219,7 +219,7 @@
             width: 100%;
             display: flex;
             align-items: baseline;
-            justify-content: space-between;
+            justify-content: space-evenly;
         }
     }
 

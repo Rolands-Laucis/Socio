@@ -1,6 +1,6 @@
 /* Write your global styles here, in SCSS syntax. Variables and mixins from the src/variables.scss file are available here without importing */
 
-@import url('https://fonts.googleapis.com/css2?family=Jost:wght@200;400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;700&display=swap');
 
 html, body{
     width: 100vw;
@@ -21,8 +21,10 @@ html, body{
 }
 
 h1, .h1,  h2, .h2,  h3, .h3,  h4, .h4, h5, .h5, h6, .h6, a, html, body, button, input, hr{
-    font-family: 'Jost', 'Open Sans', sans-serif;
-    font-weight: 200;
+    // font-family: 'Jost', 'Open Sans', sans-serif;
+    // font-weight: 200;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 300;
 
     padding: 0;
     margin: 0;
