@@ -37,7 +37,7 @@ This is all done with the ``SocioSecurity`` class manually or automagically with
 ## Code snippets 📜
 
 ```ts
-//TS server side
+//TS server side. For SvelteKit, this can be in proj_root/src/hooks.server.ts . Check the Framework Demo for an example.
 import { SocioServer } from 'socio/dist/core'; //this way for both JS and TS. Might need to put .js at the end.
 import { SocioSecurity } from 'socio/dist/secure';
 async function QueryWrap(client: SocioSession, id: id, sql: string, params: object | Array<any> | any):Promise<object> {
@@ -50,7 +50,7 @@ const socserv = new SocioServer({ port: 3000 }, { db:{Query:QueryWrap}, socio_se
 ```
 
 ```ts
-//client side browser code. For SvelteKit, this can be in proj_root/src/hooks.server.ts .Check the Framework Demo for an example.
+//client side browser code.
 import {SocioClient} from 'socio/dist/core-client'; //this way for both JS and TS. Might need to put .js at the end.
 import {socio} from 'socio/dist/utils';
 const sc = new SocioClient('ws://localhost:3000', {logging:{verbose:true}, name:'Main'}); //create as many as you like
