@@ -701,4 +701,6 @@ export class SocioServer extends LogHandler {
             }
         }
     }
+
+    get session_ids(){return this.#sessions.keys();}
 }
