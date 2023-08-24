@@ -571,7 +571,7 @@ export class SocioClient extends LogHandler {
     }
 }
 
-function ParseSocioFiles(files:SocioFiles){
+export function ParseSocioFiles(files:SocioFiles){
     if(!files) return [];
     const files_array: File[] = [];
     for (const [filename, filedata] of files.entries())
