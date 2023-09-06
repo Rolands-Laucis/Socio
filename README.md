@@ -10,11 +10,10 @@
 * [Interactive Basic Demo project](https://github.com/Rolands-Laucis/Socio/blob/main/demos/basic/readme.md)
 * [Interactive Secure Full-Stack Framework Demo project](https://github.com/Rolands-Laucis/Socio/tree/main/demos/full-stack_framework#readme) with SvelteKit and Vite.
 * [Simple Documentation](https://github.com/Rolands-Laucis/Socio/blob/main/Documentation.md)
-* [Website made with Socio](http://riga.rolandslaucis.lv/) by me. Real-time rent prices in Riga, Latvia. SvelteKit, Vite, Socio, NginX, Ubuntu server.
+* <a href="http://riga.rolandslaucis.lv/" target="_blank">Website made with Socio</a> by me. Real-time rent prices in Riga, Latvia. SvelteKit, Vite, Socio, NginX, Ubuntu server.
 
 ---
-
-No more API middleware and backend DB interfacing functions and wrappers and handlers. Write your SQL queries on the frontend and have their results be automagically refreshed on all clients when a resource is changed on the server DB. This is secure.
+This lets you write SQL in your frontend code, that automagically refreshes on all clients when a resource is changed on any (optionally) connected DB. Additionally, create any generic JS variables on your server to be realtime synced across all clients using "Server Props".
 
 Agnostic of framework, build tool, server lib and SQL database. Requires Node.js >= 16 LTS.
 
@@ -27,12 +26,12 @@ Contains compiled JS files + TS type definition files.
 
 ## How? ✨
 
-Socio is a "middle man" framework between your DB and clients. The ``SocioServer`` creates a WebSocket server on your backend, that is hooked up to any DB. The ``SocioClient`` sits on the browser (or backend with Deno) and communicates with your server through WebSockets and socios protocols and mechanisms. E.g. ``SocioClient.Query()`` or ``.Subscribe()`` with raw SQL strings. Additionally, the server can also at any time push information to clients, creating a duplex real-time connection. Pretty much everything you'd need, including file transfer, is supported.
+Socio is a "middle man" framework between your DB and browser clients. The ``SocioServer`` creates a WebSocket server on your backend, that can optionally be hooked up to any DB. The ``SocioClient`` sits on the browser (or backend with Deno) and communicates with your server through socios protocols and mechanisms. E.g. ``SocioClient.Query()`` or ``.Subscribe()`` with SQL strings and/or ``.SetProp()`` and ``.SubscribeProp()`` for generic data. Additionally, the server can also at any time push any data to any client(s), creating duplex real-time connections. Pretty much everything you'd need, including file transfer, is supported.
 
 ## SQL injections and overall data safety? 💉
 
-Client-side JS source files contain only encrypted strings of your SQL. The AES-256-GCM algorithm guarantees Confidentiality (cannot be read), Integrity (cannot be altered) and Authenticity (server can verify the author of the created cypher text). Dynamic data inserted as query parameters should be server-side sanitized by you as usual. In addition, all queries can use opt-in markers for authentification and table permissions requirements, that are managed by Socio Server for you.
-This is all done with the ``SocioSecurity`` class manually or automagically with the included Vite plugin ``SocioSecurityVitePlugin``.
+When using SQL, client-side JS source files contain only encrypted strings of your SQL. The used AES-256-GCM algorithm guarantees Confidentiality (cannot be read), Integrity (cannot be altered) and Authenticity (server can verify the author of the created cypher text). Dynamic data inserted as query parameters should be server-side sanitized by you as usual. In addition, all queries can use opt-in markers for authentification and table permissions requirements, that are managed by Socio Server for you.
+The encryption preproc step is done with the ``SocioSecurity`` class manually or automagically with the included Vite plugin ``SocioSecurityVitePlugin``.
 
 ## Code snippets 📜
 
@@ -56,31 +55,21 @@ import {socio} from 'socio/dist/utils';
 const sc = new SocioClient('ws://localhost:3000', {logging:{verbose:true}, name:'Main'}); //create as many as you like
 await sc.ready(); //wait to establish the connection
 
-//will recall the callback whenever the Users table data gets altered
-const id = sc.Subscribe({sql:socio`SELECT * FROM Users;`}, (res:object) => {
-    //assign res to your page state or straight to the DOM
-});
+//will recall the callback whenever the Users table is altered. Can also unsubscribe.
+const sub_id = sc.Subscribe({sql:socio`SELECT * FROM Users;`}, (res:object) => {...});
 
-//send a single query and wait for its result
+//send a single query and wait for its result:
 await sc.Query(socio`INSERT INTO Users (name, num) VALUES(:name, :num);`, {name:'bob', num:42}); //sanatize dynamic data yourself in QueryWrap!
-sc.Unsubscribe(id); //notify the server.
-```
 
-```ts
-//vite.config.ts when using SvelteKit.
-import { defineConfig } from 'vite';
-import { SocioSecurityVitePlugin } from 'socio/dist/secure';
-
-export default defineConfig({
-	plugins: [
-        SocioSecurityVitePlugin({ secure_private_key: '...', logging:{verbose:true} }) //same key as in SocioSecurity
-    ]
-});
+//or work with server side created generic data:
+let color = await sc.GetProp('color') as string; //the prop needs first to be created on the server and can be any json serializable object (including Map and Set)
+sc.SubscribeProp('color', (c:string) => color = c); //can be unsubscribed
+const res = await sc.SetProp('color', '#ffffff'); //this will rerun ^ the sub, if/when the server has set it, so no need to double your code everywhere!
 ```
 
 ## Does it scale? ⚖️
 
-Currently the performance is neglegable for small projects. I havent stress tested yet, as its still early dev, but i optimize my data structures, where i can as i go. Current estimate is about 100 concurrent users should be a breeze on a cheap Linode server. I expect your backend DB to be set up properly with table indexing and caching.
+Currently the performance is neglegable for small projects. I havent stress tested yet, but I optimize my data structures and procedures. Current estimate is about 100 concurrent users should be a breeze on a cheap Linode server. I expect your backend DB to be set up properly with table indexing and caching.
 
 [According to this blog](https://medium.com/nativeai/websocket-vs-http-for-collecting-events-for-web-analytics-c45507bd7949) WebSockets are much more network traffic efficient than HTTP at scale.
 
@@ -88,7 +77,7 @@ Currently the performance is neglegable for small projects. I havent stress test
 The use of the Socio lib **does not** prohibit the use of standard HTTP technologies. Even better - socio server can be configured to run on your existing http webserver, like one that you'd create with express.js. Since WebSockets are established over HTTP, then take over with their own protocol. Though, seeing as they are different technologies, there are situations where you'd need to "stitch" your own solutions between the two, e.g. tracking sessions.
 
 ## Caveats 🚩
-I cannot guarantee perfect safety of the query encryption. Neither can traditional HTTP backends. You may use SocioServer hooks to double check the incoming data yourself for your peace of mind. However, I can guarantee this is safer than HTTP cookie based sessions (see "cookie spoofing").
+I cannot guarantee perfect safety of the query encryption. Neither can anything. You may use SocioServer hooks to double check the incoming data yourself for your peace of mind. However, I can guarantee this is safer than HTTP cookie based sessions (search "cookie spoofing").
 
 You should be using WSS:// and HTTPS:// protocols for everything, so that the data is secure over the network. That's up to you and your server configuration.
 
