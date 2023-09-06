@@ -66,19 +66,21 @@ export class SocioClient extends LogHandler {
 
     async #connect(url: string, keep_alive: boolean, verbose: boolean, reconnect_tries:number){
         this.#ws = new WebSocket(url);
-        if (keep_alive && reconnect_tries)
-            this.#ws.addEventListener("close", () => {
-                this.HandleError(new E(`WebSocket closed. Retrying...`, this.name));
-                this.#resetConn(); //invalidate any state this session had
-                this.#connect(url, keep_alive, verbose, reconnect_tries - 1); //reconnect
-                // Our greatest glory is not in never falling, but in rising every time we fall. /Confucius/
-
-                //pass the object to the discon hook, if it exists
-                if (this.lifecycle_hooks.discon)//discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
-                    this.lifecycle_hooks.discon(this.name, this.#client_id, url, keep_alive, verbose, reconnect_tries - 1); //here you can await ready() and reauth and regain all needed perms
-            });
-
         this.#ws.addEventListener('message', this.#message.bind(this));
+        if (keep_alive && reconnect_tries){
+            this.#ws.addEventListener("close", (event: CloseEvent) => { this.#RetryConn(url, keep_alive, verbose, reconnect_tries, event) });
+            this.#ws.addEventListener("error", (event: Event) => { this.#RetryConn(url, keep_alive, verbose, reconnect_tries, event) });
+        }
+    }
+    #RetryConn(url: string, keep_alive: boolean, verbose: boolean, reconnect_tries: number, event:any) {
+        this.HandleError(new E(`"${this?.name || ''}" WebSocket closed. Retrying... Event details:`, event));
+        this.#resetConn(); //invalidate any state this session had
+        this.#connect(url, keep_alive, verbose, reconnect_tries - 1); //reconnect
+        // Our greatest glory is not in never falling, but in rising every time we fall. /Confucius/
+
+        //pass the object to the discon hook, if it exists
+        if (this.lifecycle_hooks.discon)//discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
+            this.lifecycle_hooks.discon(this.name, this.#client_id, url, keep_alive, verbose, reconnect_tries - 1, event); //here you can await ready() and reauth and regain all needed perms
     }
     #resetConn() {
         this.#client_id = '';

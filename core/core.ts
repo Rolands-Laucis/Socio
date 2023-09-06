@@ -123,23 +123,27 @@ export class SocioServer extends LogHandler {
                     this.#Message.bind(this)(this.#sessions.get(client_id), req, isBinary);
                 else conn?.close();
             });
-            conn.on('close', async () => {
-                //trigger hook
-                if (this.#lifecycle_hooks.discon)
-                    await this.#lifecycle_hooks.discon(client);
-
-                client.Destroy(() => {
-                    this.#ClearClientSessionSubs(client_id);
-                    //Update() only works on session objects, and if we delete this one, then its query subscriptions should also be gone.
-
-                    //delete the connection object and the subscriptions of this client
-                    this.#sessions.delete(client_id);
-                    this.HandleInfo('Session destroyed on disconnect.', client_id);
-                }, this.session_defaults.session_delete_delay_ms as number);
-
-                this.HandleInfo('DISCON', client_id);
-            });
+            conn.on('close', (code:number, reason:Buffer) => { this.#SocketClosed.bind(this)(client, {code, reason:reason.toString('utf8')}) });
+            conn.on('error', (error: Error) => { this.#SocketClosed.bind(this)(client, error) }); //https://github.com/websockets/ws/blob/master/doc/ws.md#event-error-1
         } catch (e: err) { this.HandleError(e); }
+    }
+
+    async #SocketClosed(client:SocioSession, event_args:any){
+        //trigger hook
+        if (this.#lifecycle_hooks.discon)
+            await this.#lifecycle_hooks.discon(client);
+
+        const client_id = client.id;
+        this.HandleInfo('DISCON', client_id, event_args);
+
+        client.Destroy(() => {
+            this.#ClearClientSessionSubs(client_id);
+            //Update() only works on session objects, and if we delete this one, then its query subscriptions should also be gone.
+
+            //delete the connection object and the subscriptions of this client
+            this.#sessions.delete(client_id);
+            this.HandleInfo('Session destroyed on disconnect.', client_id);
+        }, this.session_defaults.session_delete_delay_ms as number);
     }
 
     async #Message(client:SocioSession, req: Buffer | ArrayBuffer | Buffer[], isBinary: Boolean){

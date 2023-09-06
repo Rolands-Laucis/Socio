@@ -42,7 +42,7 @@ export type Endpoint_Hook = (client: SocioSession, endpoint:string) => string | 
 
 //client hook functions
 export type ClientLifecycleHooks = { discon?: Discon_ClientHook, msg?: Msg_ClientHook, cmd?: Cmd_ClientHook, timeout?: Timeout_ClientHook, prop_drop?: PropDrop_ClientHook };
-export type Discon_ClientHook = (name:string, client_id:ClientID, url:string, keep_alive:boolean, verbose:boolean, reconnect_tries:number) => void;
+export type Discon_ClientHook = (name:string, client_id:ClientID, url:string, keep_alive:boolean, verbose:boolean, reconnect_tries:number, event: Event | CloseEvent) => void;
 export type Msg_ClientHook = (name: string, client_id: ClientID, kind: ClientMessageKind, data: ClientMessageDataObj) => boolean | void | Promise<boolean> | Promise<void>;
 export type Cmd_ClientHook = (data:ClientMessageDataObj) => void;
 export type Timeout_ClientHook = (name: string, client_id: ClientID) => void;
