@@ -61,7 +61,7 @@ const sub_id = sc.Subscribe({sql:socio`SELECT * FROM Users;`}, (res:object) => {
 //send a single query and wait for its result:
 await sc.Query(socio`INSERT INTO Users (name, num) VALUES(:name, :num);`, {name:'bob', num:42}); //sanatize dynamic data yourself in QueryWrap!
 
-//or work with server side created generic data:
+//or work with general server side data:
 let color = await sc.GetProp('color') as string; //the prop needs first to be created on the server and can be any json serializable object (including Map and Set)
 sc.SubscribeProp('color', (c:string) => color = c); //can be unsubscribed
 const res = await sc.SetProp('color', '#ffffff'); //this will rerun ^ the sub, if/when the server has set it, so no need to double your code everywhere!
