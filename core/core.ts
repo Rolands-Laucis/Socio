@@ -618,7 +618,7 @@ export class SocioServer extends LogHandler {
         return this.#props.get(key)?.val;
     }
     //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value.
-    UpdatePropVal(key: PropKey, new_val: PropValue, sender_client_id: id | null, send_as_diff = this.#prop_upd_diff):Bit{//this will propogate the change, if it is assigned, to all subscriptions
+    UpdatePropVal(key: PropKey, new_val: PropValue, sender_client_id: ClientID | null, send_as_diff = this.#prop_upd_diff):Bit{//this will propogate the change, if it is assigned, to all subscriptions
         const prop = this.#props.get(key);
         if (!prop) throw new E(`Prop key [${key}] not registered! [#prop-update-not-found]`);
         
@@ -626,7 +626,7 @@ export class SocioServer extends LogHandler {
         //Dont think JS allows such ref pointers to work. But this then keeps the correct val. 
         //This idea works bcs the mutator of the data should be the first to run this and all other session will get informed here with that sessions diff.
 
-        if (prop.assigner(key, new_val)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
+        if (prop.assigner(key, new_val, sender_client_id ? this.#sessions.get(sender_client_id) : undefined)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
             const new_assigned_prop_val = this.GetPropVal(key); //should be GetPropVal, bcs i cant know how the assigner changed the val. But since it runs once per update, then i can cache this call here right after the assigner.
             
             for (const [client_id, args] of prop.updates.entries()) {

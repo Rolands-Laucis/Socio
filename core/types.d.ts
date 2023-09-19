@@ -13,7 +13,7 @@ export type Base64String = string;
 //props
 export type PropKey = string;
 export type PropValue = any;
-export type PropAssigner = (key: PropKey, new_val:PropValue) => boolean;
+export type PropAssigner = (key: PropKey, new_val:PropValue, sender_client?:SocioSession) => boolean;
 
 //misc
 export type SocioFiles = Map<string, { meta: { size: number, lastModified?: number, type?: string }, bin: Base64String }>; //bin is a base64 string of the bytes of the raw file
