@@ -353,13 +353,12 @@ Then in the browser any client can subscribe to it:
 //browser code
 const sc = new SocioClient(...);
 await sc.ready();
-let col = '';
-col = sc.GetProp('color'); //one-shot request the prop value from the server.
-const res = sc.SetProp('color', '#fff'); //request the server to set a prop to a val. Res contains info about the success of this action, since the server can deny it.
+let col = await sc.GetProp('color'); //one-shot request the prop value from the server.
+const res = await sc.SetProp('color', '#fff'); //request the server to set a prop to a val. Res contains info about the success of this action, since the server can deny it.
 
 sc.SubscribeProp('color', color => col = color); //will call this callback function on realtime updates made to the prop either by other clients or the server.
 //afterwards this prop will also be stored locally on the client, so you can also fetch its value without calling the server:
-col = sc.GetProp('color', true); //last arg local=true
+col = await sc.GetProp('color', true); //last arg local=true
 ```
 
 Though usable for realtime web chat applications, i advise against that. There is a socio/chat.ts file that handles such a usecase in a more generic and extendable way.
@@ -375,7 +374,7 @@ socserv.RegisterProp(...);
 socserv.UpdatePropVal(..., true); //last arg send_as_diff overwrites prop_upd_diff for this send to all subs.
 
 //AND on the client side:
-socio_client.SetProp(..., true); //set the prop_upd_as_diff flag to a value, which will overwrite the socserv.prop_upd_diff global flag.
+await socio_client.SetProp(..., true); //set the prop_upd_as_diff flag to a value, which will overwrite the socserv.prop_upd_diff global flag.
 ```
 
 For more security/paranoia, props can be registered such that clients are not allowed to write, just read props.
