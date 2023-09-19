@@ -393,10 +393,6 @@ export class SocioClient extends LogHandler {
     }
     SetProp(prop: PropKey, new_val: PropValue, prop_upd_as_diff?:boolean){
         try {
-            //check that prop is subbed
-            if (!this.#props.get(prop))
-                throw new E('Prop must be first subscribed to set its value!', prop);
-
             //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
             const { id, prom } = this.CreateQueryPromise();
             this.Send(CoreMessageKind.PROP_SET, { id, prop, prop_val: new_val, prop_upd_as_diff });
