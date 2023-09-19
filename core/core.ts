@@ -41,7 +41,7 @@ export class SocioServer extends LogHandler {
     #secure: { socio_security: SocioSecurity | null } & DecryptOptions;
 
     //backend props, e.g. strings for colors, that clients can subscribe to and alter
-    #props: Map<PropKey, { val: PropValue, assigner: PropAssigner, updates: Map<ClientID, { id: id, rate_limiter?: RateLimiter }>, client_writable:boolean, send_as_diff?:boolean }> = new Map();
+    #props: Map<PropKey, { val: PropValue, assigner: PropAssigner, updates: Map<ClientID, { id: id, rate_limiter?: RateLimiter }>, client_writable: boolean, send_as_diff?: boolean, emit_to_sender:boolean }> = new Map();
 
     //rate limits server functions globally
     #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
@@ -589,12 +589,12 @@ export class SocioServer extends LogHandler {
     }
 
     //assigner defaults to basic setter
-    RegisterProp(key: PropKey, val: PropValue, { assigner = this.SetPropVal.bind(this), client_writable = true, send_as_diff = undefined }: { assigner?: PropAssigner, client_writable?: boolean, send_as_diff?: boolean | undefined} = {}){
+    RegisterProp(key: PropKey, val: PropValue, { assigner = this.SetPropVal.bind(this), client_writable = true, send_as_diff = undefined, emit_to_sender = false }: { assigner?: PropAssigner, client_writable?: boolean, send_as_diff?: boolean, emit_to_sender?: boolean } = {}){
         try{
             if (this.#props.has(key))
                 throw new E(`Prop key [${key}] has already been registered and for client continuity is forbiden to over-write at runtime. [#prop-key-exists]`)
             else
-                this.#props.set(key, { val, assigner, updates: new Map(), client_writable, send_as_diff });
+                this.#props.set(key, { val, assigner, updates: new Map(), client_writable, send_as_diff, emit_to_sender });
         } catch (e: err) { this.HandleError(e) }
     }
     UnRegisterProp(key: PropKey){
@@ -618,7 +618,7 @@ export class SocioServer extends LogHandler {
         return this.#props.get(key)?.val;
     }
     //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value.
-    UpdatePropVal(key: PropKey, new_val: PropValue, client_id: id | null, send_as_diff = this.#prop_upd_diff):Bit{//this will propogate the change, if it is assigned, to all subscriptions
+    UpdatePropVal(key: PropKey, new_val: PropValue, sender_client_id: id | null, send_as_diff = this.#prop_upd_diff):Bit{//this will propogate the change, if it is assigned, to all subscriptions
         const prop = this.#props.get(key);
         if (!prop) throw new E(`Prop key [${key}] not registered! [#prop-update-not-found]`);
         
@@ -631,6 +631,7 @@ export class SocioServer extends LogHandler {
             
             for (const [client_id, args] of prop.updates.entries()) {
                 if (args?.rate_limiter && args.rate_limiter?.CheckLimit()) continue; //ratelimit check for this client
+                if (sender_client_id === client_id && prop.emit_to_sender === false) continue; //prop can be set to not emit an update back to the initiator of this prop set.
 
                 //do the thing
                 if (this.#sessions.has(client_id)){
@@ -656,7 +657,7 @@ export class SocioServer extends LogHandler {
             }
             return 1;
         }
-        this.HandleDebug(`Assigner denied setting the new prop value! [#prop-set-not-valid].`, { key, old_prop_val, new_val, client_id });
+        this.HandleDebug(`Assigner denied setting the new prop value! [#prop-set-not-valid].`, { key, old_prop_val, new_val, sender_client_id });
         return 0;
     }
     SetPropVal(key: PropKey, new_val: PropValue): boolean { //this hard sets the value without checks or updating clients
