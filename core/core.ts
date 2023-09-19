@@ -628,7 +628,9 @@ export class SocioServer extends LogHandler {
 
         if (prop.assigner(key, new_val, sender_client_id ? this.#sessions.get(sender_client_id) : undefined)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
             const new_assigned_prop_val = this.GetPropVal(key); //should be GetPropVal, bcs i cant know how the assigner changed the val. But since it runs once per update, then i can cache this call here right after the assigner.
-            
+            const prop_val_diff = diff_lib.getDiff(old_prop_val, new_assigned_prop_val);
+            if (prop_val_diff.length === 0) return 1; //dont do anything further, if the prop val didnt actually change. This is efficient and removes long feedback loops for global props across many users
+
             for (const [client_id, args] of prop.updates.entries()) {
                 if (args?.rate_limiter && args.rate_limiter?.CheckLimit()) continue; //ratelimit check for this client
                 if (sender_client_id === client_id && prop.emit_to_sender === false) continue; //prop can be set to not emit an update back to the initiator of this prop set.
@@ -643,7 +645,7 @@ export class SocioServer extends LogHandler {
 
                     //construct either concrete value or diff of it.
                     if (send_as_diff)
-                        upd_data['prop_val_diff'] = diff_lib.getDiff(old_prop_val, new_assigned_prop_val);
+                        upd_data['prop_val_diff'] = prop_val_diff; //this was already computed for other reasons
                     else
                         upd_data['prop_val'] = new_assigned_prop_val;
 
