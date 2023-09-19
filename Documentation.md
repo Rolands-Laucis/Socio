@@ -344,7 +344,8 @@ socserv.RegisterProp('color', '#ffffff', {
     return socserv.SetPropVal('color', new_val); //assign the prop. Returns truthy, if was set succesfully
   }, //default SocioServer.SetPropVal
   client_writable:true, //clients can change this value. Default true
-  send_as_diff:false //send only the differences in the prop values. Overrules the diff global flag. Default false.
+  send_as_diff:false, //send only the differences in the prop values. Overrules the diff global flag. Default false.
+  emit_to_sender:false //emit an update to the original client, that set a prop val and caused the update to happen, if the client is subbed to this prop. Default false.
 })
 ```
 
