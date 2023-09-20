@@ -17,7 +17,7 @@ type QueryObject = QueryObjectSQL & { onUpdate: SubscribeCallbackObject };
 type QueryPromise = { res: Function, prom:Promise<any> | null, start_buff: number, payload_size?:number };
 export type ProgressOnUpdate = (percentage: number) => void;
 
-type PropUpdateCallback = ((new_val: PropValue) => void) | null;
+type PropUpdateCallback = ((new_val: PropValue, diff?: diff_lib.rdiffResult[]) => void) | null;
 export type ClientProp = { val: PropValue | undefined, subs: { [id: id]: PropUpdateCallback } };
 export type SocioClientOptions = { name?: string, keep_alive?: boolean, reconnect_tries?: number, persistent?: boolean } & LoggingOpts;
 export enum ClientMessageKind {
@@ -159,15 +159,15 @@ export class SocioClient extends LogHandler {
                     if (data?.prop && data.hasOwnProperty('id') && (data.hasOwnProperty('prop_val') || data.hasOwnProperty('prop_val_diff'))) {
                         const prop = this.#props.get(data.prop as string);
                         if (prop && prop.subs.hasOwnProperty(data.id as id) && typeof prop.subs[data.id as id] === 'function') {
-                            const prop_val = data.hasOwnProperty('prop_val') ? data.prop_val : diff_lib.applyDiff(prop.val, data.prop_val_diff);
+                            const prop_val = data?.prop_val ? data.prop_val : diff_lib.applyDiff(prop.val, data.prop_val_diff);
                             //@ts-expect-error
-                            prop.subs[data.id as id](prop_val as PropValue);
+                            prop.subs[data.id as id](prop_val as PropValue, data?.prop_val_diff || undefined);
                             prop.val = prop_val; //set the new val
                         }//@ts-expect-error 
                         else throw new E('Prop UPD called, but subscribed prop does not have a callback.', { data, callback: prop.subs[data.id as id] });
                         if (this.#queries.has(data.id))
                             (this.#queries.get(data.id) as QueryPromise).res(data.prop_val as PropValue); //resolve the promise
-                    } else throw new E('Not enough prop info sent from server to perform prop update.', data)
+                    } else throw new E('Not enough prop info sent from server to perform prop update.', { data })
                     break;
                 }
                 case ClientMessageKind.PROP_DROP:{
