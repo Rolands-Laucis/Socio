@@ -50,8 +50,8 @@
             }
         );
 
-        sc.SubscribeProp("color", c => color_prop = c as string);
-        sc.SubscribeProp("num", n => num = n as number);
+        log(await sc.SubscribeProp("color", c => color_prop = c as string)); //can await the sub to get success status
+        sc.SubscribeProp("num", n => num = n as number, {receive_initial_update:false}); //by default SubscribeProp will run this as soon as the sub is successful, but u can opt out of that like this
     });
 
     //cleanup for dev server reloads.
