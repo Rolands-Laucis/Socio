@@ -49,7 +49,7 @@ export class SocioClient extends LogHandler {
     // progs: Map<Promise<any>, number> = new Map(); //the promise is that of a socio generic data going out from client async. Number is WS send buffer payload size at the time of query
 
     constructor(url: string, { name = 'Main', logging = { verbose: false, hard_crash: false }, keep_alive = true, reconnect_tries = 1, persistent = false}: SocioClientOptions = {}) {
-        super({ ...logging, prefix: 'SocioClient' });
+        super({ ...logging, prefix: name ? `SocioClient:${name}` : 'SocioClient' });
 
         if (window || undefined && url.startsWith('ws://'))
             this.HandleInfo('UNSECURE WEBSOCKET URL CONNECTION! Please use wss:// and https:// protocols in production to protect against man-in-the-middle attacks.');
