@@ -153,8 +153,8 @@ export class SocioServer extends LogHandler {
                 this.HandleInfo(`recv: BLOB from ${client.id}`)
                 if (this.#lifecycle_hooks.blob) {
                     if (await this.#lifecycle_hooks.blob(client, req))
-                        client.Send(ClientMessageKind.RES, { id:'BLOB', result: 1 });
-                    else client.Send(ClientMessageKind.RES, { id: 'BLOB', result: 0 });
+                        client.Send(ClientMessageKind.RES, { id:'BLOB', result: {success: 1} });
+                    else client.Send(ClientMessageKind.RES, { id: 'BLOB', result: { success: 0} });
                 }
                 else client.Send(ClientMessageKind.ERR, { id: 'BLOB', result: 'Server does not handle the BLOB hook.' });
                 return;
@@ -220,7 +220,7 @@ export class SocioServer extends LogHandler {
                         if (await this.#lifecycle_hooks.unsub(client, kind, data))
                             return;
 
-                    client.Send(ClientMessageKind.RES, { id: data.id, result: client.UnRegisterSub(data?.unreg_id || '') });
+                    client.Send(ClientMessageKind.RES, { id: data.id, result: { success: client.UnRegisterSub(data?.unreg_id || '')} });
                     break;
                 }
                 case  CoreMessageKind.SQL:{
@@ -246,7 +246,7 @@ export class SocioServer extends LogHandler {
                 }
                 case  CoreMessageKind.AUTH: {//client requests to authenticate itself with the server
                     if (client.authenticated) //check if already has auth
-                        client.Send(ClientMessageKind.AUTH, { id: data.id, result: 1 });
+                        client.Send(ClientMessageKind.AUTH, { id: data.id, result: {success: 1} });
                     else if (this.#lifecycle_hooks.auth) {
                         const res = await client.Authenticate(this.#lifecycle_hooks.auth, data.params) //bcs its a private class field, give this function the hook to call and params to it. It will set its field and give back the result. NOTE this is safer than adding a setter to a private field
                         client.Send(ClientMessageKind.AUTH, { id: data.id, result: res == true ? 1 : 0 }) //authenticated can be any truthy or falsy value, but the client will only receive a boolean, so its safe to set this to like an ID or token or smth for your own use
@@ -258,7 +258,7 @@ export class SocioServer extends LogHandler {
                 }
                 case  CoreMessageKind.GET_PERM:{
                     if (client.HasPermFor(data?.verb, data?.table))//check if already has the perm
-                        client.Send(ClientMessageKind.GET_PERM, { id: data.id, result: 1 });
+                        client.Send(ClientMessageKind.GET_PERM, { id: data.id, result: { success: 1} });
                     else if (this.#lifecycle_hooks.grant_perm) {//otherwise try to grant the perm
                         const granted: boolean = await this.#lifecycle_hooks.grant_perm(client, data);
                         client.Send(ClientMessageKind.GET_PERM, { id: data.id, result: granted === true ? 1 : 0 }) //the client will only receive a boolean, but still make sure to only return bools as well
@@ -280,11 +280,16 @@ export class SocioServer extends LogHandler {
                     this.#props.get(data.prop as PropKey)?.updates.set(client_id, { id: data.id as id, rate_limiter: data?.rate_limit ? new RateLimiter(data.rate_limit) : undefined })
 
                     //send response
-                    client.Send(ClientMessageKind.PROP_UPD, {
+                    if (data?.data?.receive_initial_update)
+                        client.Send(ClientMessageKind.PROP_UPD, {
+                            id: data.id,
+                            prop: data.prop,
+                            prop_val: this.GetPropVal(data.prop as PropKey)
+                        });
+                    client.Send(ClientMessageKind.RES, {
                         id: data.id,
-                        prop: data.prop,
-                        prop_val: this.GetPropVal(data.prop as PropKey)
-                    })
+                        result: { success:1}
+                    });
                     break;
                 }
                 case  CoreMessageKind.PROP_UNSUB:{
@@ -298,7 +303,7 @@ export class SocioServer extends LogHandler {
                     try {
                         client.Send(ClientMessageKind.RES, {
                             id: data?.id,
-                            result: this.#props.get(data.prop as PropKey)?.updates.delete(client_id) ? 1 : 0
+                            result: { success: this.#props.get(data.prop as PropKey)?.updates.delete(client_id) ? 1 : 0}
                         });
                     } catch (e: err) {
                         //send response
@@ -324,7 +329,7 @@ export class SocioServer extends LogHandler {
                         if (this.#props.get(data.prop as string)?.client_writable) {
                             //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value.
                             const result = this.UpdatePropVal(data.prop as string, data?.prop_val, client.id, data.hasOwnProperty('prop_upd_as_diff') ? data.prop_upd_as_diff : this.#prop_upd_diff); //the assigner inside Update dictates, if this was a successful set.
-                            client.Send(ClientMessageKind.RES, { id: data.id, result }); //resolve this request to true, so the client knows everything went fine.
+                            client.Send(ClientMessageKind.RES, { id: data.id, result: { success: result} }); //resolve this request to true, so the client knows everything went fine.
                         } else throw new E('Prop is not client_writable.', data);
                     } catch (e: err) {
                         //send response
@@ -351,7 +356,7 @@ export class SocioServer extends LogHandler {
                 }
                 case  CoreMessageKind.RECON: {//client attempts to reconnect to its previous session
                     if (!this.#secure) {
-                        client.Send(ClientMessageKind.ERR, { id: data.id, result: 'Cannot reconnect on this server configuration!', status: 0 });
+                        client.Send(ClientMessageKind.ERR, { id: data.id, result: 'Cannot reconnect on this server configuration!', success: 0 });
                         throw new E(`RECON requires SocioServer to be set up with the Secure class! [#recon-needs-secure]`, { kind, data });
                     }
 
@@ -359,12 +364,12 @@ export class SocioServer extends LogHandler {
                         //@ts-expect-error
                         const token = this.#secure.socio_security.EncryptString([this.#secure.socio_security?.GenRandInt(100_000, 1_000_000), client.ipAddr, client.id, (new Date()).getTime(), this.#secure.socio_security?.GenRandInt(100_000, 1_000_000)].join(' ')); //creates string in the format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where encrypted_text_base64 is a token of format "[rand] [ip] [client_id] [ms_since_epoch] [rand]"
                         this.#tokens.add(token);
-                        client.Send(ClientMessageKind.RES, { id: data.id, result: token, status: 1 }); //send the token to the client for one-time use to reconnect to their established client session
+                        client.Send(ClientMessageKind.RES, { id: data.id, result: token, success: 1 }); //send the token to the client for one-time use to reconnect to their established client session
                     }
                     else if (data?.data?.type == 'POST') {
                         //check for valid token to begin with
                         if (!data?.data?.token || !this.#tokens.has(data.data.token)) {
-                            client.Send(ClientMessageKind.RECON, { id: data.id, result: 'Invalid token', status: 0 });
+                            client.Send(ClientMessageKind.RECON, { id: data.id, result: 'Invalid token', success: 0 });
                             return;
                         }
                         this.#tokens.delete(data.data.token); //single use token, so delete
@@ -374,28 +379,28 @@ export class SocioServer extends LogHandler {
                             if (iv && token && auth_tag)
                                 token = this.#secure.socio_security?.DecryptString(iv, token, auth_tag); //decrypt the payload
                             else
-                                client.Send(ClientMessageKind.RECON, { id: data.id, result: 'Invalid token', status: 0 });
+                                client.Send(ClientMessageKind.RECON, { id: data.id, result: 'Invalid token', success: 0 });
                         } catch (e: err) {
-                            client.Send(ClientMessageKind.RECON, { id: data.id, result: 'Invalid token', status: 0 });
+                            client.Send(ClientMessageKind.RECON, { id: data.id, result: 'Invalid token', success: 0 });
                             return;
                         }
 
                         const [r1, ip, old_c_id, time_stamp, r2] = token.split(' '); //decrypted payload parts
                         //safety check race conditions
                         if (!(r1 && ip && old_c_id && time_stamp && r2)) {
-                            client.Send(ClientMessageKind.RECON, { id: data.id, result: 'Invalid token format', status: 0 });
+                            client.Send(ClientMessageKind.RECON, { id: data.id, result: 'Invalid token format', success: 0 });
                             return;
                         }
                         if (client.ipAddr !== ip) {
-                            client.Send(ClientMessageKind.RECON, { id: data.id, result: 'IP address changed between reconnect', status: 0 });
+                            client.Send(ClientMessageKind.RECON, { id: data.id, result: 'IP address changed between reconnect', success: 0 });
                             return;
                         }
                         else if ((new Date()).getTime() - parseInt(time_stamp) > (this.session_defaults.recon_ttl_ms as number)) {
-                            client.Send(ClientMessageKind.RECON, { id: data.id, result: 'Token has expired', status: 0 });
+                            client.Send(ClientMessageKind.RECON, { id: data.id, result: 'Token has expired', success: 0 });
                             return;
                         }
                         else if (!(this.#sessions.has(old_c_id))) {
-                            client.Send(ClientMessageKind.RECON, { id: data.id, result: 'Old session ID was not found', status: 0 });
+                            client.Send(ClientMessageKind.RECON, { id: data.id, result: 'Old session ID was not found', success: 0 });
                             return;
                         }
 
@@ -415,17 +420,17 @@ export class SocioServer extends LogHandler {
                         }, this.session_defaults.session_delete_delay_ms as number);
 
                         //notify the client 
-                        client.Send(ClientMessageKind.RECON, { id: data.id, result: { old_client_id: old_c_id, auth: client.authenticated }, status: 1 });
+                        client.Send(ClientMessageKind.RECON, { id: data.id, result: { old_client_id: old_c_id, auth: client.authenticated }, success: 1 });
                         this.HandleInfo(`RECON ${old_c_id} -> ${client.id} (old client ID -> new/current client ID)`);
                     }
                     break;
                 } 
                 case  CoreMessageKind.UP_FILES:{
                     if (this.#lifecycle_hooks?.file_upload)
-                        client.Send(ClientMessageKind.RES, { id: data.id, result: await this.#lifecycle_hooks.file_upload(client, data?.files, data?.data) ? 1 : 0 });
+                        client.Send(ClientMessageKind.RES, { id: data.id, result: {success: await this.#lifecycle_hooks.file_upload(client, data?.files, data?.data) ? 1 : 0} });
                     else {
                         this.HandleError('file_upload hook not registered. [#no-file_upload-hook]');
-                        client.Send(ClientMessageKind.RES, { id: data.id, result: 0 });
+                        client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 0} });
                     }
                     break;
                 }
@@ -438,7 +443,7 @@ export class SocioServer extends LogHandler {
                     }
                     else {
                         this.HandleError('file_download hook not registered. [#no-file_download-hook]');
-                        client.Send(ClientMessageKind.RES, { id: data.id, result: 0 });
+                        client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 0} });
                     }
                     break;
                 }

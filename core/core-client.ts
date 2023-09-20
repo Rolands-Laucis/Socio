@@ -134,7 +134,7 @@ export class SocioClient extends LogHandler {
                 }
                 case ClientMessageKind.AUTH:{
                     this.#FindID(kind, data?.id)
-                    if (data?.result as Bit !== 1)
+                    if (data?.result?.success as Bit !== 1)
                         this.HandleInfo(`AUTH returned FALSE, which means websocket has not authenticated.`);
 
                     this.#authenticated = data?.result as Bit === 1;
@@ -144,7 +144,7 @@ export class SocioClient extends LogHandler {
                 }
                 case ClientMessageKind.GET_PERM:{
                     this.#FindID(kind, data?.id)
-                    if (data?.result as Bit !== 1)
+                    if (data?.result?.success as Bit !== 1)
                         this.HandleInfo(`Server rejected grant perm for ${data?.verb} on ${data?.table}.`);
 
                     (this.#queries.get(data.id) as QueryPromise).res(data?.result as Bit === 1); //result should be either True or False to indicate success status
@@ -314,21 +314,23 @@ export class SocioClient extends LogHandler {
             return id; //the ID of the query
         } catch (e: err) { this.HandleError(e); return null; }
     }
-    SubscribeProp(prop_name: PropKey, onUpdate: PropUpdateCallback, rate_limit: RateLimit | null = null):void{
+    SubscribeProp(prop_name: PropKey, onUpdate: PropUpdateCallback, { rate_limit = null, receive_initial_update = true }: { rate_limit?: RateLimit | null, receive_initial_update?: boolean } = {}): Promise<{ id: id, result: { success: Bit }} | any>{
         //the prop name on the backend that is a key in the object
-
         if (typeof onUpdate !== "function") throw new E('Subscription onUpdate is not function, but has to be.');
+
+        const { id, prom } = this.CreateQueryPromise();
         try {
-            const id = this.GenKey;
             const prop = this.#props.get(prop_name);
 
             if (prop)//add the callback
                 prop.subs[id] = onUpdate;
             else {//init the prop object
                 this.#props.set(prop_name, { val: undefined, subs: { [id]: onUpdate } });
-                this.Send(CoreMessageKind.PROP_SUB, { id, prop: prop_name, rate_limit })
+                this.Send(CoreMessageKind.PROP_SUB, { id, prop: prop_name, rate_limit, data: { receive_initial_update } })
             }
-        } catch (e: err) { this.HandleError(e); }
+
+            return prom as Promise<any>;
+        } catch (e: err) { this.HandleError(e); return new Promise(res => res({id, result:{success:0}})); }
     }
     async Unsubscribe(sub_id: id, force=false) {
         try {
@@ -459,7 +461,7 @@ export class SocioClient extends LogHandler {
         const q = this.#queries.get(data.id);
         // @ts-expect-error
         if(q?.res)
-            (q as QueryPromise).res(data?.result as Bit);
+            (q as QueryPromise).res(data?.result as any);
         // @ts-expect-error
         else if (q?.onUpdate)
             if ((q as QueryObject)?.onUpdate?.success)
@@ -500,7 +502,7 @@ export class SocioClient extends LogHandler {
             const res = await prom;
 
             //@ts-ignore
-            if(res?.status){
+            if (res?.success){
                 //@ts-ignore
                 this.#authenticated = res?.result?.auth;
 
