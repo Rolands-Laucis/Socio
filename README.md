@@ -34,24 +34,25 @@ When using SQL, client-side JS source files contain only encrypted strings of yo
 The encryption preproc step is done with the ``SocioSecurity`` class manually or automagically with the included Vite plugin ``SocioSecurityVitePlugin``.
 
 ## Code snippets 📜
-
+### Backend:
 ```ts
 //TS server side. For SvelteKit, this can be in proj_root/src/hooks.server.ts . Check the Framework Demo for an example.
-import { SocioServer } from 'socio/dist/core'; //this way for both JS and TS. Might need to put .js at the end.
+import { SocioServer } from 'socio/dist/core'; //Might need to put .js at the end.
 import { SocioSecurity } from 'socio/dist/secure';
-async function QueryWrap(client: SocioSession, id: id, sql: string, params: object | Array<any> | any):Promise<object> {
-    //do whatever u need to run the sql on your DB and return its result. Or any other way you want to retrieve data, like reading a local txt etc.
+async function QueryWrap(client: SocioSession, id: id, sql: string, params: any):Promise<object> {
+    //do whatever u need to run the sql on your DB and return its result. E.g. sequelize.query()
+    //Or any other way you want to retrieve data, like reading a local txt etc.
     //sanatize dynamic params!
 }
 
 const socsec = new SocioSecurity({ secure_private_key: '...', logging:{verbose:true} }); //for decrypting incoming queries. This same key is used for encrypting the source files when you build and bundle them. Has to be the same in the Vite plugin.
 const socserv = new SocioServer({ port: 3000 }, { db:{Query:QueryWrap}, socio_security: socsec, logging:{verbose:true} }); //creates localhost:3000 web socket server
 ```
-
+### Frontend:
 ```ts
 //client side browser code.
-import {SocioClient} from 'socio/dist/core-client'; //this way for both JS and TS. Might need to put .js at the end.
-import {socio} from 'socio/dist/utils';
+import { SocioClient } from 'socio/dist/core-client'; //Might need to put .js at the end.
+import { socio } from 'socio/dist/utils';
 const sc = new SocioClient('ws://localhost:3000', {logging:{verbose:true}, name:'Main'}); //create as many as you like
 await sc.ready(); //wait to establish the connection
 
