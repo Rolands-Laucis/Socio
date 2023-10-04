@@ -321,12 +321,29 @@ export default config;
 ```
 The ``SocioSecurityVitePlugin`` also takes in an extra options object parameter that the base class doesnt. ``include_file_types`` = ``['js', 'svelte', 'vue', 'jsx', 'ts', 'tsx']`` (default) ; ``exclude_file_types`` = [] (default) ; ``exclude_svelte_server_files`` = true (default)
 
+### Setup for HTTPS & WSS (secure sockets) with SSL certificates
+```ts
+//bakcend code when creating the SocioServer
+import * as https from 'https';
+import fs from 'fs';
+
+//create a boostrapping HTTPS server, from where the WSS will takeover on each request.
+const https_server = https.createServer({
+    cert: fs.readFileSync('cert.pem'), //need to generate or aquire these with OpenSSL or other utility, but the certificate signing authority needs to be globaly recognized and valid or browsers will reject it.
+    key: fs.readFileSync('key.pem')
+});
+https_server.listen(PORT);
+
+//then as normal, but pass the server instead of a port number
+const socsec = new SocioServer({ server:https_server }, {...});
+```
+
 ### Server Props
 A shared JSON serializable value/object/state on the server that is live synced to subscribed clients and is modifyable by clients.
 
 ```ts
 //server code
-import { SocioServer } from 'socio/dist/core.js'
+import { SocioServer } from 'socio/dist/core'
 import type { PropValue } from 'socio/dist/types';
 const socserv = new SocioServer(...)
 
