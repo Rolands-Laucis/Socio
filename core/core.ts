@@ -715,4 +715,6 @@ export class SocioServer extends LogHandler {
     }
 
     get session_ids(){return this.#sessions.keys();}
+    get server_info() { return this.#wss.address(); }
+    get raw_websocket_server() { return this.#wss; }
 }
