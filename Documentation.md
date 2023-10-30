@@ -46,8 +46,8 @@ import type { id, Admin_Hook } from 'socio/dist/types';
 
 //SocioServer needs a "query" function that it can call to fetch data from your DB. This would usually be your preffered ORM lib interface raw query function, but really this function is as simple as input and output, so it can work however you want. Like read from a local txt file or whatever. Socio will always await its response to send back to the client.
 //id is a unique auto incrementing index for the query itself that is sent from the client - not really important for you, but perhaps for debugging.
-const QueryWrap = async (client:SocioSession, id:id, sql:string, params: object | null | Array<any> = {}) => (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))?.at(0)
-//https://sequelize.org/docs/v6/core-concepts/raw-queries/#replacements how replacements work. I use the sequelize lib here and in demos and my personal projects, but it should be noted that i despise this ORM to my very core, its unreal.
+const QueryWrap: QueryFunction = async (client:SocioSession, id:id, sql:string, params: object | null | Array<any> = {}) => (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))?.at(0)
+//https://sequelize.org/docs/v6/core-concepts/raw-queries/#replacements how replacements work. I use the sequelize lib here and in demos and my personal projects for very crude convecience, but it should be noted that i despise this ORM to my very core, its unreal. Implement this function in any other way you see fit.
 
 //Instance of SocioServer on port 3000 using the created query function. Verbose will make it print all incoming and outgoing traffic from all sockets. The first object is WSS Options - https://github.com/websockets/ws/blob/master/doc/ws.md#new-websocketserveroptions-callback
 const socserv = new SocioServer({ port: 3000 }, {
@@ -59,6 +59,9 @@ const socserv = new SocioServer({ port: 3000 }, {
   }
 );
 //the clients can now interact with your backend DB via the SocioClient.Query() and other functions!
+
+
+//---- More advanced stuff:
 
 //This class has a few public fields that you can alter, as well as useful functions to call later in your program at any time. E.g. set up lifecycle hooks:
 socserv.LifecycleHookNames; //get an array of the hooks currently recognized by Socio.
@@ -137,8 +140,8 @@ sc.Subscribe({endpoint:'all', params:{}}, (val) => { //params is, as always, opt
   log(val); //will log the result of 'SELECT * FROM Users;' query and send updates
 });
 //similar with Query
-sc.Query('all', {sql_is_endpoint:true, params:{}}, (val) => { //params is, as always, optional
-  log(val); //will log the result of 'SELECT * FROM Users;' query and send updates
+sc.Query('all', {sql_is_endpoint:true, params:{}}, (val) => {
+  log(val);
 });
 ```
 
