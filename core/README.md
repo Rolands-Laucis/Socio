@@ -37,7 +37,7 @@ The encryption preproc step is done with the ``SocioSecurity`` class manually or
 ### Backend:
 ```ts
 //TS server side. For SvelteKit, this can be in proj_root/src/hooks.server.ts . Check the Framework Demo for an example.
-import { SocioServer } from 'socio/dist/core'; //Might need to put .js at the end.
+import { SocioServer } from 'socio/dist/core-server'; //Might need to put .js at the end.
 import { SocioSecurity } from 'socio/dist/secure';
 async function QueryWrap(client: SocioSession, id: id, sql: string, params: any):Promise<object> {
     //do whatever u need to run the sql on your DB and return its result. E.g. sequelize.query()

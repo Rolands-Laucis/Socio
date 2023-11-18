@@ -3,7 +3,7 @@
 * [WS](https://www.npmjs.com/package/ws) Socio uses on the server.
 * [The WebSocket API](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API) Socio uses on the browser.
 
-The ``./core/core.ts`` file contains logic to be run on a backend server. It exports the class ``SocioServer`` that you instantiate and work with mostly during just the setup initialization of your backend. It creates a websocket server on a port and listens for clients to connect. It is the transaction middle-man between your DB and the SocioClient on the frontend doing queries.
+The ``./core/core-server.ts`` file contains logic to be run on a backend server. It exports the class ``SocioServer`` that you instantiate and work with mostly during just the setup initialization of your backend. It creates a websocket server on a port and listens for clients to connect. It is the transaction middle-man between your DB and the SocioClient on the frontend doing queries.
 
 The ``./core/core-client.ts`` file contains logic to be run on the frontend browser side of js. It exports the class ``SocioClient`` that you instantiate and work with during the entire lifetime of the page. Use it to make SQL queries to the backend that do some magic to keep your data realtime using WebSocket technology.
 
@@ -38,7 +38,7 @@ Interesting note: The snippets marked for browser use cannot be run on Node.js, 
 
 ```ts
 //server code - can be in express or SvelteKit's hooks.server.ts/js file or whatever way you have of running server side code once.
-import { SocioServer } from 'socio/dist/core.js';
+import { SocioServer } from 'socio/dist/core-server.js';
 import type { SocioSession } from 'socio/dist/core-session.js';
 import type { IncomingMessage } from 'http';
 import type { QueryFunction } from 'socio/dist/core';
@@ -298,7 +298,7 @@ const success = (await sc.SendBinary(new Blob() | ArrayBuffer | ArrayBufferView)
 
 ```ts
 //server code
-import { SocioServer } from 'socio/dist/core.js'
+import { SocioServer } from 'socio/dist/core-server.js'
 import type { SocioSession } from 'socio/dist/core-session.js'
 import { SocioSecurity } from 'socio/dist/secure';
 
@@ -419,8 +419,8 @@ await sc.Serv({some:'data'} || 'string' || ['anthing']) //use the serv() functio
 
 ```ts
 //server code
-import { SocioServer } from 'socio/dist/core.js'
-import type { MessageDataObj } from 'socio/dist/core.js'
+import { SocioServer } from 'socio/dist/core-server.js'
+import type { MessageDataObj } from 'socio/dist/core-server.js'
 import type { SocioSession } from 'socio/dist/core-session.js'
 const socserv = new SocioServer(...)
 
@@ -482,8 +482,8 @@ WebSockets were pretty much made to solve the issue of chats for the web. As Soc
 
 ```ts
 //server code
-import { SocioServer } from 'socio/dist/core.js';
-import type { MessageDataObj } from 'socio/dist/core.js';
+import { SocioServer } from 'socio/dist/core-server.js';
+import type { MessageDataObj } from 'socio/dist/core-server.js';
 import type { SocioSession } from 'socio/dist/core-session.js';
 import { ServerChatRoom, HandleChatRoomServ } from 'socio/dist/chat.js'; //safe to import on both server and browser
 
@@ -527,8 +527,8 @@ Sometimes you might expect a lot of connections and each to have a lot of differ
 
 ```ts
 //server code
-import { SocioServer } from 'socio/dist/core.js';
-import type { MessageDataObj } from 'socio/dist/core.js';
+import { SocioServer } from 'socio/dist/core-server.js';
+import type { MessageDataObj } from 'socio/dist/core-server.js';
 import type { SocioSession } from 'socio/dist/core-session.js';
 const socserv = new SocioServer(...)
 

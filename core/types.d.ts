@@ -1,5 +1,5 @@
 import type { SocioSession } from "./core-session.js";
-import type { MessageDataObj } from "./core.ts";
+import type { MessageDataObj } from "./core-server.ts";
 import type { ClientMessageDataObj } from './core-client.js';
 import type { IncomingMessage } from 'http';
 import type { E, LogHandlerOptions } from "./logging.js";

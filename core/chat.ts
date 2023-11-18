@@ -4,7 +4,7 @@
 //types
 import type { ClientID } from "./types.js";
 import type { SocioSession } from "./core-session.js";
-import type { MessageDataObj } from "./core.js";
+import type { MessageDataObj } from "./core-server.js";
 import { E, log } from "./logging.js";
 export type User = { client_id: ClientID, username?: string };
 export type ChatRoomMessage = { user: User, ts: number, text:string};
