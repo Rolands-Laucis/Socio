@@ -406,14 +406,14 @@ socserv.RegisterProp(..., {client_writable:false});
 ```
 
 
-Socio also lets clients create props new props on the fly. There are limitations to this however, observationaly_temporary is always set true. This is to prevent client spamming new props that nobody uses just to fill up the servers ram.
+Socio also lets clients create props new props on the fly. There are limitations to this however, observationaly_temporary is always set true. This is to prevent client spamming new props that nobody uses just to fill up the servers ram. Useful for creating "[Socio rooms](#socio-roomsspacespresentationscollabs-divided-shared-contexts)"
 ```ts
 //browser code
 const sc = new SocioClient(...);
 await sc.ready();
-await sc.RegisterProp('new_prop', 'optional_init_val', {other_prop:opts});
-await sc.SubscribeProp('new_prop', (...vals) => {log(...vals)});
-await sc.UnsubscribeProp('new_prop');
+await sc.RegisterProp('new_prop', 'optional_init_val', {other_prop:opts}); //creates the prop on the server instance it is connected to
+await sc.SubscribeProp('new_prop', () => {}); //works like a regular prop in every way
+await sc.UnsubscribeProp('new_prop'); //the last unsub will trigger an automatic unregistration of this prop.
 ```
 
 ### Generic communication
@@ -465,7 +465,7 @@ For a lot of SaaS and Digital Document type Web Apps or multiplayer games you're
 You can create such a pattern simply with Socio Server Props. The prop name would be a unique "room" ID, that Socio Clients can subscribe to. Then the entire "room" or "game" shared state can be a large JSON serializable object. Thus only specific users will interact with this global state and it will be live synced to the others in that "room".
 This object can grow large, because you can send just the differences in updates to the object and not the whole object. This happens automagically for you :)
 
-Something like this:
+The manual way with full control is something like this:
 ```ts
 const socserv = new SocioServer(...)
 
@@ -487,6 +487,8 @@ socserv.RegisterLifecycleHookHandler('serv', (client:SocioSession, data:MessageD
   }
 })
 ```
+The more convenient way is for the client to register a new prop from the front-end. [Server Props](#server-props)
+
 This is great for Web games like "Kahoot", "Codenames", any kind of presentation with slides, perhaps even collaborative editable text documents etc.
 
 #### Basic Real-Time Chat Mechanism
