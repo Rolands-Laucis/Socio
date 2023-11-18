@@ -16,7 +16,7 @@ import { CoreMessageKind } from './utils.js';
 //types
 import type { ServerOptions, WebSocket, AddressInfo } from 'ws';
 import type { IncomingMessage } from 'http';
-import type { id, PropKey, PropValue, PropAssigner, SocioFiles, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts, Bit } from './types.js';
+import type { id, PropKey, PropValue, PropAssigner, PropOpts, SocioFiles, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts, Bit } from './types.js';
 import { ClientMessageKind } from './core-client.js';
 import type { RateLimit } from './ratelimit.js';
 export type MessageDataObj = { id?: id, sql?: string, endpoint?: string, params?: any, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val?: PropValue, prop_upd_as_diff?:boolean, data?: any, rate_limit?: RateLimit, files?: SocioFiles, sql_is_endpoint?:boolean };
@@ -41,7 +41,7 @@ export class SocioServer extends LogHandler {
     #secure: { socio_security: SocioSecurity | null } & DecryptOptions;
 
     //backend props, e.g. strings for colors, that clients can subscribe to and alter
-    #props: Map<PropKey, { val: PropValue, assigner: PropAssigner, updates: Map<ClientID, { id: id, rate_limiter?: RateLimiter }>, client_writable: boolean, send_as_diff?: boolean, emit_to_sender:boolean }> = new Map();
+    #props: Map<PropKey, { val: PropValue, assigner: PropAssigner, updates: Map<ClientID, { id: id, rate_limiter?: RateLimiter }> } & PropOpts> = new Map();
 
     //rate limits server functions globally
     #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
@@ -170,7 +170,7 @@ export class SocioServer extends LogHandler {
                         data[field] = this.#Decrypt(client, data[field], field === 'sql');
             }
             
-            this.HandleInfo(`recv: ${CoreMessageKind[kind]} from ${client_id}`, kind != CoreMessageKind.UP_FILES ? data : `File count: ${data.files?.size}`);
+            this.HandleInfo(`recv: [${CoreMessageKind[kind]}] from [${client_id}]`, kind != CoreMessageKind.UP_FILES ? data : `File count: ${data.files?.size}`);
 
             //let the developer handle the msg
             if (this.#lifecycle_hooks.msg)
@@ -300,10 +300,11 @@ export class SocioServer extends LogHandler {
                             return;
 
                     //remove hook
+                    const prop = this.#props.get(data.prop as PropKey);
                     try {
                         client.Send(ClientMessageKind.RES, {
                             id: data?.id,
-                            result: { success: this.#props.get(data.prop as PropKey)?.updates.delete(client_id) ? 1 : 0}
+                            result: { success: prop?.updates.delete(client_id) ? 1 : 0}
                         });
                     } catch (e: err) {
                         //send response
@@ -313,18 +314,24 @@ export class SocioServer extends LogHandler {
                         });
                         throw e; //report on the server as well
                     }
+
+                    // check the prop is observationaly_temporary, meaning should be deleted when there no more subs on it
+                    if(prop?.observationaly_temporary && prop.updates.size === 0){
+                        this.UnRegisterProp(data.prop as PropKey);
+                        this.HandleDebug('Temporary Prop UNregistered!', data.prop);
+                    }
                     break;
                 }
                 case  CoreMessageKind.PROP_GET:{
-                    this.#CheckPropExists(data?.prop, client, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
+                    this.#CheckPropExists(data?.prop, client, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found-get]');
                     client.Send(ClientMessageKind.RES, {
                         id: data.id,
                         result: this.GetPropVal(data.prop as string)
-                    })
+                    });
                     break;
                 }
                 case  CoreMessageKind.PROP_SET:{
-                    this.#CheckPropExists(data?.prop, client, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
+                    this.#CheckPropExists(data?.prop, client, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found-set]');
                     try {
                         if (this.#props.get(data.prop as string)?.client_writable) {
                             //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value.
@@ -339,6 +346,37 @@ export class SocioServer extends LogHandler {
                         });
                         throw e; //report on the server as well
                     }
+                    break;
+                }
+                case CoreMessageKind.PROP_REG: { 
+                    // checks
+                    if (!data.prop){
+                        client.Send(ClientMessageKind.ERR, {
+                            id: data.id,
+                            result: 'No prop name given to register!'
+                        });
+                        return;
+                    }
+                    if (this.#props.has(data.prop)){
+                        client.Send(ClientMessageKind.ERR, {
+                            id: data.id,
+                            result: `Prop name "${data.prop}" already registered on server! Choose a different name.`
+                        });
+                        return;
+                    }
+
+                    // create the new prop on the server
+                    // @ts-expect-error
+                    this.RegisterProp(data.prop, data?.initial_value || null, {
+                        // @ts-expect-error
+                        ...((data?.opts as PropOpts) || {}), observationaly_temporary: true //these as the last to overwrite the data?.opts value. client_writable: true,
+                    });
+
+                    // notify the client of success
+                    client.Send(ClientMessageKind.RES, {
+                        id: data.id,
+                        result: 1
+                    });
                     break;
                 }
                 case  CoreMessageKind.SERV:{
@@ -447,7 +485,7 @@ export class SocioServer extends LogHandler {
                     }
                     break;
                 }
-                // case '': {break;}
+                // case CoreMessageKind: { break;}
                 default: throw new E(`Unrecognized message kind! [#unknown-msg-kind]`, {kind, data});
             }
         } catch (e: err) { this.HandleError(e); }
@@ -594,12 +632,15 @@ export class SocioServer extends LogHandler {
     }
 
     //assigner defaults to basic setter
-    RegisterProp(key: PropKey, val: PropValue, { assigner = this.SetPropVal.bind(this), client_writable = true, send_as_diff = undefined, emit_to_sender = false }: { assigner?: PropAssigner, client_writable?: boolean, send_as_diff?: boolean, emit_to_sender?: boolean } = {}){
+    RegisterProp(key: PropKey, val: PropValue, { assigner = this.SetPropVal.bind(this), client_writable = true, send_as_diff = undefined, emit_to_sender = false, observationaly_temporary=false }: { assigner?: PropAssigner } & PropOpts = {}){
         try{
             if (this.#props.has(key))
-                throw new E(`Prop key [${key}] has already been registered and for client continuity is forbiden to over-write at runtime. [#prop-key-exists]`)
+                throw new E(`Prop key [${key}] has already been registered and for client continuity is forbiden to over-write at runtime. [#prop-key-exists]`);
             else
-                this.#props.set(key, { val, assigner, updates: new Map(), client_writable, send_as_diff, emit_to_sender });
+                this.#props.set(key, { val, assigner, updates: new Map(), client_writable, send_as_diff, emit_to_sender, observationaly_temporary });
+            if(observationaly_temporary)
+                this.HandleDebug('Temporary Prop registered!', key);
+
         } catch (e: err) { this.HandleError(e) }
     }
     UnRegisterProp(key: PropKey){

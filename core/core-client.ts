@@ -7,7 +7,7 @@ import { LogHandler, E, err, log, info, done } from './logging.js';
 import { MapReplacer, MapReviver, clamp, CoreMessageKind } from './utils.js';
 
 //types
-import type { id, PropKey, PropValue, Bit, ClientLifecycleHooks, ClientID, SocioFiles, LoggingOpts } from './types.js';
+import type { id, PropKey, PropValue, PropOpts, Bit, ClientLifecycleHooks, ClientID, SocioFiles, LoggingOpts } from './types.js';
 import type { RateLimit } from './ratelimit.js';
 export type ClientMessageDataObj = { id: id, verb?: string, table?: string, status?: string | number, result?: string | object | boolean | PropValue | number, prop?: PropKey, prop_val?: PropValue, prop_val_diff:diff_lib.rdiffResult[], data?:any, files?:SocioFiles };
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
@@ -60,6 +60,7 @@ export class SocioClient extends LogHandler {
         this.#connect(url, keep_alive, this.verbose || false, reconnect_tries);
     }
 
+    
     async #connect(url: string, keep_alive: boolean, verbose: boolean, reconnect_tries:number){
         this.#ws = new WebSocket(url);
         this.#ws.addEventListener('message', this.#message.bind(this));
@@ -87,6 +88,7 @@ export class SocioClient extends LogHandler {
         this.#queries.clear();
         this.#props.clear();
     }
+
 
     async #message(event: MessageEvent) {
         try{
@@ -288,6 +290,33 @@ export class SocioClient extends LogHandler {
         if (!this.#queries.has(query_id)) return;
         (this.#queries.get(query_id) as QueryPromise).payload_size = (this.#ws?.bufferedAmount || 0) - (this.#queries.get(query_id) as QueryPromise)?.start_buff || 0;
     }
+    Serv(data: any) {
+        const { id, prom } = this.CreateQueryPromise();
+        this.Send(CoreMessageKind.SERV, { id, data });
+        this.#UpdateQueryPromisePayloadSize(id);
+
+        return prom;
+    }
+    GetFiles(data: any) {
+        const { id, prom } = this.CreateQueryPromise();
+        this.Send(CoreMessageKind.GET_FILES, { id, data });
+        this.#UpdateQueryPromisePayloadSize(id);
+
+        return prom as Promise<File[]>;
+    }
+    //sends a ping with either the user provided number or an auto generated number, for keeping track of packets and debugging
+    Ping(num = 0) {
+        this.Send(CoreMessageKind.PING, { id: num || this.GenKey })
+    }
+    UnsubscribeAll({ props = true, queries = true, force = false } = {}) {
+        if (props)
+            for (const p of [...this.#props.keys()])
+                this.UnsubscribeProp(p, force);
+        if (queries)
+            for (const q of [...this.#queries.keys()])
+                this.Unsubscribe(q, force);
+    }
+
 
     //subscribe to an sql query. Can add multiple callbacks where ever in your code, if their sql queries are identical
     //returns the created ID for that query, to use to unsubscribe all callbacks to the query
@@ -310,24 +339,6 @@ export class SocioClient extends LogHandler {
             return id; //the ID of the query
         } catch (e: err) { this.HandleError(e); return null; }
     }
-    SubscribeProp(prop_name: PropKey, onUpdate: PropUpdateCallback, { rate_limit = null, receive_initial_update = true }: { rate_limit?: RateLimit | null, receive_initial_update?: boolean } = {}): Promise<{ id: id, result: { success: Bit }} | any>{
-        //the prop name on the backend that is a key in the object
-        if (typeof onUpdate !== "function") throw new E('Subscription onUpdate is not function, but has to be.');
-
-        const { id, prom } = this.CreateQueryPromise();
-        try {
-            const prop = this.#props.get(prop_name);
-
-            if (prop)//add the callback
-                prop.subs[id] = onUpdate;
-            else {//init the prop object
-                this.#props.set(prop_name, { val: undefined, subs: { [id]: onUpdate } });
-                this.Send(CoreMessageKind.PROP_SUB, { id, prop: prop_name, rate_limit, data: { receive_initial_update } })
-            }
-
-            return prom as Promise<any>;
-        } catch (e: err) { this.HandleError(e); return new Promise(res => res({id, result:{success:0}})); }
-    }
     async Unsubscribe(sub_id: id, force=false) {
         try {
             if (this.#queries.has(sub_id)){
@@ -347,34 +358,6 @@ export class SocioClient extends LogHandler {
                 throw new E('Cannot unsubscribe query, because provided ID is not currently tracked.', sub_id);
         } catch (e:err) { this.HandleError(e); return false; }
     }
-    async UnsubscribeProp(prop_name: PropKey, force = false) {
-        try {
-            if (this.#props.get(prop_name)) {
-                if (force)//will first delete from here, to not wait for server response
-                    this.#props.delete(prop_name);
-
-                //set up new msg to the backend informing a wish to unregister query.
-                const {id, prom} = this.CreateQueryPromise();
-                this.Send(CoreMessageKind.PROP_UNSUB, { id, prop: prop_name });
-
-                const res = await prom; //await the response from backend
-                if (res === 1)//if successful, then remove the subscribe from the client
-                    this.#props.delete(prop_name);
-                return res;//forward the success status to the developer
-            }
-            else
-                throw new E('Cannot unsubscribe query, because provided prop_name is not currently tracked.', prop_name);
-        } catch (e: err) { this.HandleError(e); return false; }
-    }
-    UnsubscribeAll({props=true, queries=true, force=false} = {}){
-        if(props)
-            for (const p of [...this.#props.keys()])
-                this.UnsubscribeProp(p, force);
-        if(queries)
-            for (const q of [...this.#queries.keys()])
-                this.Unsubscribe(q, force);
-    }
-
     Query(sql: string, params: object | null | Array<any> = null, { sql_is_endpoint = undefined, onUpdate, freq_ms = undefined }: { sql_is_endpoint?:boolean, onUpdate?: ProgressOnUpdate, freq_ms?:number } = {}){
         //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
         const { id, prom } = this.CreateQueryPromise();
@@ -389,43 +372,74 @@ export class SocioClient extends LogHandler {
 
         return prom;
     }
-    SetProp(prop: PropKey, new_val: PropValue, prop_upd_as_diff?:boolean){
+
+
+    SetProp(prop_name: PropKey, new_val: PropValue, prop_upd_as_diff?:boolean){
         try {
             //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
             const { id, prom } = this.CreateQueryPromise();
-            this.Send(CoreMessageKind.PROP_SET, { id, prop, prop_val: new_val, prop_upd_as_diff });
+            this.Send(CoreMessageKind.PROP_SET, { id, prop: prop_name, prop_val: new_val, prop_upd_as_diff });
             this.#UpdateQueryPromisePayloadSize(id);
 
             return prom;
         } catch (e: err) { this.HandleError(e); return null; }
     }
-    GetProp(prop: PropKey, local: boolean = false): PropValue | undefined | Promise<unknown> {
-        if(local) return this.#props.get(prop)?.val;
+    GetProp(prop_name: PropKey, local: boolean = false): PropValue | undefined | Promise<unknown> {
+        if (local) return this.#props.get(prop_name)?.val;
         else{
             const { id, prom } = this.CreateQueryPromise();
-            this.Send(CoreMessageKind.PROP_GET, { id, prop: prop });
+            this.Send(CoreMessageKind.PROP_GET, { id, prop:prop_name });
             this.#UpdateQueryPromisePayloadSize(id);
             return prom;
         }
     }
-    Serv(data: any){
-        const { id, prom } = this.CreateQueryPromise();
-        this.Send(CoreMessageKind.SERV, { id, data });
-        this.#UpdateQueryPromisePayloadSize(id);
+    SubscribeProp(prop_name: PropKey, onUpdate: PropUpdateCallback, { rate_limit = null, receive_initial_update = true }: { rate_limit?: RateLimit | null, receive_initial_update?: boolean } = {}): Promise<{ id: id, result: { success: Bit } } | any> {
+        //the prop name on the backend that is a key in the object
+        if (typeof onUpdate !== "function") throw new E('Subscription onUpdate is not function, but has to be.');
 
-        return prom;
-    }
-    GetFiles(data: any){
         const { id, prom } = this.CreateQueryPromise();
-        this.Send(CoreMessageKind.GET_FILES, { id, data });
-        this.#UpdateQueryPromisePayloadSize(id);
+        try {
+            const prop = this.#props.get(prop_name);
 
-        return prom as Promise<File[]>;
+            if (prop)//add the callback
+                prop.subs[id] = onUpdate;
+            else {//init the prop object
+                this.#props.set(prop_name, { val: undefined, subs: { [id]: onUpdate } });
+                this.Send(CoreMessageKind.PROP_SUB, { id, prop: prop_name, rate_limit, data: { receive_initial_update } })
+            }
+
+            return prom as Promise<any>;
+        } catch (e: err) { this.HandleError(e); return new Promise(res => res({ id, result: { success: 0 } })); }
     }
-    //sends a ping with either the user provided number or an auto generated number, for keeping track of packets and debugging
-    Ping(num=0){
-        this.Send(CoreMessageKind.PING, { id: num || this.GenKey })
+    async UnsubscribeProp(prop_name: PropKey, force = false) {
+        try {
+            if (this.#props.get(prop_name)) {
+                if (force)//will first delete from here, to not wait for server response
+                    this.#props.delete(prop_name);
+
+                //set up new msg to the backend informing a wish to unregister query.
+                const { id, prom } = this.CreateQueryPromise();
+                this.Send(CoreMessageKind.PROP_UNSUB, { id, prop: prop_name });
+
+                const res = await prom; //await the response from backend
+                if (res === 1)//if successful, then remove the subscribe from the client
+                    this.#props.delete(prop_name);
+                return res;//forward the success status to the developer
+            }
+            else
+                throw new E('Cannot unsubscribe query, because provided prop_name is not currently tracked.', prop_name);
+        } catch (e: err) { this.HandleError(e); return false; }
     }
+    RegisterProp(prop_name: PropKey, initial_value: any = null, prop_reg_opts: Omit<PropOpts, "observationaly_temporary"> = {}) { //"client_writable" & 
+        try {
+            const { id, prom } = this.CreateQueryPromise();
+            this.Send(CoreMessageKind.PROP_REG, { id, prop: prop_name, initial_value, opts:prop_reg_opts });
+            this.#UpdateQueryPromisePayloadSize(id);
+
+            return prom;
+        } catch (e: err) { this.HandleError(e); return null; }
+    }
+
 
     Authenticate(params:object={}){ //params here can be anything, like username and password stuff etc. The backend server auth function callback will receive this entire object
         const { id, prom } = this.CreateQueryPromise();
@@ -443,10 +457,7 @@ export class SocioClient extends LogHandler {
         return prom as Promise<{ id: id, result: Bit }>;
     }
     
-    //generates a unique key either via static counter or user provided key gen func
-    get GenKey(): id {
-        return this?.key_generator ? this.key_generator() : ++SocioClient.#key;
-    }
+    
     //checks if the ID of a query exists, otherwise rejects and logs
     #FindID(kind: ClientMessageKind, id: id) {
         if (!this.#queries.has(id))
@@ -467,6 +478,9 @@ export class SocioClient extends LogHandler {
         this.#queries.delete(data.id); //clear memory
     }
 
+
+    //generates a unique key either via static counter or user provided key gen func
+    get GenKey(): id {return this?.key_generator ? this.key_generator() : ++SocioClient.#key;}
     get client_id(){return this.#client_id;}
     get web_socket() { return this.#ws; } //the WebSocket instance has some useful properties https://developer.mozilla.org/en-US/docs/Web/API/WebSocket#instance_properties
     get client_address_info() { return { url: this.#ws?.url, protocol: this.#ws?.protocol, extensions: this.#ws?.extensions }; } //for convenience

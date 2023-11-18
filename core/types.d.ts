@@ -2,7 +2,7 @@ import type { SocioSession } from "./core-session.js";
 import type { MessageDataObj } from "./core-server.ts";
 import type { ClientMessageDataObj } from './core-client.js';
 import type { IncomingMessage } from 'http';
-import type { E, LogHandlerOptions } from "./logging.js";
+import type { E, LoggerOptions } from "./logging.js";
 
 //general types
 export type id = string | number;
@@ -14,12 +14,13 @@ export type Base64String = string;
 export type PropKey = string;
 export type PropValue = any;
 export type PropAssigner = (key: PropKey, new_val:PropValue, sender_client?:SocioSession) => boolean;
+export type PropOpts = { client_writable?: boolean, send_as_diff?: boolean, emit_to_sender?: boolean, observationaly_temporary?:boolean };
 
 //misc
 export type SocioFiles = Map<string, { meta: { size: number, lastModified?: number, type?: string }, bin: Base64String }>; //bin is a base64 string of the bytes of the raw file
 export type QueryMarker = 'socio' | 'auth' | 'perm';
 export type FS_Util_Response = { result: Bit, error?: string | Error | E | object | any, files?: SocioFiles }
-export type LoggingOpts = { logging?: LogHandlerOptions };
+export type LoggingOpts = { logging?: LoggerOptions };
 
 //server hook functions
 export type ServerLifecycleHooks = { con?: Con_Hook, discon?: Discon_Hook, msg?: Msg_Hook, sub?: Sub_Hook, unsub?: Unsub_Hook, upd?: Upd_Hook, auth?: Auth_Hook, gen_client_id?: GenCLientID_Hook, grant_perm?: GrantPerm_Hook, serv?: Serv_Hook, admin?: Admin_Hook, blob?: Blob_Hook, file_upload?: FileUpload_Hook, file_download?: FileDownload_Hook, endpoint?: Endpoint_Hook };

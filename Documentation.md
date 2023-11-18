@@ -365,7 +365,8 @@ socserv.RegisterProp('color', '#ffffff', {
   }, //default SocioServer.SetPropVal
   client_writable:true, //clients can change this value. Default true
   send_as_diff:false, //send only the differences in the prop values. Overrules the diff global flag. Default false.
-  emit_to_sender:false //emit an update to the original client, that set a prop val and caused the update to happen, if the client is subbed to this prop. Default false.
+  emit_to_sender:false, //emit an update to the original client, that set a prop val and caused the update to happen, if the client is subbed to this prop. Default false.
+  observationaly_temporary:false //auto unregister this prop (clean up) when it has no more subscribers left. Useful for props as "rooms". Default false.
 })
 ```
 
@@ -402,6 +403,17 @@ For more security/paranoia, props can be registered such that clients are not al
 ```ts
 //server code
 socserv.RegisterProp(..., {client_writable:false});
+```
+
+
+Socio also lets clients create props new props on the fly. There are limitations to this however, observationaly_temporary is always set true. This is to prevent client spamming new props that nobody uses just to fill up the servers ram.
+```ts
+//browser code
+const sc = new SocioClient(...);
+await sc.ready();
+await sc.RegisterProp('new_prop', 'optional_init_val', {other_prop:opts});
+await sc.SubscribeProp('new_prop', (...vals) => {log(...vals)});
+await sc.UnsubscribeProp('new_prop');
 ```
 
 ### Generic communication
@@ -646,12 +658,12 @@ Socio has its own ``LogHandler`` class in ``logging.ts``, which you can configur
 ```ts
 const x = new SocioClass({..., 
   logging:{
-    info_handler = LogHandler.log, //this can be your custom function that logs to a file or whatever
-    error_handler = LogHandler.soft_error, //same as ^ but for errors, when they are thrown or called.
-    verbose = false, //overall stopper of all msgs from printing
+    handlers = {info: LogHandler.log, error: LogHandler.soft_error, debug: LogHandler.debug}, //this can be your custom function that logs to a file or whatever
+    verbose = false, //overall stopper of all msgs from printing to console. Doesnt affect the log handlers ^ . They are evaluated first.
     hard_crash = false, //should thrown errors throw futher (bubble) after the error msg is written? Usually causes the entire process to crash.
     prefix ='', //msgs of this class will have a prefix, e.g. [SocioServer], to know which class instance created the msg. Higher order classes have their logical defaults.
-    use_color = true //the msg prefix will get a background color representing its severity level. Some terminals dont understand these special bytes. Chrome dev tools and VS Code powershell both work fine. You also prop dont want these in your log files. NOTE, this option is a static class property, so it can be set at any time from anywhere! All instances share this prop.
+    use_color = true, //the msg prefix will get a background color representing its severity level. Some terminals dont understand these special bytes. Chrome dev tools and VS Code powershell both work fine. You also prop dont want these in your log files. NOTE, this option is a static class property, so it can be set at any time from anywhere! All instances share this prop.
+    log_level: LogLevel.INFO //set the initial log level in the constructor. This can be altered at runtime via x.log_level = 1 | LogLevel.INFO | LogLevel[1] | LogLevel['INFO']
   }
 });
 ```

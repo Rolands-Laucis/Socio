@@ -34,10 +34,11 @@ export const colors = {
 
 //types
 export type err = E | string | any;
-export type LogHandlerOptions = { info_handler?: Function, error_handler?: Function | null, verbose?: boolean, hard_crash?: boolean, prefix?:string, use_color?: boolean};
-enum LogLevel{
+export type LogHandlers = { [handler in "error" | "info" | "debug"]: Function | null; };
+export type LoggerOptions = { log_handlers?: LogHandlers, verbose?: boolean, hard_crash?: boolean, prefix?: string, use_color?: boolean, log_level?:LogLevel};
+export enum LogLevel{
     DEBUG, INFO, DONE, WARN, ERROR
-}
+};
 
 //for my own error throwing, bcs i want to throw a msg + some objects maybe to log the current state of the program
 export class E extends Error {
@@ -57,14 +58,16 @@ export class LogHandler {
     prefix: string;
 
     log_level: LogLevel = LogLevel.INFO;
-    log_handlers: { [key: string]: Function | null; } = { error: null, info: null, debug:null } //register your logger functions here. By default like this it will log to console, if verbose. It is recommended to turn off verbose in prod.    
+    log_handlers: LogHandlers = { error: null, info: null, debug:null } //register your logger functions here. By default like this it will log to console, if verbose. It is recommended to turn off verbose in prod.    
     
     static use_color:boolean = true;
 
-    constructor({ verbose = false, hard_crash = false, prefix = '', use_color = undefined }: LogHandlerOptions = {}){
+    constructor({ verbose = false, hard_crash = false, prefix = '', use_color = undefined, log_level = undefined, log_handlers = undefined }: LoggerOptions = {}){
         this.verbose = verbose;
         this.hard_crash = hard_crash;
         this.prefix = prefix;
+        if (log_level !== undefined) this.log_level = log_level;
+        if (log_handlers !== undefined) this.log_handlers = log_handlers;
         if(use_color !== undefined) LogHandler.use_color = use_color;
     }
 
@@ -75,7 +78,7 @@ export class LogHandler {
 
     HandleError(e: E | Error | undefined | string){ //e is of type class E ^
         if (this.hard_crash) throw e;
-        if (this.log_handlers?.error) this.log_handlers.error(e);
+        if (this.log_handlers?.error && typeof this.log_handlers.error === 'function') this.log_handlers.error(e);
         if (this.verbose) {
             if(typeof e == 'string') this.soft_error(e);
             else if (typeof e == 'object')
@@ -83,12 +86,14 @@ export class LogHandler {
         }
     }
     HandleInfo(...args: any[]){
-        if (this.log_handlers.info) this.log_handlers.info(...args);
+        if (this.log_handlers?.info && typeof this.log_handlers.info === 'function') this.log_handlers.info(...args);
         //@ts-expect-error
         if (this.verbose) this.info(...args);
     }
     HandleDebug(...args: any[]){
-        if (this.log_handlers.debug) this.log_handlers.debug(...args);
+        if (this.log_handlers?.debug && typeof this.log_handlers.debug === 'function') this.log_handlers.debug(...args);
+        //@ts-expect-error
+        if (this.verbose) this.info(...args);
     }
 
     static prefix(p:string, color:string) {return p ? `${LogHandler.use_color ? color : ''}[${p}]${LogHandler.use_color ? colors.Reset : ''}` : ''}
@@ -98,7 +103,7 @@ export class LogHandler {
         this.BaseLog(LogLevel.DEBUG, this.prefix, '', msg, ...args);
     }
     static debug(msg: any, ...args: any[]) {
-        console.log(`[Socio DEBUG] ${msg}`, ...args);
+        console.debug(`[Socio DEBUG] ${msg}`, ...args);
     }
 
     info(msg:any, ...args:any[]) {
@@ -118,12 +123,12 @@ export class LogHandler {
     soft_error(msg: any, ...args: any[]) {
         this.BaseLog(LogLevel.WARN, this.prefix + ' WARN', colors.BgRed + colors.FgBlack, msg);
         if (args)
-            console.log(...args, '\n');
+            console.error(...args, '\n');
     }
     static soft_error(msg: any, ...args: any[]) {
         console.log(`${LogHandler.prefix(`Socio WARN`, colors.BgRed + colors.FgBlack)} ${msg}`);
         if (args)
-            console.log(...args, '\n');
+            console.error(...args, '\n');
     }
     // error(msg: any, ...args: any[]) {
     //     this.BaseLog(LogLevel.ERROR, this.prefix + ' ERROR', colors.BgRed + colors.FgBlack, msg);
