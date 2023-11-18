@@ -342,7 +342,7 @@ const socsec = new SocioServer({ server:https_server }, {...});
 ```
 
 ### Server Props
-A shared JSON serializable value/object/state on the server that is live synced to subscribed clients and is modifyable by clients.
+A shared JSON serializable value/object/state on the server that is live synced to subscribed clients and is modifyable by clients and the server.
 
 ```ts
 //server code
