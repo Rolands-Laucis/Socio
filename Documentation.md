@@ -154,7 +154,7 @@ const socserv = new SocioServer({ port: 3000, perMessageDeflate }, {...} );
 ```
 
 #### Session Timeouts (session max age since last seen active)
-Simply declare a server config object with default options.
+Simply declare a server config object with default options for all sessions. These properties can be altered at runtime on the SocioServer instance or some on SocioSession (aka "client" variable in most examples here)
 
 ```ts
 const socserv = new SocioServer({ ... }, { 
@@ -164,7 +164,8 @@ const socserv = new SocioServer({ ... }, {
       timeouts_check_interval_ms:1000 * 2, //^ timer check interval. E.g. every 2 minutes.
       ttl_ms:1000*60*60*2, //default to apply for all sessions. This same property on each SocioSession is public and can be changed at any time. E.g. 2h of inactivity will get timed out
       session_delete_delay_ms:1000, //delay grace period to wait since marked for deletion. This gives time for the client to attempt a reconn or whatever.
-      recon_ttl_ms: 1000 * 60 * 60 //reconn token expiration time. E.g. 1h since issued.
+      recon_ttl_ms: 1000 * 60 * 60, //reconn token expiration time. E.g. 1h since issued.
+      max_payload_size: 1024 //the max character count of a stringified JSON that is allowed to be sent out to clients. This is to prevent "payload bombs" by other nefarious clients.
     }
   });
 ```

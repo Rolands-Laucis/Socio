@@ -3,6 +3,7 @@ import type { MessageDataObj } from "./core-server.ts";
 import type { ClientMessageDataObj } from './core-client.js';
 import type { IncomingMessage } from 'http';
 import type { E, LoggerOptions } from "./logging.js";
+import exp from "constants";
 
 //general types
 export type id = string | number;
@@ -21,6 +22,7 @@ export type SocioFiles = Map<string, { meta: { size: number, lastModified?: numb
 export type QueryMarker = 'socio' | 'auth' | 'perm';
 export type FS_Util_Response = { result: Bit, error?: string | Error | E | object | any, files?: SocioFiles }
 export type LoggingOpts = { logging?: LoggerOptions };
+export type SessionOpts = { session_timeout_ttl_ms: number, max_payload_size?: number };
 
 //server hook functions
 export type ServerLifecycleHooks = { con?: Con_Hook, discon?: Discon_Hook, msg?: Msg_Hook, sub?: Sub_Hook, unsub?: Unsub_Hook, upd?: Upd_Hook, auth?: Auth_Hook, gen_client_id?: GenCLientID_Hook, grant_perm?: GrantPerm_Hook, serv?: Serv_Hook, admin?: Admin_Hook, blob?: Blob_Hook, file_upload?: FileUpload_Hook, file_download?: FileDownload_Hook, endpoint?: Endpoint_Hook };

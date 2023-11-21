@@ -7,7 +7,7 @@ import { ClientMessageKind } from './core-client.js';
 
 //types
 import type { WebSocket } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
-import type { id, Bit, LoggingOpts } from './types.js';
+import type { id, Bit, LoggingOpts, SessionOpts } from './types.js';
 import type { RateLimit } from './ratelimit.js';
 
 export type SubObj = {
@@ -17,7 +17,7 @@ export type SubObj = {
     rate_limiter?: RateLimiter,
     cache_hash:number
 }
-export type SocioSessionOptions = { default_perms?: Map<string, string[]>, session_timeout_ttl_ms?: number } & LoggingOpts;
+export type SocioSessionOptions = { default_perms?: Map<string, string[]>, session_opts?: SessionOpts } & LoggingOpts;
 
 export class SocioSession extends LogHandler {
     //private:
@@ -30,9 +30,9 @@ export class SocioSession extends LogHandler {
     //public:
     verbose = false;
     last_seen: number = 0; //ms since epoch when this session was last active
-    ttl_ms: number = Infinity; //ms since epoch showing how long the session is allowed to live.
+    session_opts: SessionOpts = { session_timeout_ttl_ms: Infinity, max_payload_size: 1024 };
 
-    constructor(client_id: string, ws_client: WebSocket, client_ipAddr: string, { logging = { verbose: false, hard_crash: false }, default_perms, session_timeout_ttl_ms }: SocioSessionOptions  = {}) {
+    constructor(client_id: string, ws_client: WebSocket, client_ipAddr: string, { logging = { verbose: false, hard_crash: false }, default_perms, session_opts }: SocioSessionOptions  = {}) {
         super({ ...logging, prefix: 'SocioSession' });
         
         //private:
@@ -43,7 +43,7 @@ export class SocioSession extends LogHandler {
 
         //public:
         this.verbose = logging.verbose || false;
-        if (session_timeout_ttl_ms) this.ttl_ms = session_timeout_ttl_ms;
+        this.session_opts = Object.assign(this.session_opts, session_opts);
 
         this.last_seen_now();
     }
@@ -56,9 +56,14 @@ export class SocioSession extends LogHandler {
     Send(kind: ClientMessageKind, ...data) {//data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
         if(this.#destroyed) return; //if this session is marked for destruction
         if (data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, data); //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
-        this.#ws.send(JSON.stringify(Object.assign({}, { kind: kind, data: data[0] }, ...data.slice(1)), MapReplacer));
-        this.HandleInfo(`sent: [${ClientMessageKind[kind]}] to [${this.id}]`, ...(kind != ClientMessageKind.RECV_FILES ? data : []));
-        this.last_seen_now();
+        const payload = JSON.stringify(Object.assign({}, { kind: kind, data: data[0] }, ...data.slice(1)), MapReplacer);
+        if (this.session_opts?.max_payload_size && payload.length < this.session_opts.max_payload_size){
+            this.HandleDebug(`blocked a send: [${ClientMessageKind[kind]}] to [${this.id}] for exceeding max payload size [${this.session_opts.max_payload_size}] with size [${payload.length}]`);
+        }else{
+            this.#ws.send(payload);
+            this.HandleInfo(`sent: [${ClientMessageKind[kind]}] to [${this.id}]`, ...(kind != ClientMessageKind.RECV_FILES ? data : []));
+            this.last_seen_now();
+        }
     }
 
     RegisterSub(tables: string[], id: id, sql:string, params?: object, rate_limit?:RateLimit) {

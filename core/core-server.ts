@@ -8,7 +8,7 @@ import * as diff_lib from 'recursive-diff'; //https://www.npmjs.com/package/recu
 //mine
 import { QueryIsSelect, ParseQueryTables, SocioStringParse, ParseQueryVerb, sleep, GetAllMethodNamesOf, MapReviver } from './utils.js';
 import { E, LogHandler, err, log, info, done } from './logging.js';
-import { UUID, SocioSecurity } from './secure.js';
+import { UUID, type SocioSecurity } from './secure.js';
 import { SocioSession, type SubObj } from './core-session.js';
 import { RateLimiter } from './ratelimit.js';
 import { CoreMessageKind } from './utils.js';
@@ -16,14 +16,14 @@ import { CoreMessageKind } from './utils.js';
 //types
 import type { ServerOptions, WebSocket, AddressInfo } from 'ws';
 import type { IncomingMessage } from 'http';
-import type { id, PropKey, PropValue, PropAssigner, PropOpts, SocioFiles, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts, Bit } from './types.js';
+import type { id, PropKey, PropValue, PropAssigner, PropOpts, SocioFiles, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts, Bit, SessionOpts } from './types.js';
 import { ClientMessageKind } from './core-client.js';
 import type { RateLimit } from './ratelimit.js';
 export type MessageDataObj = { id?: id, sql?: string, endpoint?: string, params?: any, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val?: PropValue, prop_upd_as_diff?:boolean, data?: any, rate_limit?: RateLimit, files?: SocioFiles, sql_is_endpoint?:boolean };
 export type QueryFuncParams = { id?: id, sql: string, params?: any };
 export type QueryFunction = (client: SocioSession, id: id, sql: string, params?: any) => Promise<object>;
 
-type SessionsDefaults = { timeouts: boolean, timeouts_check_interval_ms?: number, ttl_ms?: number, session_delete_delay_ms?: number, recon_ttl_ms?: number };
+type SessionsDefaults = { timeouts: boolean, timeouts_check_interval_ms?: number, session_delete_delay_ms?: number, recon_ttl_ms?: number } & SessionOpts;
 type DecryptOptions = { decrypt_sql: boolean, decrypt_prop: boolean, decrypt_endpoint: boolean };
 type DBOpts = { Query: QueryFunction, Arbiter?: (initiator: { client: SocioSession, sql: string, params: any }, current: { client: SocioSession, hook: SubObj }) => boolean | Promise<boolean>};
 type SocioServerOptions = { db: DBOpts, socio_security?: SocioSecurity | null, decrypt_opts?: DecryptOptions, hard_crash?: boolean, session_defaults?: SessionsDefaults, prop_upd_diff?: boolean } & LoggingOpts;
@@ -62,9 +62,9 @@ export class SocioServer extends LogHandler {
 
     //public:
     db!: DBOpts;
-    session_defaults: SessionsDefaults = { timeouts: false, timeouts_check_interval_ms: 1000 * 60, ttl_ms:Infinity, session_delete_delay_ms: 1000 * 5, recon_ttl_ms: 1000 * 60 * 60 };
+    session_defaults: SessionsDefaults = { timeouts: false, timeouts_check_interval_ms: 1000 * 60, session_timeout_ttl_ms: Infinity, session_delete_delay_ms: 1000 * 5, recon_ttl_ms: 1000 * 60 * 60 };
 
-    constructor(opts: ServerOptions | undefined = {}, { db, socio_security = null, logging = { verbose: false, hard_crash: false }, decrypt_opts = { decrypt_sql: true, decrypt_prop: false, decrypt_endpoint:false}, session_defaults, prop_upd_diff=false }: SocioServerOptions){
+    constructor(opts: ServerOptions | undefined = {}, { db, socio_security = null, logging = { verbose: false, hard_crash: false }, decrypt_opts = { decrypt_sql: true, decrypt_prop: false, decrypt_endpoint:false}, session_defaults = undefined, prop_upd_diff=false }: SocioServerOptions){
         super({ ...logging, prefix:'SocioServer'});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
         //hard_crash will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
@@ -106,7 +106,7 @@ export class SocioServer extends LogHandler {
             const client_ip = 'x-forwarded-for' in request?.headers ? request.headers['x-forwarded-for'].split(',')[0].trim() : request.socket.remoteAddress;
 
             //create the socio session class and save down the client id ref for convenience later
-            const client = new SocioSession(client_id, conn, client_ip, { logging: {verbose: this.verbose}, session_timeout_ttl_ms: this.session_defaults.timeouts ? this.session_defaults.ttl_ms : Infinity });
+            const client = new SocioSession(client_id, conn, client_ip, { logging: { verbose: this.verbose }, session_opts: { session_timeout_ttl_ms: this.session_defaults.session_timeout_ttl_ms, max_payload_size: this.session_defaults.max_payload_size} });
             this.#sessions.set(client_id, client);
 
             //pass the object to the connection hook, if it exists. It cant take over
@@ -747,7 +747,7 @@ export class SocioServer extends LogHandler {
     #CheckSessionsTimeouts(){
         const now = (new Date()).getTime();
         for (const client of this.#sessions.values()){
-            if (now >= client.last_seen + client.ttl_ms){
+            if (now >= client.last_seen + client.session_opts.session_timeout_ttl_ms){
                 client.Send(ClientMessageKind.TIMEOUT, {});
                 client.CloseConnection();
                 this.HandleInfo('Session timed out.', client.id);
