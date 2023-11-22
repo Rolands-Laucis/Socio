@@ -6,7 +6,7 @@ import { WebSocketServer } from 'ws'; //https://github.com/websockets/ws https:/
 import * as diff_lib from 'recursive-diff'; //https://www.npmjs.com/package/recursive-diff
 
 //mine
-import { QueryIsSelect, ParseQueryTables, SocioStringParse, ParseQueryVerb, sleep, GetAllMethodNamesOf, MapReviver } from './utils.js';
+import { QueryIsSelect, ParseQueryTables, SocioStringParse, ParseQueryVerb, sleep, GetAllMethodNamesOf, yaml_parse } from './utils.js';
 import { E, LogHandler, err, log, info, done } from './logging.js';
 import { UUID, type SocioSecurity } from './secure.js';
 import { SocioSession, type SubObj } from './core-session.js';
@@ -160,7 +160,7 @@ export class SocioServer extends LogHandler {
                 return;
             }
 
-            const { kind, data }: { kind: CoreMessageKind; data: MessageDataObj } = JSON.parse(req.toString(), MapReviver);
+            const { kind, data }: { kind: CoreMessageKind; data: MessageDataObj } = yaml_parse(req.toString());
             const client_id = client.id; //cache the ID, since its used so much here
 
             //if the socio security instance exists and some specific string fields was recieved and they are to be decrypted, then do so here

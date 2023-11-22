@@ -2,7 +2,7 @@
 
 import { LogHandler, E, log, info, done } from './logging.js';
 import { RateLimiter } from './ratelimit.js';
-import { MapReplacer, FastHash } from './utils.js';
+import { yaml_stringify, FastHash } from './utils.js';
 import { ClientMessageKind } from './core-client.js';
 
 //types
@@ -56,7 +56,7 @@ export class SocioSession extends LogHandler {
     Send(kind: ClientMessageKind, ...data) {//data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
         if(this.#destroyed) return; //if this session is marked for destruction
         if (data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, data); //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
-        const payload = JSON.stringify(Object.assign({}, { kind: kind, data: data[0] }, ...data.slice(1)), MapReplacer);
+        const payload = yaml_stringify(Object.assign({}, { kind: kind, data: data[0] }, ...data.slice(1)));
         if (this.session_opts?.max_payload_size && payload.length < this.session_opts.max_payload_size){
             this.HandleDebug(`blocked a send: [${ClientMessageKind[kind]}] to [${this.id}] for exceeding max payload size [${this.session_opts.max_payload_size}] with size [${payload.length}]`);
         }else{

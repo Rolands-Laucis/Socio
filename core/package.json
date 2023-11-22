@@ -1,6 +1,6 @@
 {
   "name": "socio",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "A WebSocket Real-Time Communication (RTC) API framework.",
   "main": "./dist/core.js",
   "type": "module",
@@ -41,11 +41,13 @@
   "homepage": "https://github.com/Rolands-Laucis/Socio#readme",
   "dependencies": {
     "base64-js": "^1.5.1",
+    "js-yaml": "^4.1.0",
     "magic-string": "^0.30.5",
     "recursive-diff": "^1.0.9",
     "ws": "^8.9.0"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^18.15.0",
     "@types/ws": "^8.5.3"
   }

@@ -4,7 +4,7 @@ import * as b64 from 'base64-js';
 import * as diff_lib from 'recursive-diff'; //https://www.npmjs.com/package/recursive-diff
 
 import { LogHandler, E, err, log, info, done } from './logging.js';
-import { MapReplacer, MapReviver, clamp, CoreMessageKind } from './utils.js';
+import { yaml_parse, yaml_stringify, clamp, CoreMessageKind } from './utils.js';
 
 //types
 import type { id, PropKey, PropValue, PropOpts, Bit, ClientLifecycleHooks, ClientID, SocioFiles, LoggingOpts } from './types.js';
@@ -92,7 +92,7 @@ export class SocioClient extends LogHandler {
 
     async #message(event: MessageEvent) {
         try{
-            const { kind, data }: { kind: ClientMessageKind; data: ClientMessageDataObj } = JSON.parse(event.data, MapReviver)
+            const { kind, data }: { kind: ClientMessageKind; data: ClientMessageDataObj } = yaml_parse(event.data)
             this.HandleInfo('recv:', ClientMessageKind[kind], data)
 
             //let the developer handle the msg
@@ -227,7 +227,7 @@ export class SocioClient extends LogHandler {
     Send(kind: CoreMessageKind, ...data){ //data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
         try{
             if (data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, ...data); //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
-            this.#ws?.send(JSON.stringify(Object.assign({}, { kind, data: data[0] }, ...data.slice(1)), MapReplacer));
+            this.#ws?.send(yaml_stringify(Object.assign({}, { kind, data: data[0] }, ...data.slice(1))));
             this.HandleInfo('sent:', CoreMessageKind[kind], data);
         } catch (e: err) { this.HandleError(e); }
     }

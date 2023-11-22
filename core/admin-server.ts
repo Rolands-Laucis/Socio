@@ -2,7 +2,7 @@
 
 import { LogHandler, E } from "./logging.js";
 import { WebSocket as nodeWebSocket } from "ws";
-import { MapReplacer, MapReviver } from './utils.js';
+import { yaml_parse, yaml_stringify } from './utils.js';
 
 //types
 import type { id, PropValue, LoggingOpts } from './types.js';
@@ -33,7 +33,7 @@ export class AdminClient extends LogHandler{
     }
 
     #Message(d:string, isBinary:boolean){
-        const { kind, data }: { kind: ClientMessageKind; data: MessageDataObj } = JSON.parse(d, MapReviver)
+        const { kind, data }: { kind: ClientMessageKind; data: MessageDataObj } = yaml_parse(d)
 
         switch(kind){
             case ClientMessageKind.CON:{
@@ -80,7 +80,7 @@ export class AdminClient extends LogHandler{
         });
 
         //send out the request
-        this.#ws.send(JSON.stringify({ kind: 'ADMIN', data: { id: id, client_secret:this.#client_secret, function: function_name, args: args } }, MapReplacer));
+        this.#ws.send(yaml_stringify({ kind: 'ADMIN', data: { id: id, client_secret:this.#client_secret, function: function_name, args: args } }));
 
         //let the caller await the promise resolve
         return prom;

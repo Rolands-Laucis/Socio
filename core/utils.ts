@@ -88,24 +88,45 @@ export const perMessageDeflate = {
 }
 
 //JSON utils for Maps ------------- Credit: STEVE SEWELL https://www.builder.io/blog/maps
-export function MapReplacer(key: string, value: any) {
-    if (value instanceof Map) {
-        return { __type: 'Map', value: Object.fromEntries(value) }
-    }
-    if (value instanceof Set) {
-        return { __type: 'Set', value: Array.from(value) }
-    }
-    return value
-}
-export function MapReviver(key: string, value: any) {
-    if (value?.__type === 'Set') {
-        return new Set(value.value)
-    }
-    if (value?.__type === 'Map') {
-        return new Map(Object.entries(value.value))
-    }
-    return value
-}
+// export function MapReplacer(key: string, value: any) {
+//     if (value instanceof Map) {
+//         return { __type: 'Map', value: Object.fromEntries(value) }
+//     }
+//     if (value instanceof Set) {
+//         return { __type: 'Set', value: Array.from(value) }
+//     }
+//     return value
+// }
+// export function MapReviver(key: string, value: any) {
+//     if (value?.__type === 'Set') {
+//         return new Set(value.value)
+//     }
+//     if (value?.__type === 'Map') {
+//         return new Map(Object.entries(value.value))
+//     }
+//     return value
+// }
+
+// YAML utils for Maps and Sets ------------- https://www.npmjs.com/package/js-yaml
+import yaml from 'js-yaml';
+const mapType = new yaml.Type('!map', {
+    kind: 'mapping',
+    construct: (data) => new Map(Object.entries(data)),
+    instanceOf: Map,
+    // @ts-expect-error
+    represent: (map:Map<string, any>) => Object.fromEntries(map.entries())
+});
+const setType = new yaml.Type('!set', {
+    kind: 'sequence',
+    construct: data => new Set(data),
+    instanceOf: Set,
+    // @ts-expect-error
+    represent: (set:Set<any>) => Array.from(set)
+});
+export const schema = yaml.DEFAULT_SCHEMA.extend([mapType, setType]);
+// export const yaml_dump_opts = { schema, indent: 1, noArrayIndent: true };
+export function yaml_stringify(o:any){return yaml.dump(o, { schema, indent: 1, noArrayIndent: true });}
+export function yaml_parse(str: string) {return yaml.load(str, { schema }) as any;}
 
 // Credit: https://gist.github.com/jlevy/c246006675becc446360a798e2b2d781 (modified) 
 // super simple, naive, yet fast way to generate a hash for a subscription query. Used to keep a cache while in the core Update function.
