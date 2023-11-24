@@ -350,19 +350,17 @@ export class SocioServer extends LogHandler {
                 }
                 case CoreMessageKind.PROP_REG: { 
                     // checks
-                    if (!data.prop){
-                        client.Send(ClientMessageKind.ERR, {
-                            id: data.id,
-                            result: 'No prop name given to register!'
-                        });
-                        return;
-                    }
-                    if (this.#props.has(data.prop)){
+                    if (data?.prop && this.#props.has(data.prop)) {
                         client.Send(ClientMessageKind.ERR, {
                             id: data.id,
                             result: `Prop name "${data.prop}" already registered on server! Choose a different name.`
                         });
                         return;
+                    }
+                    // if a name hasnt been supplied, then generate a unique prop name and return it
+                    if (!data?.prop){
+                        data.prop = UUID();
+                        while (this.#props.has(data.prop)) data.prop = UUID();
                     }
 
                     // create the new prop on the server
@@ -372,10 +370,11 @@ export class SocioServer extends LogHandler {
                         ...((data?.opts as PropOpts) || {}), observationaly_temporary: true //these as the last to overwrite the data?.opts value. client_writable: true,
                     });
 
-                    // notify the client of success
+                    // notify the client of success with the created prop name
                     client.Send(ClientMessageKind.RES, {
                         id: data.id,
-                        result: 1
+                        result: 1,
+                        prop: data.prop
                     });
                     break;
                 }

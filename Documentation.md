@@ -411,10 +411,11 @@ Socio also lets clients create props new props on the fly. There are limitations
 ```ts
 //browser code
 const sc = new SocioClient(...);
-await sc.ready();
+// these all return the result object as usual
 await sc.RegisterProp('new_prop', 'optional_init_val', {other_prop:opts}); //creates the prop on the server instance it is connected to
 await sc.SubscribeProp('new_prop', () => {}); //works like a regular prop in every way
 await sc.UnsubscribeProp('new_prop'); //the last unsub will trigger an automatic unregistration of this prop.
+const prop_name_uuid = (await sc.RegisterProp(undefined)).prop; //prop name can be omitted, which creates a new prop on the server instance with a random unique UUID guaranteed without collision and returns it here
 ```
 
 ### Generic communication

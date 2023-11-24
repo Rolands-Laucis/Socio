@@ -430,7 +430,7 @@ export class SocioClient extends LogHandler {
                 throw new E('Cannot unsubscribe query, because provided prop_name is not currently tracked.', prop_name);
         } catch (e: err) { this.HandleError(e); return false; }
     }
-    RegisterProp(prop_name: PropKey, initial_value: any = null, prop_reg_opts: Omit<PropOpts, "observationaly_temporary"> = {}) { //"client_writable" & 
+    RegisterProp(prop_name: PropKey | undefined | null, initial_value: any = null, prop_reg_opts: Omit<PropOpts, "observationaly_temporary"> = {}) { //"client_writable" & 
         try {
             const { id, prom } = this.CreateQueryPromise();
             this.Send(CoreMessageKind.PROP_REG, { id, prop: prop_name, initial_value, opts:prop_reg_opts });
