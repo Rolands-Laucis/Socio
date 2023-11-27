@@ -25,7 +25,7 @@ export type LoggingOpts = { logging?: LoggerOptions };
 export type SessionOpts = { session_timeout_ttl_ms: number, max_payload_size?: number };
 
 //server hook functions
-export type ServerLifecycleHooks = { con?: Con_Hook, discon?: Discon_Hook, msg?: Msg_Hook, sub?: Sub_Hook, unsub?: Unsub_Hook, upd?: Upd_Hook, auth?: Auth_Hook, gen_client_id?: GenCLientID_Hook, grant_perm?: GrantPerm_Hook, serv?: Serv_Hook, admin?: Admin_Hook, blob?: Blob_Hook, file_upload?: FileUpload_Hook, file_download?: FileDownload_Hook, endpoint?: Endpoint_Hook };
+export type ServerLifecycleHooks = { con?: Con_Hook, discon?: Discon_Hook, msg?: Msg_Hook, sub?: Sub_Hook, unsub?: Unsub_Hook, upd?: Upd_Hook, auth?: Auth_Hook, gen_client_id?: GenCLientID_Hook, grant_perm?: GrantPerm_Hook, serv?: Serv_Hook, admin?: Admin_Hook, blob?: Blob_Hook, file_upload?: FileUpload_Hook, file_download?: FileDownload_Hook, endpoint?: Endpoint_Hook, gen_prop_name?: Gen_Prop_Name_Hook };
 export type GenCLientID_Hook = () => ClientID | Promise<ClientID>;
 export type Con_Hook = (client: SocioSession, request: IncomingMessage) => void | Promise<void>;
 export type Discon_Hook = (client: SocioSession) => void | Promise<void>;
@@ -40,7 +40,8 @@ export type Admin_Hook = (client: SocioSession, data: MessageDataObj) => boolean
 export type FileUpload_Hook = (client: SocioSession, files?: SocioFiles, data?: any) => Bit | boolean | Promise<Bit | boolean>;
 export type FileDownload_Hook = (client: SocioSession, data: any) => FS_Util_Response | Promise<FS_Util_Response>;
 export type Upd_Hook = (sessions: Map<ClientID, SocioSession>, initiator: SocioSession, sql: string, params:object) => boolean | Promise<boolean>;
-export type Endpoint_Hook = (client: SocioSession, endpoint:string) => string | Promise<string>;
+export type Endpoint_Hook = (client: SocioSession, endpoint: string) => string | Promise<string>;
+export type Gen_Prop_Name_Hook = () => string | Promise<string>;
 // export type _Hook = (client: SocioSession) => boolean;
 
 //client hook functions

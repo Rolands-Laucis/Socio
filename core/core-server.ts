@@ -46,7 +46,7 @@ export class SocioServer extends LogHandler {
     //rate limits server functions globally
     #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
 
-    #lifecycle_hooks: ServerLifecycleHooks = { con: undefined, discon: undefined, msg: undefined, sub: undefined, unsub: undefined, upd: undefined, auth: undefined, gen_client_id: undefined, grant_perm: undefined, serv: undefined, admin: undefined, blob: undefined, file_upload: undefined, file_download: undefined, endpoint: undefined }; //call the register function to hook on these. They will be called if they exist
+    #lifecycle_hooks: ServerLifecycleHooks = { con: undefined, discon: undefined, msg: undefined, sub: undefined, unsub: undefined, upd: undefined, auth: undefined, gen_client_id: undefined, grant_perm: undefined, serv: undefined, admin: undefined, blob: undefined, file_upload: undefined, file_download: undefined, endpoint: undefined, gen_prop_name:undefined }; //call the register function to hook on these. They will be called if they exist
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //msg hook receives all incomming msgs to the server. 
     //upd works the same as msg, but for everytime updates need to be propogated to all the sockets.
@@ -359,7 +359,7 @@ export class SocioServer extends LogHandler {
                     }
                     // if a name hasnt been supplied, then generate a unique prop name and return it
                     if (!data?.prop){
-                        data.prop = UUID();
+                        data.prop = this.#lifecycle_hooks.gen_prop_name ? await this.#lifecycle_hooks.gen_prop_name() : UUID();
                         while (this.#props.has(data.prop)) data.prop = UUID();
                     }
 
