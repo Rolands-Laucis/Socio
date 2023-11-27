@@ -7,7 +7,7 @@ import { LogHandler, E, err, log, info, done } from './logging.js';
 import { yaml_parse, yaml_stringify, clamp, CoreMessageKind } from './utils.js';
 
 //types
-import type { id, PropKey, PropValue, PropOpts, Bit, ClientLifecycleHooks, ClientID, SocioFiles, LoggingOpts } from './types.js';
+import type { id, PropKey, PropValue, PropOpts, Bit, ClientLifecycleHooks, ClientID, SocioFiles, LoggingOpts, BasicClientResPromise } from './types.js';
 import type { RateLimit } from './ratelimit.js';
 export type ClientMessageDataObj = { id: id, verb?: string, table?: string, status?: string | number, result?: string | object | boolean | PropValue | number, prop?: PropKey, prop_val?: PropValue, prop_val_diff:diff_lib.rdiffResult[], data?:any, files?:SocioFiles };
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
@@ -279,7 +279,7 @@ export class SocioClient extends LogHandler {
         const id = this.GenKey;
         const prom = new Promise((res) => {
             this.#queries.set(id, { res, prom:null, start_buff: this.#ws?.bufferedAmount || 0 });
-        });
+        }) as BasicClientResPromise;
         (this.#queries.get(id) as QueryPromise).prom = prom;
         
         // this.progs.set(prom, this.#ws?.bufferedAmount || 0); //add this to progress tracking
@@ -301,7 +301,7 @@ export class SocioClient extends LogHandler {
         this.Send(CoreMessageKind.GET_FILES, { id, data });
         this.#UpdateQueryPromisePayloadSize(id);
 
-        return prom as Promise<File[]>;
+        return (prom as unknown) as Promise<File[]>; //fuck TS fr. wtf is this syntax. r u trying to make me kms?
     }
     //sends a ping with either the user provided number or an auto generated number, for keeping track of packets and debugging
     Ping(num = 0) {
@@ -348,7 +348,7 @@ export class SocioClient extends LogHandler {
                 const { id, prom } = this.CreateQueryPromise();
                 this.Send(CoreMessageKind.UNSUB, { id, unreg_id: sub_id })
 
-                const res = await prom; //await the response from backend
+                const res = await (prom as unknown) as Bit; //await the response from backend
                 if(res === 1)//if successful, then remove the subscribe from the client
                     this.#queries.delete(sub_id);
                 return res;//forward the success status to the developer
@@ -420,7 +420,7 @@ export class SocioClient extends LogHandler {
                 const { id, prom } = this.CreateQueryPromise();
                 this.Send(CoreMessageKind.PROP_UNSUB, { id, prop: prop_name });
 
-                const res = await prom; //await the response from backend
+                const res = await (prom as unknown) as Bit; //await the response from backend
                 if (res === 1)//if successful, then remove the subscribe from the client
                     this.#props.delete(prop_name);
                 return res;//forward the success status to the developer
@@ -435,7 +435,7 @@ export class SocioClient extends LogHandler {
             this.Send(CoreMessageKind.PROP_REG, { id, prop: prop_name, initial_value, opts:prop_reg_opts });
             this.#UpdateQueryPromisePayloadSize(id);
 
-            return prom;
+            return prom as BasicClientResPromise & {prop:string};
         } catch (e: err) { this.HandleError(e); return null; }
     }
 
@@ -492,7 +492,7 @@ export class SocioClient extends LogHandler {
 
         //ask the server for a one-time auth token
         this.Send(CoreMessageKind.RECON, { id, data: { type: 'GET' } });
-        const token = await prom as string; //await the token
+        const token = await (prom as unknown) as string; //await the token
 
         //save down the token. Name is used to map new instance to old instance by same name.
         localStorage.setItem(`Socio_recon_token_${name}`, token); //https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage localstorage is origin locked, so should be safe to store this here
