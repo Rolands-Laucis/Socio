@@ -19,7 +19,7 @@ export type ProgressOnUpdate = (percentage: number) => void;
 
 type PropUpdateCallback = ((new_val: PropValue, diff?: diff_lib.rdiffResult[]) => void) | null;
 export type ClientProp = { val: PropValue | undefined, subs: { [id: id]: PropUpdateCallback } };
-export type SocioClientOptions = { name: string, keep_alive: boolean, reconnect_tries: number, persistent: boolean } & LoggingOpts;
+export type SocioClientOptions = { name?: string, keep_alive?: boolean, reconnect_tries?: number, persistent?: boolean } & LoggingOpts;
 export enum ClientMessageKind {
     CON, UPD, PONG, AUTH, GET_PERM, RES, ERR, PROP_UPD, PROP_DROP, CMD, RECON, RECV_FILES, TIMEOUT
 };
@@ -46,7 +46,6 @@ export class SocioClient extends LogHandler {
     //discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
     // progs: Map<Promise<any>, number> = new Map(); //the promise is that of a socio generic data going out from client async. Number is WS send buffer payload size at the time of query
 
-    //@ts-expect-error
     constructor(url: string, { name = 'Main', logging = { verbose: false, hard_crash: false }, keep_alive = true, reconnect_tries = 1, persistent = false}: SocioClientOptions = {}) {
         super({ ...logging, prefix: name ? `SocioClient:${name}` : 'SocioClient' });
 
@@ -77,7 +76,7 @@ export class SocioClient extends LogHandler {
 
         //pass the object to the discon hook, if it exists
         if (this.lifecycle_hooks.discon)//discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
-            this.lifecycle_hooks.discon(this.config.name, this.#client_id, url, keep_alive, verbose, reconnect_tries - 1, event); //here you can await ready() and reauth and regain all needed perms
+            this.lifecycle_hooks.discon(this.config.name as string, this.#client_id, url, keep_alive, verbose, reconnect_tries - 1, event); //here you can await ready() and reauth and regain all needed perms
     }
     #resetConn() {
         this.#client_id = '';
@@ -97,7 +96,7 @@ export class SocioClient extends LogHandler {
 
             //let the developer handle the msg
             if (this.lifecycle_hooks.msg)
-                if (await this.lifecycle_hooks.msg(this.config.name,this.#client_id, kind, data))
+                if (await this.lifecycle_hooks.msg(this.config.name as string,this.#client_id, kind, data))
                     return;
 
             switch (kind) {
@@ -175,7 +174,7 @@ export class SocioClient extends LogHandler {
 
                             //tell the dev that this prop has been dropped by the server.
                             if (this.lifecycle_hooks.prop_drop)
-                                this.lifecycle_hooks.prop_drop(this.config.name, this.#client_id, data.prop, data.id);
+                                this.lifecycle_hooks.prop_drop(this.config.name as string, this.#client_id, data.prop, data.id);
                         }
                         else throw new E('Cant drop unsubbed prop!', data)
                     } else throw new E('Not enough prop info sent from server to perform prop drop.', data)
@@ -214,7 +213,7 @@ export class SocioClient extends LogHandler {
                 }
                 case ClientMessageKind.TIMEOUT:{
                     if (this.lifecycle_hooks.timeout)
-                        this.lifecycle_hooks.timeout(this.config.name, this.#client_id);
+                        this.lifecycle_hooks.timeout(this.config.name as string, this.#client_id);
                     break;
                 }
                 // case '': {break;}
@@ -488,7 +487,7 @@ export class SocioClient extends LogHandler {
     ready(): Promise<boolean> { return this.#is_ready === true ? (new Promise(res => res(true))) : (new Promise(res => this.#is_ready = res)) }
     Close() { this.#ws?.close(); }
 
-    async #GetReconToken(name:string = this.config.name){
+    async #GetReconToken(name: string = this.config.name as string){
         const { id, prom } = this.CreateQueryPromise();
 
         //ask the server for a one-time auth token
@@ -498,9 +497,9 @@ export class SocioClient extends LogHandler {
         //save down the token. Name is used to map new instance to old instance by same name.
         localStorage.setItem(`Socio_recon_token_${name}`, token); //https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage localstorage is origin locked, so should be safe to store this here
     }
-    RefreshReconToken(name: string = this.config.name){return this.#GetReconToken(name);}
+    RefreshReconToken(name: string = this.config.name as string){return this.#GetReconToken(name);}
 
-    async #TryReconnect(name: string = this.config.name){
+    async #TryReconnect(name: string = this.config.name as string){
         const key = `Socio_recon_token_${name}`
         const token = localStorage.getItem(key);
 
