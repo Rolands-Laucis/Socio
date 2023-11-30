@@ -205,7 +205,7 @@ import { SocioClient } from 'socio/dist/core-client.js';
 import { socio } from 'socio/dist/utils';
 
 //instantiate the Socio Client from lib on the expected websocket port and wait for it to connect
-//NB! use wss secure socket protocol and use the ./core/Secure class to encrypt these queries in PROD!
+//NB! use wss secure socket protocol (wss) and use the ./core/Secure class to encrypt these queries in PROD!
 const sc = new SocioClient(`ws://localhost:3000`, { logging: {verbose:true} }) ;//each instance is going to be its own "session" on the server, but you can spawn and destroy these where ever in your code
 await sc.ready(); //wait until it has connected as confimed by the server
 
@@ -239,6 +239,7 @@ const auth_success = (await sc.Authenticate({username:'Bob', password:'pass123'}
 //Similar mechanism for table permissions:
 const perm_success = (await sc.AskPermission('SELECT', 'Users'))?.result; //The perm is asked and granted per VERB on a TABLE. This will be passed to your grant_perm hook callback, and it is there that you compute the decision yourself. Then you may execute --perm queries. If this socket were to disconnect, you'd have to redo the perm, but that isnt very likely. If you want to later check, if an instance has a perm, then you'd do this same procedure, but the server already knows what perms you have, so its quicker. Persistant socio clients will keep perms.
 ```
+[Here is how to make the https/wss connection with SSL](#setup-for-https--wss-secure-sockets-with-ssl-certificates)
 
 #### Client Sending Files
 ```ts
@@ -327,20 +328,22 @@ The ``SocioSecurityVitePlugin`` also takes in an extra options object parameter 
 
 ### Setup for HTTPS & WSS (secure sockets) with SSL certificates
 ```ts
-//bakcend code when creating the SocioServer
+//bakcend code when creating the HTTPS/WSS SocioServer
 import * as https from 'https';
 import fs from 'fs';
 
-//create a boostrapping HTTPS server, from where the WSS will takeover on each request.
+// Create a boostrapping HTTPS server, from where the WSS will takeover on each request.
+// You can also use your existing http server, like what express.js creates.
 const https_server = https.createServer({
     cert: fs.readFileSync('cert.pem'), //need to generate or aquire these with OpenSSL or other utility, but the certificate signing authority needs to be globaly recognized and valid or browsers will reject it.
     key: fs.readFileSync('key.pem')
 });
-https_server.listen(PORT);
+https_server.listen(3000); //listen on port 3000
 
 //then as normal, but pass the server instead of a port number
-const socsec = new SocioServer({ server:https_server }, {...});
+const socserv = new SocioServer({ server:https_server }, {...});
 ```
+Now clients can connect to the socio server with a url as usual, but the url would start with ``wss://`` instead of ``ws://``
 
 ### Server Props
 A shared JSON serializable value/object/state on the server that is live synced to subscribed clients and is modifyable by clients and the server.
