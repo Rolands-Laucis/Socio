@@ -7,7 +7,7 @@ import { LogHandler, E, err, log, info, done } from './logging.js';
 import { yaml_parse, yaml_stringify, clamp, CoreMessageKind } from './utils.js';
 
 //types
-import type { id, PropKey, PropValue, PropOpts, Bit, ClientLifecycleHooks, ClientID, SocioFiles, LoggingOpts, BasicClientResPromise } from './types.js';
+import type { id, PropKey, PropValue, PropOpts, Bit, ClientLifecycleHooks, ClientID, SocioFiles, LoggingOpts, BasicClientResPromise, BasicClientRes } from './types.js';
 import type { RateLimit } from './ratelimit.js';
 export type ClientMessageDataObj = { id: id, verb?: string, table?: string, status?: string | number, result?: string | object | boolean | PropValue | number, prop?: PropKey, prop_val?: PropValue, prop_val_diff:diff_lib.rdiffResult[], data?:any, files?:SocioFiles };
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
@@ -434,8 +434,8 @@ export class SocioClient extends LogHandler {
             const { id, prom } = this.CreateQueryPromise();
             this.Send(CoreMessageKind.PROP_REG, { id, prop: prop_name, initial_value, opts:prop_reg_opts });
             this.#UpdateQueryPromisePayloadSize(id);
-
-            return prom as BasicClientResPromise & {prop:string};
+            
+            return prom as Promise<BasicClientRes & { prop: string; }>;
         } catch (e: err) { this.HandleError(e); return null; }
     }
 
