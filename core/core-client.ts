@@ -1,6 +1,6 @@
 // Let those that play your clowns speak no more than is set down for them. /William Shakespeare/
 
-import * as b64 from 'base64-js';
+import pako from 'pako'; //https://github.com/nodeca/pako
 import * as diff_lib from 'recursive-diff'; //https://www.npmjs.com/package/recursive-diff
 
 import { LogHandler, E, err, log, info, done } from './logging.js';
@@ -200,11 +200,11 @@ export class SocioClient extends LogHandler {
 
                     if (data?.result && data?.files) {
                         const files = ParseSocioFiles(data?.files as SocioFiles);
-                        //@ts-expect-error
-                        this.#queries.get(data.id)(files);
+                        //@ts-expect-error  
+                        this.#queries.get(data.id).res(files);
                     } else {
                         //@ts-expect-error
-                        this.#queries.get(data.id)(null);
+                        this.#queries.get(data.id).res(null);
                         throw new E('File receive either bad result or no files.\nResult:', data?.result, '\nfiles received:', Object.keys(data?.files || {}).length)
                     };
 
@@ -248,7 +248,7 @@ export class SocioClient extends LogHandler {
                     size: file.size,
                     type: file.type
                 };
-                proc_files.set(file.name, { meta, bin: b64.fromByteArray(new Uint8Array(await file.arrayBuffer())) }); //this is the best way that i could find. JS is really unhappy about binary data
+                proc_files.set(file.name, { meta, bin: Uint8ArrayToSocioFileBase64(await file.arrayBuffer())}); //this is the best way that i could find. JS is really unhappy about binary data
             }
 
             //create the server request as usual
@@ -457,10 +457,10 @@ export class SocioClient extends LogHandler {
     }
     
     
-    //checks if the ID of a query exists, otherwise rejects and logs
+    //checks if the ID of a query exists, otherwise rejects/throws and logs. This is used in a bunch of message receive cases at the start.
     #FindID(kind: ClientMessageKind, id: id) {
         if (!this.#queries.has(id))
-            throw new E(`${kind} message for unregistered SQL query! msg_id -`, id);
+            throw new E(`A received socio message [querry_id ${id}, ${kind}] is not currently in tracked queries!`);
     }
     #HandleBasicPromiseMessage(kind: ClientMessageKind, data:ClientMessageDataObj){
         this.#FindID(kind, data?.id);
@@ -585,7 +585,19 @@ export class SocioClient extends LogHandler {
 export function ParseSocioFiles(files:SocioFiles){
     if(!files) return [];
     const files_array: File[] = [];
-    for (const [filename, filedata] of files.entries())
-        files_array.push(new File([b64.toByteArray(filedata.bin)], filename, { type: filedata.meta.type, lastModified: filedata.meta.lastModified }));
+    for (const [filename, file_data] of files.entries())
+        files_array.push(new File([SocioFileBase64ToUint8Array(file_data.bin)], filename, { type: file_data.meta.type, lastModified: file_data.meta.lastModified }));
     return files_array;
+}
+
+// Helper function to decompress and encode data from Base64
+export function SocioFileBase64ToUint8Array(base64:string='') {
+    return pako.inflate(Uint8Array.from(window.atob(base64), (v) => v.charCodeAt(0)));
+}
+
+// Helper function to compress and encode data to Base64
+export function Uint8ArrayToSocioFileBase64(file_bin:ArrayBuffer) {
+    const compressedData = pako.deflate(file_bin);
+    // @ts-expect-error
+    return window.btoa(String.fromCharCode.apply(null, new Uint8Array(compressedData)));
 }
