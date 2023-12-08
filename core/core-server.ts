@@ -719,12 +719,19 @@ export class SocioServer extends LogHandler {
     }
 
     //send some data to all clients by their ID. By default emits to all connected clients
-    SendToClients(client_ids: string[] = [], data: object = {}, kind: ClientMessageKind = ClientMessageKind.CMD){
-        if(!client_ids.length)
-            for (const s of this.#sessions.values())
-                s.Send(kind, data);
-        else
-            client_ids.forEach(c_id => this.#sessions.get(c_id)?.Send(kind, data));
+    SendToClients(client_ids: string[] = [], data: object = {}, kind: ClientMessageKind = ClientMessageKind.CMD): Promise<void>{
+        return new Promise((res, rej) => {
+            try{
+                const sessions = client_ids.length ? client_ids.map(c_id => this.#sessions.get(c_id)) : this.#sessions.values();
+
+                for (const s of sessions)
+                    if (s)
+                        s.Send(kind, data); //these are all sync calls
+                    
+                res();
+            }
+            catch (e) {rej(e);}
+        });
     }
 
     //https://stackoverflow.com/a/54875979/8422448
