@@ -68,7 +68,17 @@ export class LogHandler {
         this.prefix = prefix;
         if (log_level !== undefined) this.log_level = log_level;
         if (log_handlers !== undefined) this.log_handlers = log_handlers;
-        if(use_color !== undefined) LogHandler.use_color = use_color;
+
+        // set to use colors in terminal logs. Non-chromium browsers dont support these color bytes, so lets not spam garbage in the console.
+        if(use_color !== undefined) LogHandler.use_color = use_color; //the user is always right
+        else{ //otherwise use color, if supported
+            if (typeof window !== 'undefined'){
+                // @ts-expect-error
+                // const isChrome = !!window?.chrome && (!!window?.chrome?.webstore || !!window?.chrome?.runtime); 
+                const isFirefox = typeof InstallTrigger !== 'undefined';
+                if (isFirefox) LogHandler.use_color = false;
+            }
+        }
     }
 
     BaseLog(level:number, prefix: string, color: string, msg:string, ...args:any[]){
