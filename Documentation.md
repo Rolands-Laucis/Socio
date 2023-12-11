@@ -437,6 +437,7 @@ await sc.Serv({some:'data'} || 'string' || ['anthing']) //use the serv() functio
 ```ts
 //server code
 import { SocioServer } from 'socio/dist/core-server.js'
+import { ClientMessageKind } from 'socio/core-client';
 import type { MessageDataObj } from 'socio/dist/core-server.js'
 import type { SocioSession } from 'socio/dist/core-session.js'
 const socserv = new SocioServer(...)
@@ -445,7 +446,7 @@ socserv.RegisterLifecycleHookHandler('serv', (client:SocioSession, data:MessageD
   //data has field "id" and "data" that is the literal param to the client-side serv() function
 
   //respond, bcs the client always awaits some answer
-  client.Send('RES', {id:data.id, result:1}) //result is optional
+  client.Send(ClientMessageKind.RES, {id:data.id, result:1}) //result is optional
 })
 ```
 
@@ -472,6 +473,7 @@ This object can grow large, because you can send just the differences in updates
 
 The manual way with full control is something like this:
 ```ts
+import { ClientMessageKind } from 'socio/core-client';
 const socserv = new SocioServer(...)
 
 //use the generic communications mechanism to init a room
@@ -484,11 +486,11 @@ socserv.RegisterLifecycleHookHandler('serv', (client:SocioSession, data:MessageD
     socserv.RegisterProp(id, {}, {send_as_diff:true}) //add a assigner function yourself or dont idk
 
     //tell the user their room ID so they can share with their friends.
-    client.Send('RES', {id:data.id, room_id:id})
+    client.Send(ClientMessageKind.RES, {id:data.id, room_id:id})
   }else if(data.data.action == 'destroy_room'){
     //last person to exit the room should call to destroy it. You can think of ways to ensure this yourself. Get creative :)
     socserv.UnRegisterProp(data.data.room_id) //free memory of server
-    client.Send('RES', {id:data.id, result:1})
+    client.Send(ClientMessageKind.RES, {id:data.id, result:1})
   }
 })
 ```
