@@ -156,7 +156,7 @@ export class SocioClient extends LogHandler {
                     if (data?.prop && data.hasOwnProperty('id') && (data.hasOwnProperty('prop_val') || data.hasOwnProperty('prop_val_diff'))) {
                         const prop = this.#props.get(data.prop as string);
                         if (prop && prop.subs.hasOwnProperty(data.id as id) && typeof prop.subs[data.id as id] === 'function') {
-                            const prop_val = data?.prop_val ? data.prop_val : diff_lib.applyDiff(prop.val, data.prop_val_diff);
+                            const prop_val = data.hasOwnProperty('prop_val') ? data.prop_val : diff_lib.applyDiff(prop.val, data.prop_val_diff);
                             //@ts-expect-error
                             prop.subs[data.id as id](prop_val as PropValue, data?.prop_val_diff || undefined);
                             prop.val = prop_val; //set the new val
