@@ -270,7 +270,7 @@ export class SocioServer extends LogHandler {
                     break;
                 }
                 case  CoreMessageKind.PROP_SUB:{
-                    this.#CheckPropExists(data?.prop, client, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
+                    this.#CheckPropExists(data?.prop, client, data.id as id, `Prop key [${data?.prop}] does not exist on the backend! [#prop-reg-not-found-sub]`)
 
                     if (this.#lifecycle_hooks.sub)
                         if (await this.#lifecycle_hooks.sub(client, kind, data))
@@ -281,7 +281,7 @@ export class SocioServer extends LogHandler {
 
                     //send response
                     if (data?.data?.receive_initial_update)
-                        client.Send(ClientMessageKind.PROP_UPD, {
+                        await client.Send(ClientMessageKind.PROP_UPD, {
                             id: data.id,
                             prop: data.prop,
                             prop_val: this.GetPropVal(data.prop as PropKey)
@@ -293,7 +293,7 @@ export class SocioServer extends LogHandler {
                     break;
                 }
                 case  CoreMessageKind.PROP_UNSUB:{
-                    this.#CheckPropExists(data?.prop, client, data?.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found]')
+                    this.#CheckPropExists(data?.prop, client, data?.id as id, `Prop key [${data?.prop}] does not exist on the backend! [#prop-reg-not-found-unsub]`)
 
                     if (this.#lifecycle_hooks.unsub)
                         if (await this.#lifecycle_hooks.unsub(client, kind, data))
@@ -323,7 +323,7 @@ export class SocioServer extends LogHandler {
                     break;
                 }
                 case  CoreMessageKind.PROP_GET:{
-                    this.#CheckPropExists(data?.prop, client, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found-get]');
+                    this.#CheckPropExists(data?.prop, client, data.id as id, `Prop key [${data?.prop}] does not exist on the backend! [#prop-reg-not-found-get]`);
                     client.Send(ClientMessageKind.RES, {
                         id: data.id,
                         result: this.GetPropVal(data.prop as string)
@@ -331,7 +331,7 @@ export class SocioServer extends LogHandler {
                     break;
                 }
                 case  CoreMessageKind.PROP_SET:{
-                    this.#CheckPropExists(data?.prop, client, data.id as id, 'Prop key does not exist on the backend! [#prop-reg-not-found-set]');
+                    this.#CheckPropExists(data?.prop, client, data.id as id, `Prop key [${data?.prop}] does not exist on the backend! [#prop-reg-not-found-set]`);
                     try {
                         if (this.#props.get(data.prop as string)?.client_writable) {
                             //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value.
@@ -646,6 +646,10 @@ export class SocioServer extends LogHandler {
         try {
             const prop = this.#props.get(key);
             if (!prop) throw new E(`Prop key [${key}] not registered! [#UnRegisterProp-prop-not-found]`);
+            
+            //drop the prop first, so that it cant be subbed to while informing clients - a rare but potential issue
+            if (!this.#props.delete(key))
+                throw new E(`Error deleting prop key [${key}]. [#prop-key-del-error]`);
 
             //inform all subbed clients that this prop has been dropped
             for (const [client_id, args] of prop.updates.entries()) {
@@ -653,10 +657,6 @@ export class SocioServer extends LogHandler {
                     this.#sessions.get(client_id)?.Send(ClientMessageKind.PROP_DROP, { id: args.id, prop: key });
                 else this.#sessions.delete(client_id); //the client_id doesnt exist anymore for some reason, so unsubscribe
             }
-
-            //drop the prop
-            if (!this.#props.delete(key))
-                throw new E(`Error deleting prop key [${key}]. [#prop-key-del-error]`);
         } catch (e: err) { this.HandleError(e) }
     }
     GetPropVal(key: PropKey){
@@ -750,11 +750,11 @@ export class SocioServer extends LogHandler {
         for (const prop of this.#props.values()) { prop.updates.delete(client_id); }; //clear prop subs
     }
 
-    #CheckSessionsTimeouts(){
+    async #CheckSessionsTimeouts(){
         const now = (new Date()).getTime();
         for (const client of this.#sessions.values()){
             if (now >= client.last_seen + client.session_opts.session_timeout_ttl_ms){
-                client.Send(ClientMessageKind.TIMEOUT, {});
+                await client.Send(ClientMessageKind.TIMEOUT, {});
                 client.CloseConnection();
                 this.HandleInfo('Session timed out.', client.id);
             }

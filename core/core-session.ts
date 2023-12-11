@@ -53,17 +53,25 @@ export class SocioSession extends LogHandler {
     get ipAddr(): string { return this.#ws['socio_client_ipAddr']; }
 
     //accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
-    Send(kind: ClientMessageKind, ...data) {//data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
+    Send(kind: ClientMessageKind, ...data): Promise<void> | void {//data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
         if(this.#destroyed) return; //if this session is marked for destruction
         if (data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, data); //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
-        const payload = yaml_stringify(Object.assign({}, { kind: kind, data: data[0] }, ...data.slice(1)));
-        if (this.session_opts?.max_payload_size && payload.length < this.session_opts.max_payload_size){
-            this.HandleDebug(`blocked a send: [${ClientMessageKind[kind]}] to [${this.id}] for exceeding max payload size [${this.session_opts.max_payload_size}] with size [${payload.length}]`);
-        }else{
-            this.#ws.send(payload);
-            this.HandleInfo(`sent: [${ClientMessageKind[kind]}] to [${this.id}]`, ...(kind != ClientMessageKind.RECV_FILES ? data : []));
-            this.last_seen_now();
-        }
+
+        // the setImmediate trick to turn a sync task into an async task, since ws.send() is sync for some reason. If you dont await Send(), it is actually a bit faster this way
+        return new Promise((resolve) => {
+            setImmediate(() => {
+                const payload = yaml_stringify(Object.assign({}, { kind: kind, data: data[0] }, ...data.slice(1)));
+                if (this.session_opts?.max_payload_size && payload.length < this.session_opts.max_payload_size) {
+                    this.HandleDebug(`blocked a send: [${ClientMessageKind[kind]}] to [${this.id}] for exceeding max payload size [${this.session_opts.max_payload_size}] with size [${payload.length}]`);
+                } else {
+                    this.#ws.send(payload);
+                    if(this.verbose) //this check here, bcs it is faster than adding a function onto the callstack, and this f will be spammed a lot.
+                        this.HandleInfo(`sent: [${ClientMessageKind[kind]}] to [${this.id}]`, ...(kind != ClientMessageKind.RECV_FILES ? data : []));
+                    this.last_seen_now();
+                }
+                resolve();
+            });
+        });
     }
 
     RegisterSub(tables: string[], id: id, sql:string, params?: object, rate_limit?:RateLimit) {
