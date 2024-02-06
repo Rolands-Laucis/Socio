@@ -55,7 +55,7 @@ export class SocioSession extends LogHandler {
     //accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
     Send(kind: ClientMessageKind, ...data): Promise<void> | void {//data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
         if(this.#destroyed) return; //if this session is marked for destruction
-        if (data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, data); //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
+        if (data.length < 1) throw new E('Not enough arguments to send data!', {kind, data}); //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
 
         // the setImmediate trick to turn a sync task into an async task, since ws.send() is sync for some reason. If you dont await Send(), it is actually a bit faster this way
         return new Promise((resolve) => {
@@ -109,8 +109,8 @@ export class SocioSession extends LogHandler {
     last_seen_now(){this.last_seen = (new Date()).getTime()}
 
     // Closes the underlying socket
-    CloseConnection() {
-        if (this.#ws?.close) this.#ws.close();
+    CloseConnection(code?: number) {
+        if (this.#ws?.close) this.#ws.close(code);
         if (this.#ws?.terminate) this.#ws.terminate();
     }
     //marks the session to be destroyed after some time to live
