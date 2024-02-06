@@ -21,6 +21,7 @@ Currently the lib has been developed with a main focus on SQL queries being writ
 In the future i may support more of the NoSQL ecosystem.
 
 #### Youtube devlogs that talk more about some of the features here:
+* [Socio.js v1.7.1 | Client-Side Reg-prop; File Compression; JSON to YAML](https://youtu.be/05mnpjxXx9M)
 * [Socio.js v1.3.12 | Arbiter; Endpoint subs; prop encryption etc.](https://www.youtube.com/watch?v=HSbyOZ9dmH8)
 * [Socio.js v0.8.2 & v0.9 | Socio strings & Request Progress](https://www.youtube.com/watch?v=wZQxjz1d868)
 * [Socio.js - Getting started v0.7](https://www.youtube.com/watch?v=t8_QBzk5bUk)
