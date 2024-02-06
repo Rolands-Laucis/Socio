@@ -26,8 +26,9 @@ export type QueryFunction = (client: SocioSession, id: id, sql: string, params?:
 type SessionsDefaults = { timeouts: boolean, timeouts_check_interval_ms?: number, session_delete_delay_ms?: number, recon_ttl_ms?: number } & SessionOpts;
 type DecryptOptions = { decrypt_sql: boolean, decrypt_prop: boolean, decrypt_endpoint: boolean };
 type DBOpts = { Query: QueryFunction, Arbiter?: (initiator: { client: SocioSession, sql: string, params: any }, current: { client: SocioSession, hook: SubObj }) => boolean | Promise<boolean>};
-type SocioServerOptions = { db: DBOpts, socio_security?: SocioSecurity | null, decrypt_opts?: DecryptOptions, hard_crash?: boolean, session_defaults?: SessionsDefaults, prop_upd_diff?: boolean } & LoggingOpts;
+type SocioServerOptions = { db: DBOpts, socio_security?: SocioSecurity | null, decrypt_opts?: DecryptOptions, hard_crash?: boolean, session_defaults?: SessionsDefaults, prop_upd_diff?: boolean, [key:string]:any } & LoggingOpts;
 type AdminMessageDataObj = {function:string, args?:any[], secure_key:string};
+type BasicClientResponse = { id: id | string, data?: any, result?: Bit | string | {success: Bit | string} | object, [key: string]: any };
 
 //NB! some fields in these variables are private for safety reasons, but also bcs u shouldnt be altering them, only if through my defined ways. They are mostly expected to be constants.
 //whereas public variables are free for you to alter freely at any time during runtime.
@@ -63,8 +64,9 @@ export class SocioServer extends LogHandler {
     //public:
     db!: DBOpts;
     session_defaults: SessionsDefaults = { timeouts: false, timeouts_check_interval_ms: 1000 * 60, session_timeout_ttl_ms: Infinity, session_delete_delay_ms: 1000 * 5, recon_ttl_ms: 1000 * 60 * 60 };
+    prop_reg_timeout_ms!: number;
 
-    constructor(opts: ServerOptions | undefined = {}, { db, socio_security = null, logging = { verbose: false, hard_crash: false }, decrypt_opts = { decrypt_sql: true, decrypt_prop: false, decrypt_endpoint:false}, session_defaults = undefined, prop_upd_diff=false }: SocioServerOptions){
+    constructor(opts: ServerOptions | undefined = {}, { db, socio_security = null, logging = { verbose: false, hard_crash: false }, decrypt_opts = { decrypt_sql: true, decrypt_prop: false, decrypt_endpoint:false}, session_defaults = undefined, prop_upd_diff=false, prop_reg_timeout_ms=1000*10 }: SocioServerOptions){
         super({ ...logging, prefix:'SocioServer'});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
         //hard_crash will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
@@ -79,6 +81,7 @@ export class SocioServer extends LogHandler {
         if (!db?.Query) return;
         this.db = db;
         this.session_defaults = Object.assign(this.session_defaults, session_defaults);
+        this.prop_reg_timeout_ms = prop_reg_timeout_ms;
 
         this.#wss.on('connection', this.#Connect.bind(this)); //https://thenewstack.io/mastering-javascript-callbacks-bind-apply-call/ have to bind 'this' to the function, otherwise it will use the .on()'s 'this', so that this.[prop] are not undefined
         this.#wss.on('close', (...stuff) => { this.HandleInfo('WebSocketServer close event', ...stuff) });
@@ -153,10 +156,10 @@ export class SocioServer extends LogHandler {
                 this.HandleInfo(`recv: BLOB from ${client.id}`)
                 if (this.#lifecycle_hooks.blob) {
                     if (await this.#lifecycle_hooks.blob(client, req))
-                        client.Send(ClientMessageKind.RES, { id:'BLOB', result: {success: 1} });
-                    else client.Send(ClientMessageKind.RES, { id: 'BLOB', result: { success: 0} });
+                        client.Send(ClientMessageKind.RES, { id: 'BLOB', result: { success: 1 } } as BasicClientResponse);
+                    else client.Send(ClientMessageKind.RES, { id: 'BLOB', result: { success: 0 } } as BasicClientResponse);
                 }
-                else client.Send(ClientMessageKind.ERR, { id: 'BLOB', result: 'Server does not handle the BLOB hook.' });
+                else client.Send(ClientMessageKind.ERR, { id: 'BLOB', result: 'Server does not handle the BLOB hook.' } as BasicClientResponse);
                 return;
             }
 
@@ -202,17 +205,17 @@ export class SocioServer extends LogHandler {
                                 id: data.id,
                                 result: await this.db.Query(client, data.id || 0, data.sql || '', data?.params),
                                 status: 'success'
-                            });
+                            } as BasicClientResponse);
                         } else client.Send(ClientMessageKind.ERR, {
                             id: data.id,
                             result: 'Only SELECT queries may be subscribed to! [#reg-not-select]',
                             status: 'error'
-                        });
+                        } as BasicClientResponse);
                     } else client.Send(ClientMessageKind.ERR, {
                         id: data.id,
                         result: 'Nothing to subscribed to! [#reg-no-res]',
                         status: 'error'
-                    });
+                    } as BasicClientResponse);
                     break;
                 }
                 case  CoreMessageKind.UNSUB:{
@@ -220,7 +223,7 @@ export class SocioServer extends LogHandler {
                         if (await this.#lifecycle_hooks.unsub(client, kind, data))
                             return;
 
-                    client.Send(ClientMessageKind.RES, { id: data.id, result: { success: client.UnRegisterSub(data?.unreg_id || '')} });
+                    client.Send(ClientMessageKind.RES, { id: data.id, result: { success: client.UnRegisterSub(data?.unreg_id || '') } } as BasicClientResponse);
                     break;
                 }
                 case  CoreMessageKind.SQL:{
@@ -232,7 +235,7 @@ export class SocioServer extends LogHandler {
                     }
                     //have to do the query in every case
                     const res = this.db.Query(client, data.id || 0, data.sql || '', data.params);
-                    client.Send(ClientMessageKind.RES, { id: data.id, result: await res }); //wait for result and send it back
+                    client.Send(ClientMessageKind.RES, { id: data.id, result: await res } as BasicClientResponse); //wait for result and send it back
 
                     //if the sql wasnt a SELECT, but altered some resource, then need to propogate that to other connection hooks
                     if (!QueryIsSelect(data.sql || ''))
@@ -241,7 +244,7 @@ export class SocioServer extends LogHandler {
                     break;
                 }
                 case  CoreMessageKind.PING:{
-                    client.Send(ClientMessageKind.PONG, { id: data?.id });
+                    client.Send(ClientMessageKind.PONG, { id: data?.id } as BasicClientResponse);
                     break;
                 }
                 case  CoreMessageKind.AUTH: {//client requests to authenticate itself with the server
@@ -305,13 +308,13 @@ export class SocioServer extends LogHandler {
                         client.Send(ClientMessageKind.RES, {
                             id: data?.id,
                             result: { success: prop?.updates.delete(client_id) ? 1 : 0}
-                        });
+                        } as BasicClientResponse);
                     } catch (e: err) {
                         //send response
                         client.Send(ClientMessageKind.ERR, {
                             id: data?.id,
                             result: e?.msg
-                        });
+                        } as BasicClientResponse);
                         throw e; //report on the server as well
                     }
 
@@ -354,7 +357,7 @@ export class SocioServer extends LogHandler {
                         client.Send(ClientMessageKind.ERR, {
                             id: data.id,
                             result: `Prop name "${data.prop}" already registered on server! Choose a different name.`
-                        });
+                        } as BasicClientResponse);
                         return;
                     }
                     // if a name hasnt been supplied, then generate a unique prop name and return it
@@ -375,7 +378,20 @@ export class SocioServer extends LogHandler {
                         id: data.id,
                         result: 1,
                         prop: data.prop
-                    });
+                    } as BasicClientResponse);
+
+                    // check after timeout, if there are no observers, then unreg this prop. In case a user spams regs and nobody subs them
+                    if (this.prop_reg_timeout_ms > 0) //can set this.prop_reg_timeout_ms to 0 or negative to skip this logic
+                        setTimeout(() => {
+                            //it might have already been deleted
+                            if (this.#props.has(data.prop as PropKey)){
+                                // @ts-expect-error
+                                if (this.#props.get(data.prop as PropKey).updates.size === 0){ //if no subs, then delete it
+                                    this.UnRegisterProp(data.prop as PropKey);
+                                    this.HandleDebug(`Temporary Prop UNregistered, because nobody subbed it before prop_reg_timeout_ms (${this.prop_reg_timeout_ms}ms)!`, data.prop);
+                                }
+                            }
+                        }, this.prop_reg_timeout_ms);
                     break;
                 }
                 case  CoreMessageKind.SERV:{
@@ -586,8 +602,8 @@ export class SocioServer extends LogHandler {
             client.Send(ClientMessageKind.ERR, {
                 id: msg_id,
                 result: error_msg
-            });
-            throw new E(error_msg, prop, client.id)
+            } as BasicClientResponse);
+            throw new E(error_msg, prop, client.id);
         }
     }
 
