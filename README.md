@@ -82,8 +82,8 @@ I cannot guarantee perfect safety of the query encryption. Neither can anything.
 
 You should be using WSS:// and HTTPS:// protocols for everything, so that the data is secure over the network. That's up to you and your server configuration.
 
-## Socio in Production 🥳
-* [Real-time rent prices in Riga, Latvia](http://riga.rolandslaucis.lv/) made by me. SvelteKit, Vite, Socio, NginX, Ubuntu server.
+<!-- ## Socio in Production 🥳
+* [Real-time rent prices in Riga, Latvia](http://riga.rolandslaucis.lv/) made by me. SvelteKit, Vite, Socio, NginX, Ubuntu server. -->
 
 ## Related lib and tech 🔗
 * [WS](https://www.npmjs.com/package/ws) *Socio uses on the server*
