@@ -10,7 +10,6 @@
 * [Interactive Basic Demo project](https://github.com/Rolands-Laucis/Socio/blob/main/demos/basic/readme.md) in Vanilla JS.
 * [Interactive Secure Full-Stack Framework Demo project](https://github.com/Rolands-Laucis/Socio/tree/main/demos/full-stack_framework#readme) with SvelteKit and Vite.
 * [Simple Documentation](https://github.com/Rolands-Laucis/Socio/blob/main/Documentation.md)
-* <a href="http://riga.rolandslaucis.lv/" target="_blank">Website made with Socio</a> by me. Real-time rent prices in Riga, Latvia. SvelteKit, Vite, Socio, NginX, Ubuntu server.
 
 ---
 This lets you write SQL in your frontend code, that automagically refreshes on all clients when a resource is changed on any (optionally) connected DB. Additionally, create any generic JS variables on your server to be realtime synced across all clients using "Server Props".
