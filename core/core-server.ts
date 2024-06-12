@@ -19,6 +19,7 @@ import type { IncomingMessage } from 'http';
 import type { id, PropKey, PropValue, PropAssigner, PropOpts, SocioFiles, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts, Bit, SessionOpts } from './types.js';
 import { ClientMessageKind } from './core-client.js';
 import type { RateLimit } from './ratelimit.js';
+import type { SocioStringObj } from './utils.js';
 export type MessageDataObj = { id?: id, sql?: string, endpoint?: string, params?: any, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val?: PropValue, prop_upd_as_diff?:boolean, data?: any, rate_limit?: RateLimit, files?: SocioFiles, sql_is_endpoint?:boolean };
 export type QueryFuncParams = { id?: id, sql: string, params?: any };
 export type QueryFunction = (client: SocioSession, id: id, sql: string, params?: any) => Promise<object>;
@@ -40,6 +41,7 @@ export class SocioServer extends LogHandler {
 
     //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages, if the msg flag is set
     #secure: { socio_security: SocioSecurity | null } & DecryptOptions;
+    #cypther_text_cache: Map<string, SocioStringObj> = new Map();
 
     //backend props, e.g. strings for colors, that clients can subscribe to and alter
     #props: Map<PropKey, { val: PropValue, assigner: PropAssigner, updates: Map<ClientID, { id: id, rate_limiter?: RateLimiter }> } & PropOpts> = new Map();
@@ -508,39 +510,48 @@ export class SocioServer extends LogHandler {
 
     //this assumes that this.#secure.socio_security is properly assigned
     #Decrypt(client:SocioSession, str:string, is_sql:boolean):string{
-        let markers: string[] | undefined;
+        let socio_string_obj: SocioStringObj;
 
-        //check crypt format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where each part is base64 encoded
-        const parts = str.includes(' ') ? str.split(' ') : [];
-        if (parts.length != 3)
-            throw new E('the cipher text does not contain exactly 3 space seperated parts, therefor is invalid. [#cipher-text-invalid-format]', { client, str });
+        // first check the cache, if this cyphertext has already been verified as valid and secure
+        if (this.#cypther_text_cache.has(str))
+            socio_string_obj = this.#cypther_text_cache.get(str) as SocioStringObj;
+        // otherwise decrypt
+        else{
+            //check crypt format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where each part is base64 encoded
+            const parts = str.includes(' ') ? str.split(' ') : [];
+            if (parts.length != 3)
+                throw new E('the cipher text does not contain exactly 3 space seperated parts, therefor is invalid. [#cipher-text-invalid-format]', { client, str });
 
-        //decrypt
-        str = (this.#secure.socio_security as SocioSecurity).DecryptString(parts[0], parts[1], parts[2]);
-        str = (this.#secure.socio_security as SocioSecurity).RemoveRandInts(str);
-        
-        //get markers from string, if they exist. Can be done for SQL, props, endpoints
-        ; ({ str, markers } = SocioStringParse(str)); //forgot what this neat js trick is called. 
+            const cypher_text = str; //save for cache key
+            str = (this.#secure.socio_security as SocioSecurity).DecryptString(parts[0], parts[1], parts[2]);
+            str = (this.#secure.socio_security as SocioSecurity).RemoveRandInts(str);
 
-        //perform marker checks
-        if (markers?.includes('auth'))//requiers auth to execute
+            //get markers from string, if they exist. Can be done for SQL, props, endpoints
+            socio_string_obj = SocioStringParse(str);
+
+            // save this decyphered result in the cache
+            this.#cypther_text_cache.set(cypher_text, socio_string_obj);
+        }
+
+        //perform marker checks on every request
+        if (socio_string_obj.markers?.includes('auth'))//requiers auth to execute
             if (!client.authenticated)
                 throw new E(`Client tried to execute an auth query without being authenticated. [#auth-issue]`, { client });
 
-        if (is_sql && markers?.includes('perm')) { //SQL requiers perms on tables to execute
-            const verb = ParseQueryVerb(str);
+        if (is_sql && socio_string_obj.markers?.includes('perm')) { //SQL requiers perms on tables to execute
+            const verb = ParseQueryVerb(socio_string_obj.str);
             if (!verb)
-                throw new E(`Client sent an unrecognized SQL query verb. [#verb-issue]`, { client, str });
+                throw new E(`Client sent an unrecognized SQL query verb. [#verb-issue]`, { client, str: socio_string_obj.str });
 
-            const tables = ParseQueryTables(str);
+            const tables = ParseQueryTables(socio_string_obj.str);
             if (!tables)
-                throw new E(`Client sent an SQL query without table names. [#table-names-not-found]`, { client, str });
+                throw new E(`Client sent an SQL query without table names. [#table-names-not-found]`, { client, str: socio_string_obj.str });
 
             if (!tables.every((t) => client.HasPermFor(verb, t)))
-                throw new E(`Client tried to execute a perms query without having the required permissions. [#perm-issue]`, { client, str, verb, tables });
+                throw new E(`Client tried to execute a perms query without having the required permissions. [#perm-issue]`, { client, str: socio_string_obj.str, verb, tables });
         }
 
-        return str;
+        return socio_string_obj.str;
     }
 
     async Update(initiator:SocioSession, sql:string, params:object){        

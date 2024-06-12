@@ -11,7 +11,7 @@ The ``./core/secure.ts`` file contains logic to be run on a backend server. It e
 
 **Use HTTPS and WSS secure protocols** to protect against snooping and man-in-the-middle attacks on the dynamic query params.
 
-**Encryption** and decryption uses the **AES-256-GCM algorithm (symmetric encryption)**, which guarantees Confidentiality - cannot be read; Integrity - cannot be altered; and Authenticity - server can verify the author of the created cypher text. There is also protection against known-plain-text attacks by inserting random numbers into the raw string. So it should be fine, if an attacker sees the encrypted and decrypted ciphertexts.
+**Encryption** and decryption uses the **AES-256-GCM algorithm (symmetric encryption)**, which guarantees Confidentiality - cannot be read; Integrity - cannot be altered; and Authenticity - server can verify the author of the created cypher text. There is also protection against known-plain-text attacks by inserting random numbers into the raw string. So it should be fine, if an attacker sees the encrypted and decrypted ciphertexts. Additionally, since decyphering at runtime is costly, a cache is implemented, which is not initialized and persisted beyond the process memory.
 
 ## SQL and NoSQL
 Currently the lib has been developed with a main focus on SQL queries being written on the frontend. This matters, bcs i parse the sent strings with the assumption that they are valid SQL syntax. However, the lib now also supports a NoSQL paradigm in the form of what i call "Server Props".
