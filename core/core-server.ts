@@ -41,7 +41,7 @@ export class SocioServer extends LogHandler {
 
     //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages, if the msg flag is set
     #secure: { socio_security: SocioSecurity | null } & DecryptOptions;
-    #cypther_text_cache: Map<string, SocioStringObj> = new Map();
+    #cypther_text_cache: Map<string, SocioStringObj> = new Map(); //decyphering at runtime is costly, so cache validated, secure results.
 
     //backend props, e.g. strings for colors, that clients can subscribe to and alter
     #props: Map<PropKey, { val: PropValue, assigner: PropAssigner, updates: Map<ClientID, { id: id, rate_limiter?: RateLimiter }> } & PropOpts> = new Map();
