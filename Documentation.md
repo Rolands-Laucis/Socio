@@ -72,7 +72,8 @@ socserv.RegisterLifecycleHookHandler("con", (client:SocioSession, req:IncomingMe
 });
 
 //all the hooks have their types in "socio/dist/types", so that you can see the hook param type inference in your IDE:
-const handle_admin_hook: Admin_Hook = (client, ...) => {...}
+const handle_auth_hook: Auth_Hook = (client, ...) => {...}
+socserv.RegisterLifecycleHookHandler("auth", handle_auth_hook);
 ```
 
 #### Server and Client Hook definitions
@@ -97,7 +98,7 @@ import type { SocioSession } from 'socio/dist/core-session.js'
 //keep track of which SocioSession client_id's have which of your database user_id's.
 const auth_clients:{[client_id:string]: number} = {};
 socserv.RegisterLifecycleHookHandler("auth", (client:SocioSession, params: object | null | Array<any>) => {
-    const user_id = DB.get(params);//...do some DB stuff to get the user_id from params, that may contain like username and password
+    const user_id = DB.get(params);//...do some DB stuff to get the user_id from params, that may contain like username and password. This data will be encrypted by lower OSI layers, if using WSS:// (secure sockets). However, its still a good practice, that DB passwords should not be sent in plain-text.
     auth_clients[client.id] = user_id;
     return true;
 })
@@ -625,7 +626,20 @@ const sc = new SocioClient(`ws://localhost:3000`, {
 ```
 
 Note that the ``name`` must be set on the old and new instance and they must be identical, so that socio knows which 2 sessions are attempting to reconnect.
-After the reconnection attempt, the client asks for a new future use token to be used after the next reload. And so the cycle goes. Tokens are encrypted; stored via the Local Storage API (which is domain scoped); are one-time use, even if that use was faulty; have an expiration ttl (1h default); check change in IP; and other safety meassures.
+After the reconnection attempt, the client asks for a new future use token to be used after the next reload. And so the cycle goes. Tokens are encrypted; stored via the Local Storage API (which is domain scoped); are one-time use, even if that use was faulty; have an expiration ttl (1h default); they check change in IP and other safety meassures.
+
+Or a more risky opproach is to recognize client connections by their IP (v4 or v6, whichever is used). Do this with a global flag on the SocioServer config:
+```ts
+//server code
+
+const socserv = new SocioServer({ port: 3000 }, {
+    db: {...}, 
+    logging: {...},
+    auto_recon_by_ip:true // <- this
+  }
+);
+```
+"Risky", because of the nature of IPv4 there are hierarchies of IP addresses, bcs there arent enough of them for billions of devices (unlike IPv6). So the IPv4 should be unique to users under the same hierarchy, e.g. same ISP, if the Socio Server is also under this same ISP. Otherwise the same IPv4 might point to multiple ppl, i.e. all devices under an ISP would have the same IPv4 visible to Socio and would treat them as the same client. Shivers me timbers. But still useful for localhost dev, so that the clients dont have to use the tokens.
 
 This is also not needed if your framework implements CSR (client-side routing), whereby the page doesnt actually navigate or reload, but just looks like it does.
 

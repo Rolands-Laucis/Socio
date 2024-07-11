@@ -7,7 +7,7 @@ import { ClientMessageKind } from './core-client.js';
 
 //types
 import type { WebSocket } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
-import type { id, Bit, LoggingOpts, SessionOpts } from './types.js';
+import type { id, Bit, LoggingOpts, SessionOpts, Auth_Hook } from './types.js';
 import type { RateLimit } from './ratelimit.js';
 
 export type SubObj = {
@@ -90,9 +90,9 @@ export class SocioSession extends LogHandler {
     }
 
     get authenticated() { return this.#authenticated }
-    async Authenticate(auth_func:Function, params:object|null=null) { //auth func can return any truthy or falsy value, the client will only receive a boolean, so its safe to set it to some credential or id or smth, as this would be accessible and useful to you when checking the session access to tables
-        const auth:boolean = await auth_func(this, params);
-        this.#authenticated = auth == true;
+    async Authenticate(auth_func: Auth_Hook, params:object|null=null) { //auth func can return any truthy or falsy value, the client will only receive a boolean, so its safe to set it to some credential or id or smth, as this would be accessible and useful to you when checking the session access to tables
+        const auth = await auth_func(this, params);
+        this.#authenticated = auth === true;
         return auth;
     }
 

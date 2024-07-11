@@ -27,7 +27,7 @@ export type QueryFunction = (client: SocioSession, id: id, sql: string, params?:
 type SessionsDefaults = { timeouts: boolean, timeouts_check_interval_ms?: number, session_delete_delay_ms?: number, recon_ttl_ms?: number } & SessionOpts;
 type DecryptOptions = { decrypt_sql: boolean, decrypt_prop: boolean, decrypt_endpoint: boolean };
 type DBOpts = { Query: QueryFunction, Arbiter?: (initiator: { client: SocioSession, sql: string, params: any }, current: { client: SocioSession, hook: SubObj }) => boolean | Promise<boolean>};
-type SocioServerOptions = { db: DBOpts, socio_security?: SocioSecurity | null, decrypt_opts?: DecryptOptions, hard_crash?: boolean, session_defaults?: SessionsDefaults, prop_upd_diff?: boolean, [key:string]:any } & LoggingOpts;
+type SocioServerOptions = { db: DBOpts, socio_security?: SocioSecurity | null, decrypt_opts?: DecryptOptions, hard_crash?: boolean, session_defaults?: SessionsDefaults, prop_upd_diff?: boolean, auto_recon_by_ip?:boolean, [key:string]:any } & LoggingOpts;
 type AdminMessageDataObj = {function:string, args?:any[], secure_key:string};
 type BasicClientResponse = { id: id | string, data?: any, result?: Bit | string | {success: Bit | string} | object, [key: string]: any };
 
@@ -35,7 +35,7 @@ type BasicClientResponse = { id: id | string, data?: any, result?: Bit | string 
 //whereas public variables are free for you to alter freely at any time during runtime.
 
 export class SocioServer extends LogHandler {
-    // private:
+    //---private:
     #wss: WebSocketServer;
     #sessions: Map<ClientID, SocioSession> = new Map(); //Maps are quite more performant than objects. And their keys dont overlap with Object prototype.
 
@@ -63,17 +63,18 @@ export class SocioServer extends LogHandler {
     //global flag to send prop obj diffs using the diff lib instead of the full object every time.
     #prop_upd_diff = false;
 
-    //public:
+    //---public:
     db!: DBOpts;
     session_defaults: SessionsDefaults = { timeouts: false, timeouts_check_interval_ms: 1000 * 60, session_timeout_ttl_ms: Infinity, session_delete_delay_ms: 1000 * 5, recon_ttl_ms: 1000 * 60 * 60 };
     prop_reg_timeout_ms!: number;
+    auto_recon_by_ip:boolean = false;
 
-    constructor(opts: ServerOptions | undefined = {}, { db, socio_security = null, logging = { verbose: false, hard_crash: false }, decrypt_opts = { decrypt_sql: true, decrypt_prop: false, decrypt_endpoint:false}, session_defaults = undefined, prop_upd_diff=false, prop_reg_timeout_ms=1000*10 }: SocioServerOptions){
+    constructor(opts: ServerOptions | undefined = {}, { db, socio_security = null, logging = { verbose: false, hard_crash: false }, decrypt_opts = { decrypt_sql: true, decrypt_prop: false, decrypt_endpoint: false }, session_defaults = undefined, prop_upd_diff = false, prop_reg_timeout_ms = 1000 * 10, auto_recon_by_ip = false }: SocioServerOptions){
         super({ ...logging, prefix:'SocioServer'});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
         //hard_crash will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
         //both are public and settable at runtime
-
+        
         //private:
         this.#wss = new WebSocketServer({ ...opts, clientTracking: true }); //take a look at the WebSocketServer docs - the opts can have a server param, that can be your http server
         this.#secure = { socio_security, ...decrypt_opts };
@@ -84,6 +85,7 @@ export class SocioServer extends LogHandler {
         this.db = db;
         this.session_defaults = Object.assign(this.session_defaults, session_defaults);
         this.prop_reg_timeout_ms = prop_reg_timeout_ms;
+        this.auto_recon_by_ip = auto_recon_by_ip;
 
         this.#wss.on('connection', this.#Connect.bind(this)); //https://thenewstack.io/mastering-javascript-callbacks-bind-apply-call/ have to bind 'this' to the function, otherwise it will use the .on()'s 'this', so that this.[prop] are not undefined
         this.#wss.on('close', (...stuff) => { this.HandleInfo('WebSocketServer close event', ...stuff) });
@@ -95,8 +97,8 @@ export class SocioServer extends LogHandler {
 
         const addr: AddressInfo = this.#wss.address() as AddressInfo;
         if (this.verbose) this.done(`Created SocioServer on `, addr);
-        // if (addr.family == 'ws')
-        //     this.HandleInfo('WARNING! Your server is using an unsecure WebSocket protocol, setup wss:// instead, when you can!');
+        if (addr.family == 'ws')
+            this.HandleInfo('WARNING! Your server is using an unsecure WebSocket protocol, setup wss:// instead, when you can!');
     }
 
     async #Connect(conn: WebSocket, request: IncomingMessage){
@@ -118,10 +120,6 @@ export class SocioServer extends LogHandler {
             if (this.#lifecycle_hooks.con)
                 await this.#lifecycle_hooks.con(client, request); //u can get the client_id and client_ip off the client object
 
-            //notify the client of their ID
-            client.Send(ClientMessageKind.CON, client_id);
-            this.HandleInfo('CON', client_id); //, this.#wss.clients
-
             //set this client websockets event handlers
             conn.on('message', (req: Buffer | ArrayBuffer | Buffer[], isBinary: Boolean) => {
                 if (this.#sessions.has(client_id))//@ts-expect-error
@@ -130,6 +128,24 @@ export class SocioServer extends LogHandler {
             });
             conn.on('close', (code:number, reason:Buffer) => { this.#SocketClosed.bind(this)(client, {code, reason:reason.toString('utf8')}) });
             conn.on('error', (error: Error) => { this.#SocketClosed.bind(this)(client, error) }); //https://github.com/websockets/ws/blob/master/doc/ws.md#event-error-1
+        
+            // socio can recognize that the IP matches an existing session, so it can reconnect to it, keeping the old sessions data
+            if(this.auto_recon_by_ip){
+                // find an IP matching session
+                for (const [id, ses] of this.#sessions.entries()){
+                    if(id !== client_id && ses.ipAddr === client_ip){
+                        //recon procedure
+                        const old_client = this.#sessions.get(id) as SocioSession;
+                        this.ReconnectClientSession(client, old_client);
+                        this.HandleInfo(`AUTO IP RECON | old id:  ${id} -> new id:  ${client.id} | IP: ${client_ip}`);
+                        break;
+                    }
+                }
+            }
+
+            //notify the client of their ID
+            client.Send(ClientMessageKind.CON, client_id);
+            this.HandleInfo('CON', { id: client_id, ip: client_ip }); //, this.#wss.clients
         } catch (e: err) { this.HandleError(e); }
     }
 
@@ -251,13 +267,13 @@ export class SocioServer extends LogHandler {
                 }
                 case  CoreMessageKind.AUTH: {//client requests to authenticate itself with the server
                     if (client.authenticated) //check if already has auth
-                        client.Send(ClientMessageKind.AUTH, { id: data.id, result: {success: 1} });
+                        client.Send(ClientMessageKind.AUTH, { id: data.id, result: 1 });
                     else if (this.#lifecycle_hooks.auth) {
-                        const res = await client.Authenticate(this.#lifecycle_hooks.auth, data.params) //bcs its a private class field, give this function the hook to call and params to it. It will set its field and give back the result. NOTE this is safer than adding a setter to a private field
-                        client.Send(ClientMessageKind.AUTH, { id: data.id, result: res == true ? 1 : 0 }) //authenticated can be any truthy or falsy value, but the client will only receive a boolean, so its safe to set this to like an ID or token or smth for your own use
+                        const res = await client.Authenticate(this.#lifecycle_hooks.auth, data.params); //bcs its a private class field, give this function the hook to call and params to it. It will set its field and give back the result. NOTE this is safer than adding a setter to a private field
+                        client.Send(ClientMessageKind.AUTH, { id: data.id, result: res === true ? 1 : 0 }); //authenticated can be any truthy or falsy value, but the client will only receive a boolean, so its safe to set this to like an ID or token or smth for your own use
                     } else {
-                        this.HandleError('AUTH function hook not registered, so client not authenticated. [#no-auth-func]')
-                        client.Send(ClientMessageKind.AUTH, { id: data.id, result: 0 })
+                        this.HandleError('AUTH function hook not registered, so client not authenticated. [#no-auth-func]');
+                        client.Send(ClientMessageKind.AUTH, { id: data.id, result: 0 });
                     }
                     break;
                 }
@@ -461,22 +477,8 @@ export class SocioServer extends LogHandler {
 
                         //recon procedure
                         const old_client = this.#sessions.get(old_c_id) as SocioSession;
-                        old_client.Restore();//stop the old session deletion, since a reconnect was actually attempted
-                        client.CopySessionFrom(old_client);
-
-                        //clear the subscriptions on the sockets, since the new instance will define new ones on the new page. Also to avoid ID conflicts
-                        this.#ClearClientSessionSubs(old_c_id);
-                        this.#ClearClientSessionSubs(client.id);
-
-                        //delete old session for good
-                        old_client.Destroy(() => {
-                            this.#ClearClientSessionSubs(old_c_id);
-                            this.#sessions.delete(old_c_id);
-                        }, this.session_defaults.session_delete_delay_ms as number);
-
-                        //notify the client 
-                        client.Send(ClientMessageKind.RECON, { id: data.id, result: { old_client_id: old_c_id, auth: client.authenticated }, success: 1 });
-                        this.HandleInfo(`RECON ${old_c_id} -> ${client.id} (old client ID -> new/current client ID)`);
+                        this.ReconnectClientSession(client, old_client, data.id as id);
+                        this.HandleInfo(`RECON | old id:  ${old_c_id} -> new id:  ${client.id}`);
                     }
                     break;
                 } 
@@ -786,6 +788,27 @@ export class SocioServer extends LogHandler {
                 this.HandleInfo('Session timed out.', client.id);
             }
         }
+    }
+
+    ReconnectClientSession(new_session: SocioSession, old_session: SocioSession, client_notify_msg_id?:id){
+        const new_id = new_session.id, old_id = old_session.id;
+        old_session.Restore();//stop the old session deletion, since a reconnect was actually attempted
+        new_session.CopySessionFrom(old_session);
+
+        //clear the subscriptions on the sockets, since the new instance will define new ones on the new page. Also to avoid ID conflicts
+        this.#ClearClientSessionSubs(old_id);
+        this.#ClearClientSessionSubs(new_id);
+
+        //delete old session for good
+        old_session.Destroy(() => {
+            this.#ClearClientSessionSubs(old_id);
+            this.#sessions.delete(old_id);
+        }, this.session_defaults.session_delete_delay_ms as number);
+
+        //notify the client
+        const data = { result: { old_client_id: old_id, auth: new_session.authenticated }, success: 1 };
+        if (client_notify_msg_id) data['id'] = client_notify_msg_id;
+        new_session.Send(ClientMessageKind.RECON, data);
     }
 
     get session_ids(){return this.#sessions.keys();}

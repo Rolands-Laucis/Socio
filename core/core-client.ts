@@ -16,6 +16,7 @@ type QueryObjectSQL = { sql?: string, endpoint?: string, params?: object | null 
 type QueryObject = QueryObjectSQL & { onUpdate: SubscribeCallbackObject };
 type QueryPromise = { res: Function, prom:Promise<any> | null, start_buff: number, payload_size?:number };
 export type ProgressOnUpdate = (percentage: number) => void;
+type ReconData = { id?: id, result: { old_client_id: ClientID, auth: boolean }, success: Bit };
 
 type PropUpdateCallback = ((new_val: PropValue, diff?: diff_lib.rdiffResult[]) => void) | null;
 export type ClientProp = { val: PropValue | undefined, subs: { [id: id]: PropUpdateCallback } };
@@ -131,7 +132,7 @@ export class SocioClient extends LogHandler {
                 }
                 case ClientMessageKind.AUTH:{
                     this.#FindID(kind, data?.id)
-                    if (data?.result?.success as Bit !== 1)
+                    if (data?.result as Bit !== 1)
                         this.HandleInfo(`AUTH returned FALSE, which means websocket has not authenticated.`);
 
                     this.#authenticated = data?.result as Bit === 1;
@@ -189,10 +190,14 @@ export class SocioClient extends LogHandler {
                     break;
                 }
                 case ClientMessageKind.RECON:{
-                    this.#FindID(kind, data?.id);
-                    //@ts-expect-error
-                    this.#queries.get(data.id)(data);
-                    this.#queries.delete(data.id); //clear memory
+                    if(data?.id){
+                        this.#FindID(kind, data.id);
+                        (this.#queries.get(data.id) as QueryPromise).res(data);
+                        this.#queries.delete(data.id); //clear memory
+                    }
+                    // sent without id, so the recon was automatic on the server-side, not requested by this client
+                    else
+                        this.#Reconnect(data as unknown as ReconData);
                     break;
                 }
                 case ClientMessageKind.RECV_FILES:{
@@ -464,15 +469,12 @@ export class SocioClient extends LogHandler {
     }
     #HandleBasicPromiseMessage(kind: ClientMessageKind, data:ClientMessageDataObj){
         this.#FindID(kind, data?.id);
-        const q = this.#queries.get(data.id);
-        // @ts-expect-error
-        if(q?.res)
+        const q = this.#queries.get(data.id) as QueryObject | QueryPromise;
+        if (q.hasOwnProperty('res'))
             (q as QueryPromise).res(data?.result as any);
-        // @ts-expect-error
-        else if (q?.onUpdate)
-            if ((q as QueryObject)?.onUpdate?.success)
-                // @ts-expect-error
-                (q as QueryObject).onUpdate.success(data?.result as Bit);
+        else if (q.hasOwnProperty('onUpdate') && (q as QueryObject).onUpdate?.success)
+            //@ts-expect-error
+            q.onUpdate.success(data?.result as Bit);
         
         this.#queries.delete(data.id); //clear memory
     }
@@ -510,19 +512,18 @@ export class SocioClient extends LogHandler {
 
             //ask the server for a reconnection to an old session via our one-time token
             this.Send(CoreMessageKind.RECON, { id, data: { type: 'POST', token } });            
-            const res = await prom;
-
-            //@ts-ignore
-            if (res?.success){
-                //@ts-ignore
-                this.#authenticated = res?.result?.auth;
-
-                //@ts-ignore
-                this.done(`${this.config.name} reconnected successfully. ${res?.result?.old_client_id} -> ${this.#client_id} (old client ID -> new/current client ID)`)
-            }
-            else
-                this.HandleError(new E('Failed to reconnect', res));
+            const res = await (prom as unknown as Promise<ReconData>);
+            this.#Reconnect(res); //sets the trusted values from the server, like auth bool
         }
+    }
+    //sets the trusted values from the server, like auth bool
+    #Reconnect(data:ReconData){
+        if (data?.success) {
+            this.#authenticated = data?.result.auth;
+            this.done(`${this.config.name} reconnected successfully. ${data.result.old_client_id} -> ${this.#client_id} (old client ID -> new/current client ID)`, data);
+        }
+        else
+            this.HandleError(new E('Failed to reconnect', data));
     }
 
     // for dev debug, if u want
