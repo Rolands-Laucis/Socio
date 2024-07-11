@@ -1,6 +1,6 @@
 //socio stuff
 import { log, info, done, soft_error } from 'socio/dist/logging';
-import { SocioServer } from 'socio/dist/core';
+import { SocioServer } from 'socio/dist/core-server';
 import { SocioSecurity } from 'socio/dist/secure';
 import { perMessageDeflate } from 'socio/dist/utils'; //for auto compressing WS messages. Carefully read documentation before using this! Possible memory leaks!
 import { SaveFilesToDiskPath } from 'socio/dist/fs-utils';
@@ -25,15 +25,15 @@ try {
     socserv.RegisterProp('color', '#ffffff', {
         // assigner is optional and has a default to just accept whatever new value comes in.
         assigner: (curr_val: PropValue, new_val: PropValue) => {
-            if (typeof new_val != 'string' || new_val.length != 7) return false;
+            if (typeof new_val !== 'string' || new_val.length <= 6) return false;
             if (!new_val.match(/^#[0-9a-f]{6}/mi)) return false;
             return socserv.SetPropVal('color', new_val);
         }
     });
     socserv.RegisterProp('num', 0);
 
-    socserv.RegisterLifecycleHookHandler('file_upload', (client: SocioSession, files: SocioFiles) => {
-        return SaveFilesToDiskPath(['.', 'upload_files'], files).result;
+    socserv.RegisterLifecycleHookHandler('file_upload', async (client: SocioSession, files: SocioFiles) => {
+        return (await SaveFilesToDiskPath(['.', 'upload_files'], files)).result;
     });
 }
 catch (e: any) { soft_error(e) }

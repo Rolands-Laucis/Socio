@@ -14,8 +14,8 @@
     import { writable } from "svelte/store";
     import { log } from "socio/dist/logging";
 
-    //init SocioClient
-    const sc = new SocioClient("ws://localhost:3000", {
+    //init SocioClient. Using location.hostname bcs a phone (or other device on the local net) will connect from a different IP than "localhost". In practice, this string will just be your domain name
+    const sc = new SocioClient(`ws://${location.hostname}:3000`, {
         logging:{verbose: true},
         name: "Main",
         // persistent:true
