@@ -189,10 +189,11 @@ Register hook handlers with
 socserv.RegisterLifecycleHookHandler('...', (...) => {return ...});
 ```
 If the hook returns a truthy value, then it is assumed, that the hook handled the msg and Socio will not. Otherwise, by default, Socio handles the msg.
+All hooks are awaited, so you can do any async task in the callbacks.
 
 ##### SocioServer hooks:
-* con: when a new connection is established
-* discon: when a session disconnects, but is not destroyed (forgotten) yet
+* con: when a new WS/TCP connection with a client is created
+* discon: when a session object disconnects (for whatever reason), but is not destroyed (forgotten) yet
 * msg: receives all incomming msgs to the server. 
 * serv: a generic message has come from the client, which you can handle yourself. Socio doesnt do anything for these.
 
