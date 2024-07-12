@@ -81,7 +81,7 @@ export class SocioClient extends LogHandler {
 
         //pass the object to the discon hook, if it exists
         if (this.lifecycle_hooks.discon)//discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
-            this.lifecycle_hooks.discon(this.config.name as string, this.#client_id, url, keep_alive, verbose, reconnect_tries - 1, event); //here you can await ready() and reauth and regain all needed perms
+            this.lifecycle_hooks.discon(this, url, keep_alive, verbose, reconnect_tries - 1, event); //here you can await ready() and reauth and regain all needed perms
     }
     #resetConn() {
         this.#client_id = '';
@@ -101,7 +101,7 @@ export class SocioClient extends LogHandler {
 
             //let the developer handle the msg
             if (this.lifecycle_hooks.msg)
-                if (await this.lifecycle_hooks.msg(this.config.name as string,this.#client_id, kind, data))
+                if (await this.lifecycle_hooks.msg(this, kind, data))
                     return;
 
             switch (kind) {
@@ -179,7 +179,7 @@ export class SocioClient extends LogHandler {
 
                             //tell the dev that this prop has been dropped by the server.
                             if (this.lifecycle_hooks.prop_drop)
-                                this.lifecycle_hooks.prop_drop(this.config.name as string, this.#client_id, data.prop, data.id);
+                                this.lifecycle_hooks.prop_drop(this, data.prop, data.id);
                         }
                         else throw new E('Cant drop unsubbed prop!', data)
                     } else throw new E('Not enough prop info sent from server to perform prop drop.', data)
@@ -207,14 +207,14 @@ export class SocioClient extends LogHandler {
                 case ClientMessageKind.RECV_FILES:{
                     this.#FindID(kind, data?.id);
 
-                    if (data?.result && data?.files) {
+                    if (data?.result?.success === 1 && data?.files) {
                         const files = ParseSocioFiles(data?.files as SocioFiles);
                         //@ts-expect-error  
                         this.#queries.get(data.id).res(files);
                     } else {
                         //@ts-expect-error
                         this.#queries.get(data.id).res(null);
-                        throw new E('File receive either bad result or no files.\nResult:', data?.result, '\nfiles received:', Object.keys(data?.files || {}).length)
+                        throw new E('File receive either bad result or no files.\nResult:', data?.result?.success, '\nfiles received:', Object.keys(data?.files || {}).length)
                     };
 
                     this.#queries.delete(data.id); //clear memory
@@ -222,7 +222,7 @@ export class SocioClient extends LogHandler {
                 }
                 case ClientMessageKind.TIMEOUT:{
                     if (this.lifecycle_hooks.timeout)
-                        this.lifecycle_hooks.timeout(this.config.name as string, this.#client_id);
+                        this.lifecycle_hooks.timeout(this);
                     break;
                 }
                 // case '': {break;}

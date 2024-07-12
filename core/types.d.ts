@@ -1,6 +1,6 @@
 import type { SocioSession } from "./core-session.js";
 import type { MessageDataObj } from "./core-server.ts";
-import type { ClientMessageDataObj } from './core-client.js';
+import type { ClientMessageDataObj, SocioClient } from './core-client.js';
 import type { IncomingMessage } from 'http';
 import type { E, LoggerOptions } from "./logging.js";
 import exp from "constants";
@@ -48,9 +48,9 @@ export type Gen_Prop_Name_Hook = () => string | Promise<string>;
 
 //client hook functions
 export type ClientLifecycleHooks = { discon?: Discon_ClientHook, msg?: Msg_ClientHook, cmd?: Cmd_ClientHook, timeout?: Timeout_ClientHook, prop_drop?: PropDrop_ClientHook };
-export type Discon_ClientHook = (name:string, client_id:ClientID, url:string, keep_alive:boolean, verbose:boolean, reconnect_tries:number, event: Event | CloseEvent) => void;
-export type Msg_ClientHook = (name: string, client_id: ClientID, kind: ClientMessageKind, data: ClientMessageDataObj) => boolean | void | Promise<boolean> | Promise<void>;
+export type Discon_ClientHook = (client:SocioClient, url:string, keep_alive:boolean, verbose:boolean, reconnect_tries:number, event: Event | CloseEvent) => void;
+export type Msg_ClientHook = (client:SocioClient, kind: ClientMessageKind, data: ClientMessageDataObj) => boolean | void | Promise<boolean> | Promise<void>;
 export type Cmd_ClientHook = (data:ClientMessageDataObj) => void;
-export type Timeout_ClientHook = (name: string, client_id: ClientID) => void;
-export type PropDrop_ClientHook = (name: string, client_id: ClientID, prop_key:PropKey, sub_id:id) => void;
-// export type _ClientHook = (name: string, client_id: ClientID,) => boolean;
+export type Timeout_ClientHook = (client:SocioClient) => void;
+export type PropDrop_ClientHook = (client:SocioClient, prop_key:PropKey, sub_id:id) => void;
+// export type _ClientHook = (client:SocioClient,) => boolean;
