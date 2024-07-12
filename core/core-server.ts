@@ -95,10 +95,15 @@ export class SocioServer extends LogHandler {
         if (this.session_defaults.timeouts)
             setInterval(this.#CheckSessionsTimeouts.bind(this), this.session_defaults.timeouts_check_interval_ms);
 
-        const addr: AddressInfo = this.#wss.address() as AddressInfo;
-        if (this.verbose) this.done(`Created SocioServer on `, addr);
-        if (addr.family == 'ws')
-            this.HandleInfo('WARNING! Your server is using an unsecure WebSocket protocol, setup wss:// instead, when you can!');
+        // log info for the dev
+        if (this.verbose){
+            const addr: AddressInfo = this.#wss.address() as AddressInfo;
+            this.done(`Created SocioServer on`, addr);
+            if (addr.family == 'ws')
+                this.HandleInfo('WARNING! Your server is using an unsecure WebSocket protocol, setup wss:// instead, when you can!');
+            if (!socio_security)
+                this.HandleInfo('WARNING! Please use the SocioSecurity class in production to securely de/encrypt Socio strings from clients!');
+        }
     }
 
     async #Connect(conn: WebSocket, request: IncomingMessage){

@@ -50,14 +50,18 @@ export class SocioClient extends LogHandler {
     constructor(url: string, { name = 'Main', logging = { verbose: false, hard_crash: false }, keep_alive = true, reconnect_tries = 1, persistent = false}: SocioClientOptions = {}) {
         super({ ...logging, prefix: name ? `SocioClient:${name}` : 'SocioClient' });
 
-        if (window || undefined && url.startsWith('ws://'))
-            this.HandleInfo('UNSECURE WEBSOCKET URL CONNECTION! Please use wss:// and https:// protocols in production to protect against man-in-the-middle attacks. You need to host an https server with bought SCTs - Signed Certificate Timestamps (keys) - from an authority.');
-
-        //public:
+        // public:
         this.config = {name, logging, keep_alive, reconnect_tries, persistent};
         
+        // private:
         this.#latency = (new Date()).getTime();
         this.#connect(url, keep_alive, this.verbose || false, reconnect_tries);
+
+        // log info for the dev
+        if(this.verbose){
+            if (window || undefined && url.startsWith('ws://'))
+                this.HandleInfo('WARNING, UNSECURE WEBSOCKET URL CONNECTION! Please use wss:// and https:// protocols in production to protect against man-in-the-middle attacks. You need to host an https server with bought SCTs - Signed Certificate Timestamps (keys) - from an authority.');
+        }
     }
 
     
