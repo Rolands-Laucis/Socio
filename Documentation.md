@@ -1,3 +1,36 @@
+# QUICK START FOR LAZIES
+```sh
+npm i socio
+```
+
+```ts
+//server code - whatever way you have of running this script once. You need to host a server.
+import { SocioServer } from 'socio/dist/core-server.js'; //or .ts
+
+const socserv = new SocioServer({ port: 3000 }, {
+    db: {
+      Query: async (client:SocioSession, id:id, sql:string, params: object | null | Array<any> = {}) => {return ...} //do ur SQL query however you want
+    }, 
+    logging: {verbose:true}
+  }
+);
+```
+
+```ts
+//browser code
+import { SocioClient } from 'socio/dist/core-client.js'; //or .ts
+
+const sc = new SocioClient(`ws://localhost:3000`, { logging: {verbose:true} }); //make as many as u want
+await sc.ready();
+
+console.log(await sc.Query(`SELECT 42+69 AS RESULT;`));//one-time query
+
+//subscribe to the changes of this query. Runs the callback with the new received data (including first time fetch)
+sc.Subscribe({ sql: `SELECT COUNT(*) AS RESULT FROM users;`}, (res) => {...});
+```
+
+Keep reading for a billion more options and mechanisms Socio provides!
+
 # Overview
 
 * [WS](https://www.npmjs.com/package/ws) Socio uses on the server.
@@ -146,6 +179,9 @@ sc.Query('all', {sql_is_endpoint:true, params:{}}, (val) => {
   log(val);
 });
 ```
+
+#### All lifecycle hooks:
+
 
 #### WebSocket perMessageDeflate (Zlib Message Compression)
 You may want to compress incoming and outgoing messages of your WebSockets for less network traffic. However, note that the use of compression would obviously add to CPU and RAM loads. In addition, see other concerns - [slow speed and possible memory leaks](https://github.com/websockets/ws/issues/1369) [ws readme](https://github.com/websockets/ws#websocket-compression). I have provided the ``perMessageDeflate`` object for convenience, which is the default from the ws readme. From my investigation, this is enough to get it working. [See here](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket#instance_properties) and check on SocioClient.ws.extensions
