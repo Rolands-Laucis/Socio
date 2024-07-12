@@ -52,8 +52,8 @@ export class SocioServer extends LogHandler {
     #lifecycle_hooks: ServerLifecycleHooks = { con: undefined, discon: undefined, msg: undefined, sub: undefined, unsub: undefined, upd: undefined, auth: undefined, gen_client_id: undefined, grant_perm: undefined, serv: undefined, admin: undefined, blob: undefined, file_upload: undefined, file_download: undefined, endpoint: undefined, gen_prop_name:undefined }; //call the register function to hook on these. They will be called if they exist
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //msg hook receives all incomming msgs to the server. 
-    //upd works the same as msg, but for everytime updates need to be propogated to all the sockets.
-    //auth func can return any truthy or falsy value, the client will only receive a boolean, so its safe to set it to some credential or id or smth, as this would be accessible and useful to you when checking the session access to tables.
+    //upd works the same as msg, but for every time that updates need to be propogated to all the sockets.
+    //auth func has to return only a boolean
     //the grant_perm funtion is for validating that the user has access to whatever tables or resources the sql is working with. A client will ask for permission to a verb (SELECT, INSERT...) and table(s). If you grant access, then the server will persist it for the entire connection.
     //the admin function will be called, when a socket attempts to use an ADMIN msg kind. It receives the SocioSession instance, that has id, ip and last seen fields you can use. Also the data it sent, so u can check your own secure key or smth. Return truthy to allow access
 
@@ -501,7 +501,7 @@ export class SocioServer extends LogHandler {
                         const response = await this.#lifecycle_hooks.file_download(client, data?.data) as FS_Util_Response;
                         if (!response?.result)
                             this.HandleError(new E('file_download hook returned unsuccessful result.', response?.error));
-                        client.Send(ClientMessageKind.RECV_FILES, { id: data.id, files: response.files, result: response.result });
+                        client.Send(ClientMessageKind.RECV_FILES, { id: data.id, files: response.files, result: {success: response.result ? 1 : 0} });
                     }
                     else {
                         this.HandleError('file_download hook not registered. [#no-file_download-hook]');

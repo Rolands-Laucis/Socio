@@ -182,6 +182,42 @@ sc.Query('all', {sql_is_endpoint:true, params:{}}, (val) => {
 
 #### All lifecycle hooks:
 
+Descriptions of hook purpose. See [types.d.ts](./core/types.d.ts) for their type definitions.
+
+Register hook handlers with
+```ts
+socserv.RegisterLifecycleHookHandler('...', (...) => {return ...});
+```
+If the hook returns a truthy value, then it is assumed, that the hook handled the msg and Socio will not. Otherwise, by default, Socio handles the msg.
+
+##### SocioServer hooks:
+* con: when a new connection is established
+* discon: when a session disconnects, but is not destroyed (forgotten) yet
+* msg: receives all incomming msgs to the server. 
+* serv: a generic message has come from the client, which you can handle yourself. Socio doesnt do anything for these.
+
+* sub: a client wants to subscribe to a query
+* unsub: a client wants to unsubscribe from a query
+* upd: works the same as msg, but for every time that updates need to be propogated to all the sockets.
+* endpoint: if the client happens to want to use an endpoint keyname instead of SQL, retrieve the SQL string from this hook call.
+
+* gen_client_id: called to generate a unique ID for a client session. By default - UUID4
+* gen_prop_name: called to generate a unique ID for a prop name. By default - UUID4. Usually used for generating party game room state prop and codes, when a prop is created client-side.
+
+* auth: client wants to authentificate, which will set a special bool flag on the session, which is used for giving access to performing SQL calls, that require the client to be authentificated. Has to return a bool.
+* grant_perm: for validating that the user has access to whatever tables or resources the sql is working with. A client will ask for permission to a verb (SELECT, INSERT...) and table(s). If you grant access, then the server will persist it (remember) for the entire connection.
+* admin: when a socket attempts to use an ADMIN msg kind. It receives the SocioSession instance, that has id, ip and last seen fields you can use. Also the data it sent, so u can check your own secure key or smth. Return truthy to allow the admin action
+
+* blob: the client has sent a BLOB (binary data) to the server. Socio doesnt do anything for these.
+* file_upload: a client uploads a file(s) to the server. Socio doesnt do anything for these.
+* file_download: a client requests a file(s from the server. Socio doesnt do anything for these.
+
+##### SocioClient hooks:
+* discon: the client disconnected from SocioServer
+* msg: the client has received a message from SocioServer
+* cmd: SocioServer has sent a generic command message for the client. Socio doesnt do anything for these.
+* timeout: SocioServer notifys the client that its session has timed-out. The discon hook will fire seperately at some point.
+* prop_drop: SocioServer has dropped (unregistered/destroyed) this prop, so there wont be any more updates for its state and it doesnt need to be unregistered by the client.
 
 #### WebSocket perMessageDeflate (Zlib Message Compression)
 You may want to compress incoming and outgoing messages of your WebSockets for less network traffic. However, note that the use of compression would obviously add to CPU and RAM loads. In addition, see other concerns - [slow speed and possible memory leaks](https://github.com/websockets/ws/issues/1369) [ws readme](https://github.com/websockets/ws#websocket-compression). I have provided the ``perMessageDeflate`` object for convenience, which is the default from the ws readme. From my investigation, this is enough to get it working. [See here](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket#instance_properties) and check on SocioClient.ws.extensions
