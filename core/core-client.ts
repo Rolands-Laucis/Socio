@@ -257,7 +257,8 @@ export class SocioClient extends LogHandler {
                     size: file.size,
                     type: file.type
                 };
-                proc_files.set(file.name, { meta, bin: Uint8ArrayToSocioFileBase64(await file.arrayBuffer())}); //this is the best way that i could find. JS is really unhappy about binary data
+                const file_bytes_buffer = await file.arrayBuffer();
+                proc_files.set(file.name, { meta, bin: Uint8ArrayToSocioFileBase64(file_bytes_buffer)}); //this is the best way that i could find. JS is really unhappy about binary data
             }
 
             //create the server request as usual
@@ -601,8 +602,19 @@ export function SocioFileBase64ToUint8Array(base64:string='') {
 }
 
 // Helper function to compress and encode data to Base64
-export function Uint8ArrayToSocioFileBase64(file_bin:ArrayBuffer) {
+export function Uint8ArrayToSocioFileBase64(file_bin: ArrayBuffer, chunkSize = 0x8000) {
     const compressedData = pako.deflate(file_bin);
-    // @ts-expect-error
-    return window.btoa(String.fromCharCode.apply(null, new Uint8Array(compressedData)));
+    let binaryString = '';
+
+    // Use a chunk size of 32KB to avoid call range issues
+    // turns out js has a func arg limit or spread limit, so have to do this in chunks
+    // was getting RangeError: too many function arguments for >4MB files
+    for (let i = 0; i < compressedData.length; i += chunkSize) {
+        const chunk = compressedData.subarray(i, i + chunkSize);
+        // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/fromCharCode
+        binaryString += String.fromCharCode(...chunk); //A number between 0 and 65535 (0xFFFF) representing a UTF-16 code unit.
+    }
+
+    // https://developer.mozilla.org/en-US/docs/Web/API/Window/btoa
+    return window.btoa(binaryString); //The btoa() method creates a Base64-encoded ASCII string from a binary string (i.e., a string in which each character in the string is treated as a byte of binary data). 
 }
