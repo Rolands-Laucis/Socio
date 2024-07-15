@@ -2,7 +2,7 @@
 
 # Socio - A WebSocket Real-Time Communication (RTC) API framework. Realtime Front-end, Back-end reactivity.
 
-* <a href="https://www.youtube.com/watch?v=iJIC9B3cKME&ab_channel=CepuminsLV" target="_blank">3 min video - Introduction demo.</a>
+* <a href="https://youtu.be/pu78XwY25O4" target="_blank">Socio in 100 Seconds</a>
 * <a href="https://www.youtube.com/watch?v=t8_QBzk5bUk" target="_blank">16 min video - Getting started with Socio 0.7, SvelteKit, Vite.</a>
 
 ---
