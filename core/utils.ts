@@ -1,48 +1,23 @@
 //I ask not for a lighter burden, but for broader shoulders. -Atlas, when asking Zeus for sympathy.
 
 import type { QueryMarker } from "./types.js";
+import type { SocioStringObj } from "./sql-parsing.js";
 
 export enum CoreMessageKind {
     SUB, UNSUB, SQL, PING, AUTH, GET_PERM, PROP_SUB, PROP_UNSUB, PROP_GET, PROP_SET, PROP_REG, SERV, ADMIN, RECON, UP_FILES, GET_FILES
 };
 
-export type SocioStringObj = { str: string, markers: string[] };
-
-//regex
-export const socio_string_regex = /socio`(?<sql>.*?)`/igs;
-export const table_names_regex = /(?:FROM|INTO)[\s]+(?<tables>[\w,\s]+?)([\s]+)?(?:\(|WHERE|VALUES|;|LIMIT|GROUP|ORDER|$)/mi;
-export const socio_string_markers_regex = /--(?<markers>(?:-?(?:socio|auth|perm))*)/i;
-
-//socio template literal tag. Dummy function, that doesnt ever get used. See Socio <= 1.3.4 on github for a working implementation of this function.
-export function socio(strings: TemplateStringsArray, ...vars){return '';}
-
-//query helper functions
-export function QueryIsSelect(sql: string): boolean {
-    return /^(\s+)?SELECT/im.test(sql)
-}
-
-export function ParseQueryTables(q: string): string[] {
-    return q
-        .match(table_names_regex)
-        ?.groups?.tables
-        .split(/,[\s]*/mig)
-        .map((t) => t.split(/[\s]/mi)[0].trim()) || []
-}
-
-//always returns uppercase verb if found
-export function ParseQueryVerb(q: string): string | null {
-    return q.match(/^(\s+)?(?<verb>SELECT|INSERT|DROP|UPDATE|CREATE)/mi)?.groups?.verb.toUpperCase() || null
-}
 
 //socio string marker utils
+export const socio_string_markers_regex = /--(?<markers>(?:-?(?:socio|auth|perm))*)/i;
 export function SocioStringParse(str: string): SocioStringObj {
     const markers = str.match(socio_string_markers_regex)?.groups?.markers;
     return { str, markers: markers ? markers.split('-') : [] };
 }
-
 export function SocioMarkerHas(marker: QueryMarker, { parsed = null, str = '' }: { parsed?: string[] | null, str?: string }) {
     return marker ? (parsed ? parsed.includes(marker) : (str ? SocioStringParse(str).markers.includes(marker) : false)) : false
 }
+
 
 //misc
 export function sleep(seconds: number = 2) {

@@ -1,8 +1,10 @@
-import { socio_string_regex, socio_string_markers_regex, SocioStringParse, ParseQueryTables, ParseQueryVerb, QueryIsSelect } from './dist/utils.js';
+import { socio_string_markers_regex, SocioStringParse } from './dist/utils.js';
+import { socio_string_regex, ParseQueryTables, ParseQueryVerb, QueryIsSelect } from './dist/sql-parsing.js';
 import { log, done, soft_error } from './dist/logging.js';
 
-const test_cases = ['socio_regex']
-const all = true
+const test_cases = ['table_parsing']
+const all = false;
+const stats = {ran:0, success:0, fail:0}
 
 /**
  * Testing function for single values
@@ -11,17 +13,27 @@ const all = true
  * @param expected
  */
 function test(name, generated, expected) {
-    if (generated === expected)
+    stats.ran += 1;
+    if (generated === expected){
         done(`✔️\t${name}`)
-    else
+        stats.success += 1;
+    }
+    else{
         soft_error(`${name}\tGOT:\n`, generated, '\nBUT EXPECTED\n', expected)
+        stats.fail += 1;
+    }
 }
 
 function test_obj(name, generated, expected) {
-    if (JSON.stringify(generated) === JSON.stringify(expected))
+    stats.ran += 1;
+    if (JSON.stringify(generated) === JSON.stringify(expected)){
+        stats.success += 1;
         done(`✔️\t${name}`)
-    else
+    }
+    else{
+        stats.fail += 1;
         soft_error(`${name}\tGOT:\n`, generated, '\nBUT EXPECTED\n', expected)
+    }
 }
 
 if (test_cases.includes('socio_regex') || all){
@@ -73,6 +85,7 @@ if (test_cases.includes('marker_parsing') || all) {
 if (test_cases.includes('table_parsing') || all) {
     log('📝', 'Testing socio security socio string table parsing...')
 
+    // https://www.sqlite.org/lang_select.html
     let str = 'SELECT * FROM Users;--socio;'
     test_obj('single table', ParseQueryTables(str), ['Users']);
 
@@ -82,17 +95,52 @@ if (test_cases.includes('table_parsing') || all) {
     str = 'SELECT * FROM Users'
     test_obj('single table without ending ;', ParseQueryTables(str), ['Users']);
 
+    str = 'SELECT name FROM Users;';
+    test_obj('select with column name', ParseQueryTables(str), ['Users']);
+
     str = 'SELECT name, num FROM Users;';
-    test_obj('multiple column names', ParseQueryTables(str), ['Users']);
+    test_obj('select with multiple column names', ParseQueryTables(str), ['Users']);
 
     str = 'SELECT name, num FROM Users, Numbers;';
-    test_obj('with column names and multiple tables', ParseQueryTables(str), ['Users', 'Numbers']);
+    test_obj('select with column names and multiple tables', ParseQueryTables(str), ['Users', 'Numbers']);
 
-    str = 'SELECT u.name FROM Users as u;';
-    test_obj('tables with alias', ParseQueryTables(str), ['Users']);
+    str = 'SELECT u.name FROM Users AS u;';
+    test_obj('select tables with alias', ParseQueryTables(str), ['Users']);
 
-    str = 'SELECT u.name, n.num FROM Users as u, Numbers as n;';
-    test_obj('with column names and multiple tables with aliases', ParseQueryTables(str), ['Users', 'Numbers']);
+    str = 'SELECT u.name, n.num FROM Users AS u, Numbers AS n;';
+    test_obj('select with column names and multiple tables with aliases', ParseQueryTables(str), ['Users', 'Numbers']);
+
+    str = 'SELECT DISTINCT u.name FROM Users AS u, Numbers AS n;';
+    test_obj('SELECT DISTINCT with column names and multiple tables with aliases', ParseQueryTables(str), ['Users', 'Numbers']);
+
+    str = 'SELECT employee_id FROM table1 INNER JOIN table2 ON table1.position_id = table2.position_id;';
+    test_obj('SELECT INNER JOIN', ParseQueryTables(str), ['table1', 'table2']);
+
+    str = 'SELECT employee_id FROM table1 LEFT OUTER JOIN table2 ON table1.column = table2.column; ';
+    test_obj('SELECT LEFT OUTER JOIN', ParseQueryTables(str), ['table1', 'table2']);
+
+    str = 'SELECT employee_id FROM table1 NATURAL LEFT OUTER JOIN table2 ON table1.column = table2.column; ';
+    test_obj('SELECT NATURAL LEFT OUTER JOIN', ParseQueryTables(str), ['table1', 'table2']);
+
+    str = 'SELECT employee_id FROM table1 CROSS JOIN table2 ON table1.column = table2.column; ';
+    test_obj('SELECT CROSS JOIN', ParseQueryTables(str), ['table1', 'table2']);
+
+    // https://www.sqlite.org/lang_insert.html
+    str = 'INSERT INTO Users VALUES("bob");';
+    test_obj('INSERT', ParseQueryTables(str), ['Users']);
+
+    str = 'INSERT INTO Users (name) VALUES("bob");';
+    test_obj('INSERT with columns', ParseQueryTables(str), ['Users']);
+
+    str = 'INSERT OR ABORT INTO Users AS u (name, num) VALUES("bob", 420);';
+    test_obj('complex INSERT', ParseQueryTables(str), ['Users']);
+
+    // https://www.sqlite.org/lang_update.html
+    str = 'UPDATE Users SET name = "bob";';
+    test_obj('UPDATE', ParseQueryTables(str), ['Users']);
+
+    str = 'UPDATE OR ABORT Users SET name = "bob";';
+    test_obj('complex UPDATE', ParseQueryTables(str), ['Users']);
 }
 
 if (test_cases.includes('verb_parsing') || all) {
@@ -143,3 +191,5 @@ if (test_cases.includes('select_query_parsing') || all) {
     str = 'INSERT * FROM Users;--socio;'
     test('insert', QueryIsSelect(str), false);
 }
+
+log(stats);

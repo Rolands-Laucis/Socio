@@ -6,7 +6,8 @@ import { WebSocketServer } from 'ws'; //https://github.com/websockets/ws https:/
 import * as diff_lib from 'recursive-diff'; //https://www.npmjs.com/package/recursive-diff
 
 //mine
-import { QueryIsSelect, ParseQueryTables, SocioStringParse, ParseQueryVerb, sleep, GetAllMethodNamesOf, yaml_parse } from './utils.js';
+import { QueryIsSelect, ParseQueryTables, ParseQueryVerb } from './sql-parsing.js';
+import { SocioStringParse, GetAllMethodNamesOf, yaml_parse } from './utils.js';
 import { E, LogHandler, err, log, info, done } from './logging.js';
 import { UUID, type SocioSecurity } from './secure.js';
 import { SocioSession, type SubObj } from './core-session.js';
@@ -19,7 +20,7 @@ import type { IncomingMessage } from 'http';
 import type { id, PropKey, PropValue, PropAssigner, PropOpts, SocioFiles, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts, Bit, SessionOpts } from './types.js';
 import { ClientMessageKind } from './core-client.js';
 import type { RateLimit } from './ratelimit.js';
-import type { SocioStringObj } from './utils.js';
+import type { SocioStringObj } from './sql-parsing.js';
 export type MessageDataObj = { id?: id, sql?: string, endpoint?: string, params?: any, verb?: string, table?: string, unreg_id?: id, prop?: string, prop_val?: PropValue, prop_upd_as_diff?:boolean, data?: any, rate_limit?: RateLimit, files?: SocioFiles, sql_is_endpoint?:boolean };
 export type QueryFuncParams = { id?: id, sql: string, params?: any };
 export type QueryFunction = (client: SocioSession, id: id, sql: string, params?: any) => Promise<object>;
