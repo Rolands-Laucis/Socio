@@ -100,11 +100,15 @@ export class SocioSecurity extends LogHandler {
         return [iv.toString('base64'), cipher_text, auth_tag].join(' ');
     }
     DecryptString(iv_base64: string, cipher_text: string, auth_tag_base64:string):string {
-        const iv = Buffer.from(iv_base64, 'base64');
-        const auth_tag = Buffer.from(auth_tag_base64, 'base64');
-        const decipher = createDecipheriv(cipher_algorithm, this.#key, iv);
-        decipher.setAuthTag(auth_tag) //set the tag for verification.
-        return decipher.update(cipher_text, 'base64', 'utf-8') + decipher.final('utf-8')
+        try{
+            const iv = Buffer.from(iv_base64, 'base64');
+            const auth_tag = Buffer.from(auth_tag_base64, 'base64');
+            const decipher = createDecipheriv(cipher_algorithm, this.#key, iv);
+            decipher.setAuthTag(auth_tag) //set the tag for verification.
+            return decipher.update(cipher_text, 'base64', 'utf-8') + decipher.final('utf-8');
+        }catch (e){
+            throw new E('SocioSecurity.DecryptString() error. Perhaps secret keys mismatch.', e)
+        }
     }
 
     //surrouded by the same quotes as original, the sql gets encrypted along with its marker, so neither can be altered on the front end.
