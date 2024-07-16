@@ -1,4 +1,4 @@
-import { log } from "console";
+// To err is human; to persist in it - diabolial.  /Lucius Annaeus Seneca/
 
 export type SocioStringObj = { str: string, markers: string[] };
 //socio template literal tag. Dummy function, that doesnt ever get used. See Socio <= 1.3.4 on github for a working implementation of this function.
@@ -25,7 +25,7 @@ export function ParseQueryTables(q: string): string[] {
     if(!verb) return [];
 
     let tables_str = q.match(Verb2TableRegex[verb])?.groups?.tables;
-    // log(q, q.match(Verb2TableRegex[verb])); //debug
+    // console.log(q, q.match(Verb2TableRegex[verb])); //debug
     if (!tables_str) return [];
 
     // remove joins, but keep their referenced tables
