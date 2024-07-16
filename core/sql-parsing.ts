@@ -1,4 +1,5 @@
 // To err is human; to persist in it - diabolial.  /Lucius Annaeus Seneca/
+import { soft_error } from './logging.js';
 
 export type SocioStringObj = { str: string, markers: string[] };
 //socio template literal tag. Dummy function, that doesnt ever get used. See Socio <= 1.3.4 on github for a working implementation of this function.
@@ -22,11 +23,22 @@ export function QueryIsSelect(sql: string): boolean {
 
 export function ParseQueryTables(q: string): string[] {
     const verb = ParseQueryVerb(q);
-    if(!verb) return [];
+    if (!verb){
+        soft_error(`Couldnt parse SQL verb.`, {sql_string:q, parsed_verb:verb});
+        return [];
+    }; //the verb must exist and be in Verb2TableRegex
+    if(!Object.keys(Verb2TableRegex).includes(verb)){
+        soft_error(`Parsed SQL verb not supported for table extraction!`, { sql_string: q, parsed_verb: verb, supported: Object.keys(Verb2TableRegex) });
+        return [];
+    }
 
+    // use verb specific regex to extract the tables string
     let tables_str = q.match(Verb2TableRegex[verb])?.groups?.tables;
     // console.log(q, q.match(Verb2TableRegex[verb])); //debug
-    if (!tables_str) return [];
+    if (!tables_str){
+        soft_error(`SQL table extraction regex didnt match anything!`, { sql_string: q, parsed_verb: verb });
+        return [];
+    }
 
     // remove joins, but keep their referenced tables
     if(verb === 'SELECT')
@@ -35,6 +47,7 @@ export function ParseQueryTables(q: string): string[] {
     // remove aliases
     tables_str = tables_str.replaceAll(/AS\s+\w+/g, '').trim();
 
+    // if there are multiple tables, split them
     if(tables_str.includes(','))
         return tables_str
             .split(/,[\s]*/mig)
