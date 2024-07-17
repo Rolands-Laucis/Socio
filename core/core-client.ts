@@ -7,22 +7,27 @@ import { LogHandler, E, err, log, info, done } from './logging.js';
 import { yaml_parse, yaml_stringify, clamp, CoreMessageKind } from './utils.js';
 
 //types
-import type { id, PropKey, PropValue, PropOpts, Bit, ClientLifecycleHooks, ClientID, SocioFiles, LoggingOpts, BasicClientResPromise, BasicClientRes } from './types.js';
+import type { id, PropKey, PropValue, PropOpts, Bit, ClientLifecycleHooks, ClientID, SocioFiles, LoggingOpts, ClientSubscribeOpts } from './types.js';
+
+// cross network data objects
+// client data msg
+import type { data_base, C_RES_data, C_CON_data, C_UPD_data, C_AUTH_data, C_GET_PERM_data, C_PROP_UPD_data, C_RECON_Data, C_RECV_FILES_Data } from './types.js'; //types over network for the data object
+// server data msg
+import type { S_SUB_data, S_UNSUB_data, S_SQL_data, S_AUTH_data, S_GET_PERM_data, S_PROP_SUB_data, S_PROP_UNSUB_data, S_PROP_GET_data, S_PROP_SET_data, S_PROP_REG_data, S_RECON_GET_data, S_RECON_USE_data, S_UP_FILES_data, S_GET_FILES_data } from './types.js';
+import type { ClientMessageDataObj } from './types.js';
+
 import type { RateLimit } from './ratelimit.js';
-export type ClientMessageDataObj = { id: id, verb?: string, table?: string, status?: string | number, result?: string | object | boolean | PropValue | number, prop?: PropKey, prop_val?: PropValue, prop_val_diff:diff_lib.rdiffResult[], data?:any, files?:SocioFiles };
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
 type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?: Function};
-type QueryObjectSQL = { sql?: string, endpoint?: string, params?: object | null };
-type QueryObject = QueryObjectSQL & { onUpdate: SubscribeCallbackObject };
+type QueryObject = ClientSubscribeOpts & { onUpdate: SubscribeCallbackObject };
 type QueryPromise = { res: Function, prom:Promise<any> | null, start_buff: number, payload_size?:number };
 export type ProgressOnUpdate = (percentage: number) => void;
-type ReconData = { id?: id, result: { old_client_id: ClientID, auth: boolean }, success: Bit };
 
 type PropUpdateCallback = ((new_val: PropValue, diff?: diff_lib.rdiffResult[]) => void) | null;
 export type ClientProp = { val: PropValue | undefined, subs: { [id: id]: PropUpdateCallback } };
 export type SocioClientOptions = { name?: string, keep_alive?: boolean, reconnect_tries?: number, persistent?: boolean } & LoggingOpts;
 export enum ClientMessageKind {
-    CON, UPD, PONG, AUTH, GET_PERM, RES, ERR, PROP_UPD, PROP_DROP, CMD, RECON, RECV_FILES, TIMEOUT
+    CON, UPD, PONG, AUTH, GET_PERM, RES, PROP_UPD, PROP_DROP, CMD, RECON, RECV_FILES, TIMEOUT
 };
 
 //"Because he not only wants to perform well, he wants to be well received  —  and the latter lies outside his control." /Epictetus/
@@ -42,7 +47,7 @@ export class SocioClient extends LogHandler {
     //public:
     config: SocioClientOptions;
     key_generator: (() => number | string) | undefined;
-    lifecycle_hooks: ClientLifecycleHooks = { discon: undefined, msg: undefined, cmd: undefined, timeout: undefined, prop_drop:undefined }; //assign your function to hook on these. They will be called if they exist
+    lifecycle_hooks: ClientLifecycleHooks = { discon: undefined, msg: undefined, cmd: undefined, timeout: undefined, prop_drop:undefined, server_error:undefined }; //assign your function to hook on these. They will be called if they exist
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
     // progs: Map<Promise<any>, number> = new Map(); //the promise is that of a socio generic data going out from client async. Number is WS send buffer payload size at the time of query
@@ -96,8 +101,8 @@ export class SocioClient extends LogHandler {
 
     async #message(event: MessageEvent) {
         try{
-            const { kind, data }: { kind: ClientMessageKind; data: ClientMessageDataObj } = yaml_parse(event.data)
-            this.HandleInfo('recv:', ClientMessageKind[kind], data)
+            const { kind, data }: { kind: ClientMessageKind; data: ClientMessageDataObj } = yaml_parse(event.data);
+            this.HandleInfo('recv:', ClientMessageKind[kind], data);
 
             //let the developer handle the msg
             if (this.lifecycle_hooks.msg)
@@ -106,8 +111,7 @@ export class SocioClient extends LogHandler {
 
             switch (kind) {
                 case ClientMessageKind.CON:{
-                    //@ts-expect-error
-                    this.#client_id = data as string;//should just be a string
+                    this.#client_id = data as C_CON_data;//should just be a string
                     this.#latency = (new Date()).getTime() - this.#latency;
 
                     if (this.config.persistent) {
@@ -125,99 +129,138 @@ export class SocioClient extends LogHandler {
                     break;
                 }
                 case ClientMessageKind.UPD:{
-                    this.#FindID(kind, data?.id);
-                    (this.#queries.get(data.id) as QueryObject).onUpdate[data.status as string](data.result); //status might be success or error, and error might not be defined
+                    this.#FindID(kind, (data as C_UPD_data).id);
+                    const q = this.#queries.get((data as C_UPD_data).id) as QueryObject;
+                    if ((data as C_UPD_data).result.success === 1 && q.onUpdate.success){
+                        q.onUpdate.success(((data as C_UPD_data).result.res));
+                    }else{
+                        if (q.onUpdate?.error){
+                            q.onUpdate.error((data as C_UPD_data).result.error);
+                        }else{
+                            throw new E('Subscription query doesnt handle incoming server error:', (data as C_UPD_data).result.error)
+                        }
+                    }
                     break;
                 }
                 case ClientMessageKind.PONG:{
-                    this.#FindID(kind, data?.id)
-                    this.HandleInfo('pong', data?.id);
+                    this.#FindID(kind, (data as data_base)?.id)
+                    this.HandleInfo('pong', (data as data_base)?.id);
                     break;
                 }
                 case ClientMessageKind.AUTH:{
-                    this.#FindID(kind, data?.id)
-                    if (data?.result as Bit !== 1)
+                    this.#FindID(kind, (data as C_AUTH_data)?.id)
+                    if ((data as C_AUTH_data)?.result?.success !== 1)
                         this.HandleInfo(`AUTH returned FALSE, which means websocket has not authenticated.`);
 
-                    this.#authenticated = data?.result as Bit === 1;
-                    (this.#queries.get(data.id) as QueryPromise).res(this.#authenticated); //result should be either True or False to indicate success status
-                    this.#queries.delete(data.id); //clear memory
+                    this.#authenticated = (data as C_AUTH_data).result.success === 1;
+                    (this.#queries.get((data as C_AUTH_data).id) as QueryPromise).res(this.#authenticated); //result should be either True or False to indicate success status
+                    this.#queries.delete((data as C_AUTH_data).id); //clear memory
                     break;
                 }
                 case ClientMessageKind.GET_PERM:{
-                    this.#FindID(kind, data?.id)
-                    if (data?.result?.success as Bit !== 1)
-                        this.HandleInfo(`Server rejected grant perm for ${data?.verb} on ${data?.table}.`);
+                    this.#FindID(kind, (data as C_GET_PERM_data)?.id)
+                    if ((data as C_GET_PERM_data)?.result?.success as Bit !== 1)
+                        this.HandleInfo(`Server rejected grant perm for ${(data as C_GET_PERM_data)?.verb} on ${(data as C_GET_PERM_data)?.table}.`);
+                    else{
+                        const q = this.#queries.get((data as C_GET_PERM_data).id) as QueryPromise
+                        q.res((data as C_GET_PERM_data)?.result.success === 1 ? true : false); //promise expects resolve with boolean
+                    }
 
-                    (this.#queries.get(data.id) as QueryPromise).res(data?.result as Bit === 1); //result should be either True or False to indicate success status
-                    this.#queries.delete(data.id) //clear memory
+                    this.#queries.delete((data as C_GET_PERM_data).id) //clear memory
                     break;
                 }
                 case ClientMessageKind.RES:{
-                    this.#HandleBasicPromiseMessage(kind, data)
+                    this.#HandleBasicPromiseMessage(kind, data as C_RES_data);
                     break;
                 }
                 case ClientMessageKind.PROP_UPD:{
-                    if (data?.prop && data.hasOwnProperty('id') && (data.hasOwnProperty('prop_val') || data.hasOwnProperty('prop_val_diff'))) {
-                        const prop = this.#props.get(data.prop as string);
-                        if (prop && prop.subs.hasOwnProperty(data.id as id) && typeof prop.subs[data.id as id] === 'function') {
-                            const prop_val = data.hasOwnProperty('prop_val') ? data.prop_val : diff_lib.applyDiff(prop.val, data.prop_val_diff);
-                            //@ts-expect-error
-                            prop.subs[data.id as id](prop_val as PropValue, data?.prop_val_diff || undefined);
-                            prop.val = prop_val; //set the new val
-                        }//@ts-expect-error 
-                        else throw new E('Prop UPD called, but subscribed prop does not have a callback.', { data, callback: prop.subs[data.id as id] });
-                        if (this.#queries.has(data.id))
-                            (this.#queries.get(data.id) as QueryPromise).res(data.prop_val as PropValue); //resolve the promise
-                    } else throw new E('Not enough prop info sent from server to perform prop update.', { data })
+                    if (data.hasOwnProperty('prop') && data.hasOwnProperty('id') && (data.hasOwnProperty('prop_val') || data.hasOwnProperty('prop_val_diff'))) {
+                        const prop = this.#props.get((data as C_PROP_UPD_data).prop);
+                        let prop_val: PropValue | diff_lib.rdiffResult[] | undefined;
+                        if (prop){
+                            if (typeof prop.subs[(data as C_PROP_UPD_data).id] === 'function'){
+                                // get the new factual value value of the prop either from the server or from applying the diff from server
+                                if ((data as C_PROP_UPD_data).hasOwnProperty('prop_val')){ //take factual
+                                    //@ts-expect-error
+                                    prop_val = (data as C_PROP_UPD_data).prop_val
+                                }else{ //apply diff
+                                    //@ts-expect-error
+                                    prop_val = diff_lib.applyDiff(prop.val, (data as C_PROP_UPD_data).prop_val_diff);
+                                }
+                                prop.val = prop_val; //set the new val
+
+                                // afterwards call the client subscription with the new val and the received diff 
+                                //@ts-expect-error
+                                prop.subs[(data as C_PROP_UPD_data).id as id](prop_val, (data as C_PROP_UPD_data)?.prop_val_diff || undefined);
+                            } else {
+                                throw new E('Prop UPD called, but subscribed prop is missing a registered callback for this data ID. [#prop-subs-id-not-found]', { data, callback: prop.subs[(data as C_PROP_UPD_data).id] });
+                            }
+                        }else{
+                            throw new E('Prop not found by name. [#prop-name-not-found]', { data, prop_name: (data as C_PROP_UPD_data).prop });
+                        }
+                        
+                        // if this is the initial update from the SUB_PROP call, resolve the promise
+                        // if (this.#queries.has((data as C_PROP_UPD_data).id))
+                        //     (this.#queries.get((data as C_PROP_UPD_data).id) as QueryPromise).res(prop_val); //resolve the promise
+
+                    } else throw new E('Not enough prop info sent from server to perform prop update.', { data: data as C_PROP_UPD_data })
                     break;
                 }
                 case ClientMessageKind.PROP_DROP:{
-                    if (data?.prop && data.hasOwnProperty('id')) {
-                        if (this.#props.has(data.prop)) {
-                            delete this.#props.get(data.prop)?.subs[data.id];
+                    if ((data as C_PROP_UPD_data)?.prop && data.hasOwnProperty('id')) {
+                        if (this.#props.has((data as C_PROP_UPD_data).prop)) {
+                            delete this.#props.get((data as C_PROP_UPD_data).prop)?.subs[(data as C_PROP_UPD_data).id];
 
                             //tell the dev that this prop has been dropped by the server.
                             if (this.lifecycle_hooks.prop_drop)
-                                this.lifecycle_hooks.prop_drop(this, data.prop, data.id);
+                                this.lifecycle_hooks.prop_drop(this, (data as C_PROP_UPD_data).prop, (data as C_PROP_UPD_data).id);
                         }
-                        else throw new E('Cant drop unsubbed prop!', data)
-                    } else throw new E('Not enough prop info sent from server to perform prop drop.', data)
+                        else throw new E('Cant drop unsubbed prop!', data);
+                    } else throw new E('Not enough prop info sent from server to perform prop drop.', data);
                     break;
                 }
                 case ClientMessageKind.CMD: {if(this.lifecycle_hooks.cmd) this.lifecycle_hooks.cmd(data); break;} //the server pushed some data to this client, let the dev handle it
-                case ClientMessageKind.ERR: {//The result field is sometimes used as a cause of error msg on the backend
-                    if (typeof this.#queries.get(data.id) == 'function')
-                        (this.#queries.get(data.id) as QueryPromise).res();
-
-                    this.HandleError(new E(`Request to Server returned ERROR response. [#err-msg-kind]`, { id: data?.id, reason: data?.result }));
-                    break;
-                }
                 case ClientMessageKind.RECON:{
-                    if(data?.id){
-                        this.#FindID(kind, data.id);
-                        (this.#queries.get(data.id) as QueryPromise).res(data);
-                        this.#queries.delete(data.id); //clear memory
+                    if ((data as C_RECON_Data)?.id){
+                        this.#FindID(kind, (data as data_base).id);
+                        
+                        (this.#queries.get((data as data_base).id) as QueryPromise).res(data as C_RECON_Data);
+                        this.#queries.delete((data as data_base).id); //clear memory
                     }
                     // sent without id, so the recon was automatic on the server-side, not requested by this client
                     else
-                        this.#Reconnect(data as unknown as ReconData);
+                        this.#Reconnect(data as C_RECON_Data);
                     break;
                 }
                 case ClientMessageKind.RECV_FILES:{
-                    this.#FindID(kind, data?.id);
+                    this.#FindID(kind, (data as C_RECV_FILES_Data)?.id);
 
-                    if (data?.result?.success === 1 && data?.files) {
-                        const files = ParseSocioFiles(data?.files as SocioFiles);
-                        //@ts-expect-error  
-                        this.#queries.get(data.id).res(files);
+                    // cant exit early, bcs the query needs to be resolved to smth and deleted, so use these vars here instead
+                    let resolve_with: File[] | null = null;
+                    let error: string | null = null;
+                    if ((data as C_RECV_FILES_Data).result.success === 1) {
+                        if ((data as C_RECV_FILES_Data)?.files){
+                            resolve_with = ParseSocioFiles((data as C_RECV_FILES_Data).files as SocioFiles);
+                        }else{
+                            resolve_with = null;
+                            error = 'Received 0 files. Something must\'ve gone wrong, bcs success was true. [#recv-0-files]';
+                        }
                     } else {
-                        //@ts-expect-error
-                        this.#queries.get(data.id).res(null);
-                        throw new E('File receive either bad result or no files.\nResult:', data?.result?.success, '\nfiles received:', Object.keys(data?.files || {}).length)
+                        resolve_with = null;
+                        error = 'File receive bad result. [#recv-files-bad]';
                     };
 
-                    this.#queries.delete(data.id); //clear memory
+                    //@ts-expect-error 
+                    this.#queries.get((data as C_RECV_FILES_Data).id)?.res(resolve_with); //resolve the promise with files or null bcs of error
+                    this.#queries.delete((data as C_RECV_FILES_Data).id); //clear memory
+                    
+                    // notify dev and crash with error
+                    if(error){
+                        const file_count = Object.keys((data as C_RECV_FILES_Data)?.files || {}).length;
+                        this.#HandleServerError(error, (data as C_RECV_FILES_Data).result.error, 'files received: ' + file_count);
+                        throw new E(error, { err_msg:(data as C_RECV_FILES_Data).result.error, file_count });
+                    }
+                    
                     break;
                 }
                 case ClientMessageKind.TIMEOUT:{
@@ -265,12 +308,12 @@ export class SocioClient extends LogHandler {
             const socio_form_data = { id, files: proc_files };
             if (other_data)
                 socio_form_data['data'] = other_data; //add the other data if exists
-            this.Send(CoreMessageKind.UP_FILES, socio_form_data);
+            this.Send(CoreMessageKind.UP_FILES, socio_form_data as S_UP_FILES_data);
 
             this.#UpdateQueryPromisePayloadSize(id);
         })();
 
-        return prom as Promise<{ id: id, result: Bit }>;
+        return (prom as unknown) as Promise<C_RES_data>;
     }
     SendBinary(blob: Blob | ArrayBuffer | ArrayBufferView) { //send binary. Unfortunately, it is not useful for me to invent my own byte formats and build functionality. You can tho. This is just low level access.
         if (this.#queries.get('BLOB')) throw new E('BLOB already being uploaded. Wait until the last query completes!');
@@ -285,11 +328,13 @@ export class SocioClient extends LogHandler {
         return prom;
     }
     CreateQueryPromise(){
+        // creates a basic promise that is trackable. It is resolved either by Message receive switch block by msg ID in queries, or by whatever has a reference to this returned prom
+
         //https://advancedweb.hu/how-to-add-timeout-to-a-promise-in-javascript/ should implement promise timeouts
         const id = this.GenKey;
         const prom = new Promise((res) => {
             this.#queries.set(id, { res, prom:null, start_buff: this.#ws?.bufferedAmount || 0 });
-        }) as BasicClientResPromise;
+        }) as Promise<unknown>;
         (this.#queries.get(id) as QueryPromise).prom = prom;
         
         // this.progs.set(prom, this.#ws?.bufferedAmount || 0); //add this to progress tracking
@@ -308,10 +353,10 @@ export class SocioClient extends LogHandler {
     }
     GetFiles(data: any) {
         const { id, prom } = this.CreateQueryPromise();
-        this.Send(CoreMessageKind.GET_FILES, { id, data });
+        this.Send(CoreMessageKind.GET_FILES, { id, data } as S_GET_FILES_data);
         this.#UpdateQueryPromisePayloadSize(id);
 
-        return (prom as unknown) as Promise<File[]>; //fuck TS fr. wtf is this syntax. r u trying to make me kms?
+        return (prom as unknown) as Promise<File[] | null>; //fuck TS fr. wtf is this syntax. r u trying to make me kms?
     }
     //sends a ping with either the user provided number or an auto generated number, for keeping track of packets and debugging
     Ping(num = 0) {
@@ -329,7 +374,7 @@ export class SocioClient extends LogHandler {
 
     //subscribe to an sql query. Can add multiple callbacks where ever in your code, if their sql queries are identical
     //returns the created ID for that query, to use to unsubscribe all callbacks to the query
-    Subscribe({ sql = undefined, endpoint = undefined, params = null }: QueryObjectSQL = {}, onUpdate: SubscribeCallbackObjectSuccess = null, status_callbacks: { error?: (e: string) => void } = {}, rate_limit: RateLimit | null = null): id | null{
+    Subscribe({ sql = undefined, endpoint = undefined, params = null }: ClientSubscribeOpts = {}, onUpdate: SubscribeCallbackObjectSuccess = null, status_callbacks: { error?: (e: string) => void } = {}, rate_limit: RateLimit | null = null): id | null{
         //params for sql is the object that will be passed as params to your query func
         //optionally can also supply an endpoint name instead of an sql string. Cannot do both. The endpoint is your own keyname for a sql query defined on the backend in a special file.
 
@@ -343,7 +388,7 @@ export class SocioClient extends LogHandler {
             const callbacks: SubscribeCallbackObject = { success: onUpdate, ...status_callbacks };
 
             this.#queries.set(id, { sql, endpoint, params, onUpdate: callbacks });
-            this.Send(CoreMessageKind.SUB, { id, sql, endpoint, params, rate_limit });
+            this.Send(CoreMessageKind.SUB, { id, sql, endpoint, params, rate_limit } as S_SUB_data);
 
             return id; //the ID of the query
         } catch (e: err) { this.HandleError(e); return null; }
@@ -356,7 +401,7 @@ export class SocioClient extends LogHandler {
                 
                 //set up new msg to the backend informing a wish to unregister query.
                 const { id, prom } = this.CreateQueryPromise();
-                this.Send(CoreMessageKind.UNSUB, { id, unreg_id: sub_id })
+                this.Send(CoreMessageKind.UNSUB, { id, unreg_id: sub_id } as S_UNSUB_data)
 
                 const res = await (prom as unknown) as Bit; //await the response from backend
                 if(res === 1)//if successful, then remove the subscribe from the client
@@ -372,7 +417,7 @@ export class SocioClient extends LogHandler {
         const { id, prom } = this.CreateQueryPromise();
 
         //send off the request, which will be resolved in the message handler
-        this.Send(CoreMessageKind.SQL, { id, sql, params, sql_is_endpoint });
+        this.Send(CoreMessageKind.SQL, { id, sql, params, sql_is_endpoint } as S_SQL_data);
         this.#UpdateQueryPromisePayloadSize(id);
 
         // immediate prog tracking for dev convenience.
@@ -387,7 +432,7 @@ export class SocioClient extends LogHandler {
         try {
             //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
             const { id, prom } = this.CreateQueryPromise();
-            this.Send(CoreMessageKind.PROP_SET, { id, prop: prop_name, prop_val: new_val, prop_upd_as_diff });
+            this.Send(CoreMessageKind.PROP_SET, { id, prop: prop_name, prop_val: new_val, prop_upd_as_diff } as S_PROP_SET_data);
             this.#UpdateQueryPromisePayloadSize(id);
 
             return prom;
@@ -397,7 +442,7 @@ export class SocioClient extends LogHandler {
         if (local) return this.#props.get(prop_name)?.val;
         else{
             const { id, prom } = this.CreateQueryPromise();
-            this.Send(CoreMessageKind.PROP_GET, { id, prop:prop_name });
+            this.Send(CoreMessageKind.PROP_GET, { id, prop: prop_name } as S_PROP_GET_data);
             this.#UpdateQueryPromisePayloadSize(id);
             return prom;
         }
@@ -414,7 +459,7 @@ export class SocioClient extends LogHandler {
                 prop.subs[id] = onUpdate;
             else {//init the prop object
                 this.#props.set(prop_name, { val: undefined, subs: { [id]: onUpdate } });
-                this.Send(CoreMessageKind.PROP_SUB, { id, prop: prop_name, rate_limit, data: { receive_initial_update } })
+                this.Send(CoreMessageKind.PROP_SUB, { id, prop: prop_name, rate_limit, data: { receive_initial_update } } as S_PROP_SUB_data)
             }
 
             return prom as Promise<any>;
@@ -428,7 +473,7 @@ export class SocioClient extends LogHandler {
 
                 //set up new msg to the backend informing a wish to unregister query.
                 const { id, prom } = this.CreateQueryPromise();
-                this.Send(CoreMessageKind.PROP_UNSUB, { id, prop: prop_name });
+                this.Send(CoreMessageKind.PROP_UNSUB, { id, prop: prop_name } as S_PROP_UNSUB_data);
 
                 const res = await (prom as unknown) as Bit; //await the response from backend
                 if (res === 1)//if successful, then remove the subscribe from the client
@@ -442,28 +487,29 @@ export class SocioClient extends LogHandler {
     RegisterProp(prop_name: PropKey | undefined | null, initial_value: any = null, prop_reg_opts: Omit<PropOpts, "observationaly_temporary"> = {}) { //"client_writable" & 
         try {
             const { id, prom } = this.CreateQueryPromise();
-            this.Send(CoreMessageKind.PROP_REG, { id, prop: prop_name, initial_value, opts:prop_reg_opts });
+            this.Send(CoreMessageKind.PROP_REG, { id, prop:prop_name, initial_value, opts: prop_reg_opts } as S_PROP_REG_data);
             this.#UpdateQueryPromisePayloadSize(id);
             
-            return prom as Promise<BasicClientRes & { prop: string; }>;
+            return (prom as unknown) as Promise<{ prop: PropKey }>;
         } catch (e: err) { this.HandleError(e); return null; }
     }
 
 
+    // socio query marker related --auth and --perm:
     Authenticate(params:object={}){ //params here can be anything, like username and password stuff etc. The backend server auth function callback will receive this entire object
         const { id, prom } = this.CreateQueryPromise();
-        this.Send(CoreMessageKind.AUTH, { id, params: params });
+        this.Send(CoreMessageKind.AUTH, { id, params } as S_AUTH_data);
         this.#UpdateQueryPromisePayloadSize(id);
 
-        return prom as Promise<{ id: id, result: Bit }>;
+        return (prom as unknown) as Promise<C_AUTH_data>;
     }
     get authenticated() { return this.#authenticated === true }
     AskPermission(verb = '', table = '') {//ask the backend for a permission on a table with the SQL verb u want to perform on it, i.e. SELECT, INSERT etc.
         const { id, prom } = this.CreateQueryPromise();
-        this.Send(CoreMessageKind.GET_PERM, { id, verb:verb, table:table });
+        this.Send(CoreMessageKind.GET_PERM, { id, verb: verb, table: table } as S_GET_PERM_data);
         this.#UpdateQueryPromisePayloadSize(id);
 
-        return prom as Promise<{ id: id, result: Bit }>;
+        return (prom as unknown) as Promise<boolean>;
     }
     
     
@@ -472,16 +518,34 @@ export class SocioClient extends LogHandler {
         if (!this.#queries.has(id))
             throw new E(`A received socio message [querry_id ${id}, ${kind}] is not currently in tracked queries!`);
     }
-    #HandleBasicPromiseMessage(kind: ClientMessageKind, data:ClientMessageDataObj){
+    #HandleBasicPromiseMessage(kind: ClientMessageKind, data: C_RES_data){
         this.#FindID(kind, data?.id);
         const q = this.#queries.get(data.id) as QueryObject | QueryPromise;
-        if (q.hasOwnProperty('res'))
-            (q as QueryPromise).res(data?.result as any);
-        else if (q.hasOwnProperty('onUpdate') && (q as QueryObject).onUpdate?.success)
-            //@ts-expect-error
-            q.onUpdate.success(data?.result as Bit);
+        if (q.hasOwnProperty('res')){
+            if (data.result.success === 1)
+                (q as QueryPromise).res(data?.result?.res as any);
+            else this.#HandleServerError(data.result.error);
+        }
+        else if (q.hasOwnProperty('onUpdate'))
+            if (data.result.success === 1){
+                if ((q as QueryObject).onUpdate?.success)
+                    //@ts-expect-error
+                    (q as QueryObject).onUpdate.success(data.result.res);
+            }
+            else{
+                if ((q as QueryObject).onUpdate?.error)
+                    //@ts-expect-error
+                    (q as QueryObject).onUpdate.error(data.result.error);
+                else this.#HandleServerError(``, data.result.error);
+            }
         
         this.#queries.delete(data.id); //clear memory
+    }
+    #HandleServerError(...error_msgs:string[]){
+        if (this.lifecycle_hooks.server_error)
+            this.lifecycle_hooks.server_error(this, error_msgs);
+        else
+            this.HandleError(new E(...error_msgs));
     }
 
 
@@ -498,7 +562,7 @@ export class SocioClient extends LogHandler {
         const { id, prom } = this.CreateQueryPromise();
 
         //ask the server for a one-time auth token
-        this.Send(CoreMessageKind.RECON, { id, data: { type: 'GET' } });
+        this.Send(CoreMessageKind.RECON, { id, type: 'GET' } as S_RECON_GET_data);
         const token = await (prom as unknown) as string; //await the token
 
         //save down the token. Name is used to map new instance to old instance by same name.
@@ -516,19 +580,22 @@ export class SocioClient extends LogHandler {
             const { id, prom } = this.CreateQueryPromise();
 
             //ask the server for a reconnection to an old session via our one-time token
-            this.Send(CoreMessageKind.RECON, { id, data: { type: 'POST', token } });            
-            const res = await (prom as unknown as Promise<ReconData>);
+            this.Send(CoreMessageKind.RECON, { id, type: 'USE', token } as S_RECON_USE_data);            
+            const res = await (prom as unknown as Promise<C_RECON_Data>);
             this.#Reconnect(res); //sets the trusted values from the server, like auth bool
         }
     }
     //sets the trusted values from the server, like auth bool
-    #Reconnect(data:ReconData){
-        if (data?.success) {
-            this.#authenticated = data?.result.auth;
-            this.done(`${this.config.name} reconnected successfully. ${data.result.old_client_id} -> ${this.#client_id} (old client ID -> new/current client ID)`, data);
+    #Reconnect(data:C_RECON_Data){
+        if (data.result.success === 1) {
+            this.#authenticated = data.auth;
+            this.done(`${this.config.name} reconnected successfully. ${data.old_client_id} -> ${this.#client_id} (old client ID -> new/current client ID)`, data);
         }
-        else
-            this.HandleError(new E('Failed to reconnect', data));
+        else{
+            const error = 'Failed to reconnect'
+            this.HandleError(new E(error, data));
+            this.#HandleServerError(error, data.result.error);
+        }
     }
 
     // for dev debug, if u want

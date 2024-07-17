@@ -2,9 +2,8 @@
 // By silence, I hear other men’s imperfections and conceal my own. /Zeno of Citium/
 
 //types
-import type { ClientID } from "./types.js";
+import type { ClientID, S_SERV_data, ServerMessageDataObj } from "./types.js";
 import type { SocioSession } from "./core-session.js";
-import type { MessageDataObj } from "./core-server.js";
 import { E, log } from "./logging.js";
 export type User = { client_id: ClientID, username?: string };
 export type ChatRoomMessage = { user: User, ts: number, text:string};
@@ -75,14 +74,14 @@ export class ChatRoomClient{
     Receive(msgs: Set<ChatRoomMessage>){this.msg_hook(msgs);}
 }
 
-export function HandleChatRoomServ(client: SocioSession, data: MessageDataObj, chat_rooms:ServerChatRoom[]){
-    if (data?.data?.rel == 'SocioChatRoom') {
-        const chat = chat_rooms.find(c => c.room_id === data.data?.room_id);
+export function HandleChatRoomServ(client: SocioSession, data: ServerMessageDataObj, chat_rooms:ServerChatRoom[]){
+    if ((data as S_SERV_data)?.data?.rel == 'SocioChatRoom') {
+        const chat = chat_rooms.find(c => c.room_id === (data as S_SERV_data).data?.room_id);
         if(!chat) return;
-        switch(data.data?.type){
+        switch ((data as S_SERV_data).data?.type){
             case 'join': {chat.Join(client.id); break;}
             case 'leave': {chat.Leave(client.id); break;}
-            case 'new_msg': {chat.Post(client.id, data.data?.text); break;}
+            case 'new_msg': { chat.Post(client.id, (data as S_SERV_data).data?.text); break;}
             default: throw new E('Unknown SocioChatRoom SERV msg type!');
         }
     }
