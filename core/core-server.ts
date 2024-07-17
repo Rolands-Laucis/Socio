@@ -36,11 +36,10 @@ type DecryptOptions = { decrypt_sql: boolean, decrypt_prop: boolean, decrypt_end
 type DBOpts = { Query: QueryFunction, Arbiter?: (initiator: { client: SocioSession, sql: string, params: any }, current: { client: SocioSession, hook: SubObj }) => boolean | Promise<boolean>};
 type SocioServerOptions = { db: DBOpts, socio_security?: SocioSecurity | null, decrypt_opts?: DecryptOptions, hard_crash?: boolean, session_defaults?: SessionsDefaults, prop_upd_diff?: boolean, auto_recon_by_ip?:boolean, [key:string]:any } & LoggingOpts;
 type AdminServerMessageDataObj = {function:string, args?:any[], secure_key:string};
-// type BasicClientResponse = { id: id | string, data?: any, result: { success: 0, error: string } | { success: 1, res: any }, [key: string]: any };
+
 
 //NB! some fields in these variables are private for safety reasons, but also bcs u shouldnt be altering them, only if through my defined ways. They are mostly expected to be constants.
 //whereas public variables are free for you to alter freely at any time during runtime.
-
 export class SocioServer extends LogHandler {
     //---private:
     #wss: WebSocketServer;
@@ -531,7 +530,10 @@ export class SocioServer extends LogHandler {
                     break;
                 }
                 // case CoreMessageKind: { break;}
-                default: throw new E(`Unrecognized message kind! [#unknown-msg-kind]`, {kind, data});
+                default:{
+                    const exhaustiveCheck: never = kind; // This ensures that if a new enum value is added and not handled, it will result in a compile-time error
+                    throw new E(`Unrecognized message kind! [#unknown-msg-kind]`, {kind, data});
+                } 
             }
         } catch (e: err) { this.HandleError(e); }
     }

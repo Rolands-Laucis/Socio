@@ -269,7 +269,10 @@ export class SocioClient extends LogHandler {
                     break;
                 }
                 // case '': {break;}
-                default: throw new E(`Unrecognized message kind!`, {kind, data});
+                default:{
+                    const exhaustiveCheck: never = kind; // This ensures that if a new enum value is added and not handled, it will result in a compile-time error
+                    throw new E(`Unrecognized message kind!`, { kind, data });
+                }
             }
         } catch (e:err) { this.HandleError(e) }
     }
