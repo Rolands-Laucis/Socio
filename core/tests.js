@@ -141,6 +141,36 @@ if (test_cases.includes('table_parsing') || all) {
 
     str = 'UPDATE OR ABORT Users SET name = "bob";';
     test_obj('complex UPDATE', ParseQueryTables(str), ['Users']);
+
+    // https://www.sqlite.org/lang_altertable.html
+    str = 'ALTER TABLE Users ADD n INT;';
+    test_obj('ALTER', ParseQueryTables(str), ['Users']);
+
+    // https://www.sqlite.org/lang_createtable.html
+    str = 'CREATE TABLE Users;';
+    test_obj('CREATE', ParseQueryTables(str), ['Users']);
+
+    str = 'CREATE TEMP TABLE Users;';
+    test_obj('CREATE temp', ParseQueryTables(str), ['Users']);
+
+    str = 'CREATE TABLE IF NOT EXISTS Users;';
+    test_obj('CREATE', ParseQueryTables(str), ['Users']);
+
+    str = 'CREATE TABLE Users AS (...);';
+    test_obj('CREATE as', ParseQueryTables(str), ['Users']);
+
+    str = 'CREATE TABLE Users (name VARCHAR(50));';
+    test_obj('CREATE with fields', ParseQueryTables(str), ['Users']);
+
+    // https://www.sqlite.org/lang_droptable.html
+    str = 'DROP TABLE Users;';
+    test_obj('DROP', ParseQueryTables(str), ['Users']);
+
+    str = 'DROP TABLE Users';
+    test_obj('DROP no ending ;', ParseQueryTables(str), ['Users']);
+
+    str = 'DROP TABLE IF EXISTS Users;';
+    test_obj('DROP if exists', ParseQueryTables(str), ['Users']);
 }
 
 if (test_cases.includes('verb_parsing') || all) {

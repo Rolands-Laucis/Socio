@@ -13,7 +13,10 @@ const table_extract_regex = '(?<tables>[\\w\\s\\.,_]+?)'
 const Verb2TableRegex = {
     SELECT: RegExp('FROM' + table_extract_regex + '(?:WHERE|ON|USING|;|$)', 'mi'),
     INSERT: RegExp('INTO' + table_extract_regex + '(?:\\(|VALUES|DEFAULT)', 'i'),
-    UPDATE: RegExp('UPDATE\\s+(?:OR\\s+(?:ABORT|FAIL|IGNORE|REPLACE|ROLLBACK))?' + table_extract_regex + 'SET', 'i')
+    UPDATE: RegExp('UPDATE\\s+(?:OR\\s+(?:ABORT|FAIL|IGNORE|REPLACE|ROLLBACK))?' + table_extract_regex + 'SET', 'i'),
+    DROP: RegExp('TABLE(?:\\s+IF EXISTS)?\\s+' + table_extract_regex + '(?:$|;)', 'mi'),
+    CREATE: RegExp('TABLE(?:\\s+IF NOT EXISTS)?\\s+' + table_extract_regex + '(?:AS|\\(|;|$)', 'mi'),
+    ALTER: RegExp('TABLE(?:\\s+IF NOT EXISTS)?\\s+' + table_extract_regex + '(?:RENAME|ADD|DROP)', 'i'),
 }
 
 //query helper functions
@@ -57,5 +60,6 @@ export function ParseQueryTables(q: string): string[] {
 
 //always returns uppercase verb if found
 export function ParseQueryVerb(q: string): string | null {
-    return q.match(/^(\s+)?(?<verb>SELECT|INSERT|DROP|UPDATE|CREATE)/mi)?.groups?.verb?.toUpperCase() || null;
+    return q.match(/^(\s+)?(?<verb>\w+)/mi)?.groups?.verb?.toUpperCase() || null;
+    // return q.match(/^(\s+)?(?<verb>SELECT|INSERT|DROP|UPDATE|CREATE|ALTER)/mi)?.groups?.verb?.toUpperCase() || null;
 }
