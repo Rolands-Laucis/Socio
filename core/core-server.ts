@@ -241,7 +241,7 @@ export class SocioServer extends LogHandler {
                         if (!(data as S_SQL_data)?.sql) throw new E('SQL or endpoint field missing in request. [#no-sql]', { kind, data });
                         const query_verb = ParseQueryVerb((data as S_SQL_data).sql);
                         if ((data as S_SQL_data)?.sql && !query_verb) throw new E('Could not parse query verb. [#parse-verb-SUB]', { kind, data, query_verb });
-                        if (query_verb && !this.db.allowed_SQL_verbs?.includes(query_verb)) throw new E('Server doesnt allow this query verb. (case-sensitive) [#verb-not-allowed-SUB]', { kind, data, query_verb, allowed: this.db.allowed_SQL_verbs });
+                        if (query_verb && this.db?.allowed_SQL_verbs && !this.db.allowed_SQL_verbs?.includes(query_verb)) throw new E('Server doesnt allow this query verb. (case-sensitive) [#verb-not-allowed-SUB]', { kind, data, query_verb, allowed: this.db.allowed_SQL_verbs });
 
                         if (query_verb === 'SELECT') {
                             //set up hook
@@ -282,7 +282,7 @@ export class SocioServer extends LogHandler {
                         if (!(data as S_SQL_data)?.sql) throw new E('SQL or endpoint field missing in request. [#no-sql]', { kind, data });
                         const query_verb = ParseQueryVerb((data as S_SQL_data).sql);
                         if ((data as S_SQL_data)?.sql && !query_verb) throw new E('Could not parse query verb. [#parse-verb-SUB]', { kind, data, query_verb });
-                        if (query_verb && !this.db.allowed_SQL_verbs?.includes(query_verb)) throw new E('Server doesnt allow this query verb. (case-sensitive) [#verb-not-allowed-SUB]', { kind, data, query_verb, allowed: this.db.allowed_SQL_verbs });
+                        if (query_verb && this.db?.allowed_SQL_verbs && !this.db.allowed_SQL_verbs?.includes(query_verb)) throw new E('Server doesnt allow this query verb. (case-sensitive) [#verb-not-allowed-SUB]', { kind, data, query_verb, allowed: this.db.allowed_SQL_verbs });
 
                         //have to do the query in every case
                         const res = this.db.Query(client, data.id || 0, (data as S_SQL_data).sql || '', (data as S_SQL_data).params);
