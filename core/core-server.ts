@@ -87,7 +87,6 @@ export class SocioServer extends LogHandler {
         this.#prop_upd_diff = prop_upd_diff;
 
         //public:
-        if (!db?.Query) return;
         this.db = db;
         this.session_defaults = Object.assign(this.session_defaults, session_defaults);
         this.prop_reg_timeout_ms = prop_reg_timeout_ms;
