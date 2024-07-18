@@ -42,14 +42,14 @@ The ``./core/core-client.ts`` file contains logic to be run on the frontend brow
 
 The ``./core/secure.ts`` file contains logic to be run on a backend server. It exports the class ``SocioSecurity`` that you instantiate and work with mostly during just the setup initialization of your backend. There is also a Vite plugin (``SocioSecurityVitePlugin``) that wraps that class, that you can use instead in your Vite app config. Should also work as a Rollup plugin, but havent tested. This securely encrypts the socio SQL query strings before serving the production code to the client, such that the client cannot see nor alter, nor impersonate the query string. However, it is still up to you to sanitize and protect yourself from SQL injections when inserting dynamic data into a query string! An identical setup of this class should be created on the backend server and handed to the SocioServer instance, for it to be able to decrypt the incoming SQL queries. Use .env files to keep your project secrets safe and consistent!
 
-**Use HTTPS and WSS secure protocols** to protect against snooping and man-in-the-middle attacks.
+**Use HTTPS and WSS secure protocols** to protect against snooping and man-in-the-middle attacks. [Check the WSS setup section and other security concerns before runing Socio in PROD!](#setup-for-https--wss-secure-sockets-with-ssl-certificates)
 
 **Encryption** and decryption uses the **AES-256-GCM algorithm (symmetric encryption)**, which guarantees Confidentiality - cannot be read; Integrity - cannot be altered; and Authenticity - server can verify the author of the created cypher text. There is also protection against known-plain-text attacks by inserting random numbers into the raw string. So it would be fine, if an attacker sees the encrypted and decrypted ciphertexts. Additionally, since decyphering at runtime is costly, a cache is implemented, which is not initialized and persisted beyond the process memory.
 
 ## SQL and NoSQL
 Currently the lib has been developed with a main focus on SQL queries being written on the frontend. This matters, bcs i parse the sent strings with the assumption that they are valid SQL syntax. However, the lib now also supports a NoSQL paradigm in the form of what i call "Server Props".
 
-"Server props" are a way for the backend to set up a (serializable) JS object, that can be subscribed to and manipulated by clients. Esentially creating an automagically synced variable across the backend and all clients. Ofc you may alter the prop on the backend as well at any time. The safety of its data is ensured by you. When registering a new prop to SocioServer, you can supply an "assigner" function, within which it is your responsibility to validate the incoming new value and set it by whatever logic and report back to SocioServer, that the operation was successful or not. See ()[#Server-props] for more details.
+"Server props" are a way for the backend to set up a (serializable) JS object, that can be subscribed to and manipulated by clients. Esentially creating an automagically synced variable across the backend and all clients. Ofc you may alter the prop on the backend as well at any time. The safety of its data is ensured by you. When registering a new prop to SocioServer, you can supply an "assigner" function, within which it is your responsibility to validate the incoming new value and set it by whatever logic and report back to SocioServer, that the operation was successful or not. See [Server Props](#server-props) for more details.
 
 In the future i may support more of the NoSQL ecosystem.
 
@@ -108,6 +108,30 @@ socserv.RegisterLifecycleHookHandler("con", (client:SocioSession, req:IncomingMe
 //all the hooks have their types in "socio/dist/types", so that you can see the hook param type inference in your IDE:
 const handle_auth_hook: Auth_Hook = (client, ...) => {...}
 socserv.RegisterLifecycleHookHandler("auth", handle_auth_hook);
+```
+
+#### DB init object (Database, Query, Arbiter, allowed verbs)
+```ts
+//server code
+
+//the "db" object can have more features than just the hook-up with your backend database.
+type QueryFunction = (client: SocioSession, id: id, sql: string, params?: any) => Promise<object>;
+type Arbiter = (initiator: { client: SocioSession, sql: string, params: any }, current: { client: SocioSession, hook: SubObj }) => boolean | Promise<boolean>;
+const socserv = new SocioServer({ ... }, {
+    db: {
+      Query: fun as QueryFunction, //optional. If you wish to only use socio props or other features. Will cause an error, when using features that require this
+      
+      Arbiter: fun as Arbiter, //optional. Is called in the inner most loop of the SocioServer.Update() function. 
+      //It lets you decide, if the update triggering query (made by some client or admin rpc call) alters the database enough such that another clients subscription should be updated. 
+      //It asks you to arbitrate this call per subscription hook of every subscribed client. 
+      //Returning false will skip this hook, whereas true will let it continue onto calling the DB and sending the UPD to the client.
+      //You'd use this for medium to large sized projects with lots of concurrent users. In this function you'd parse the SQL WHERE clauses yourself and look at the dynamic parameters to judge, if the initiator client has altered another client's subscribed rows of data of some tables.
+
+      allowed_SQL_verbs: ['SELECT', 'INSERT', 'UPDATE'], //optional. Upper-case only (Case-sensitive). Socio checks if the verb of an SQL query is in this array. Supply a falsy value to not check at all. If this key is not supplied at all, then this default is assigned at construction. Runtime errors on mismatch.
+    }, 
+    ...
+  }
+);
 ```
 
 #### Server and Client Hook definitions
@@ -249,27 +273,7 @@ If you want to have a fixed time period timeout since connection, you can do tha
 
 You can quite easily mimic HTTP cookie sessions on whatever backend by using SocioServer hooks with SocioSession id's.
 
-#### DB init object
-```ts
-//server code
 
-//the "db" object can have more features than just the hook-up with your backend database.
-type QueryFunction = (client: SocioSession, id: id, sql: string, params?: any) => Promise<object>;
-type Arbiter = (initiator: { client: SocioSession, sql: string, params: any }, current: { client: SocioSession, hook: SubObj }) => boolean | Promise<boolean>;
-const socserv = new SocioServer({ ... }, {
-    db: {
-      Query: fun as QueryFunction, //REQUIRED. If you wish to only use socio props or other features, then pass here () => {}
-      
-      Arbiter: fun as Arbiter //optional. Is called in the inner most loop of the SocioServer.Update() function. 
-      //It lets you decide, if the update triggering query (made by some client or admin rpc call) alters the database enough such that another clients subscription should be updated. 
-      //It asks you to arbitrate this call per subscription hook of every subscribed client. 
-      //Returning false will skip this hook, whereas true will let it continue onto calling the DB and sending the UPD to the client.
-      //You'd use this for medium to large sized projects with lots of concurrent users. In this function you'd parse the SQL WHERE clauses yourself and look at the dynamic parameters to judge, if the initiator client has altered another client's subscribed rows of data of some tables.
-    }, 
-    ...
-  }
-);
-```
 
 ### Setup of ``SocioClient``
 
@@ -401,6 +405,19 @@ const config = {
 export default config;
 ```
 The ``SocioSecurityVitePlugin`` also takes in an extra options object parameter that the base class doesnt. ``include_file_types`` = ``['js', 'svelte', 'vue', 'jsx', 'ts', 'tsx']`` (default) ; ``exclude_file_types`` = [] (default) ; ``exclude_svelte_server_files`` = true (default)
+
+#### Overall security notes & concerns
+
+[Check the DB init object for the allowed_SQL_verbs field](#db-init-object-database-query-arbiter-allowed-verbs)
+
+
+Error reporting to clients concern:
+```ts
+const socserv = new SocioServer({ ... }, { 
+  ... , 
+  send_sensitive_error_msgs_to_client:true //by default while processing a client request, in case of an error, Socio sends the error message (string only) to the client. My case specific error handling messages dont contain any sensitive info, but since its a catch-all, it could send messages from Node's runtime and other libs etc. Additionally, your hooks might error and i cant know what info their messages might contain. In PROD make sure this is false, so that Socio sends only a generic error message to the client. 
+ });
+```
 
 ### Setup for HTTPS & WSS (secure sockets) with SSL certificates
 ```ts
@@ -760,10 +777,10 @@ const x = new SocioClass({...,
     verbose = false, //overall stopper of all msgs from printing to console. Doesnt affect the log handlers ^ . They are evaluated first.
     hard_crash = false, //should thrown errors throw futher (bubble) after the error msg is written? Usually causes the entire process to crash.
     prefix ='', //msgs of this class will have a prefix, e.g. [SocioServer], to know which class instance created the msg. Higher order classes have their logical defaults.
-    use_color = true, //the msg prefix will get a background color representing its severity level. Some terminals dont understand these special bytes. Chrome dev tools and VS Code powershell both work fine. You also prop dont want these in your log files. NOTE, this option is a static class property, so it can be set at any time from anywhere! All instances share this prop.
+    use_color = true, //the msg prefix will get a background color representing its severity level. Some terminals dont understand these special bytes. Chrome dev tools and VS Code powershell both work fine. You also prop dont want these in your log files. NOTE, this option is a static class property, so it can be set at any time from anywhere! All instances share this prop. False by default on firefox, bcs it doesnt support this.
     log_level: LogLevel.INFO //set the initial log level in the constructor. This can be altered at runtime via x.log_level = 1 | LogLevel.INFO | LogLevel[1] | LogLevel['INFO']
   }
 });
 ```
 
-On Unix systems simply the output of the terminal can be piped to a log file for persistance. E.g. ``node run > ./log.log``. Otherwise you can get creative ;)
+On Unix systems the output of the terminal can be piped to a log file for persistance. E.g. ``node run > ./log.log``. Otherwise you can get creative ;)
