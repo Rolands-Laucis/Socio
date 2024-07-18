@@ -87,7 +87,7 @@ export class SocioServer extends LogHandler {
         this.#prop_upd_diff = prop_upd_diff;
 
         //public:
-        if(!db.allowed_SQL_verbs) db.allowed_SQL_verbs = ['SELECT', 'INSERT', 'UPDATE']; //add in defaults for DB, since cant seem to do it in the constructor args
+        if (!db.hasOwnProperty('allowed_SQL_verbs')) db.allowed_SQL_verbs = ['SELECT', 'INSERT', 'UPDATE']; //add in defaults for DB, since cant seem to do it in the constructor args
         this.db = db;
         this.session_defaults = Object.assign(this.session_defaults, session_defaults);
         this.prop_reg_timeout_ms = prop_reg_timeout_ms;
