@@ -34,7 +34,7 @@ export type QueryFunction = (client: SocioSession, id: id, sql: string, params?:
 type SessionsDefaults = { timeouts: boolean, timeouts_check_interval_ms?: number, session_delete_delay_ms?: number, recon_ttl_ms?: number } & SessionOpts;
 type DecryptOptions = { decrypt_sql: boolean, decrypt_prop: boolean, decrypt_endpoint: boolean };
 type DBOpts = { Query?: QueryFunction, Arbiter?: (initiator: { client: SocioSession, sql: string, params: any }, current: { client: SocioSession, hook: SubObj }) => boolean | Promise<boolean>, allowed_SQL_verbs?: string[] };
-type SocioServerOptions = { db: DBOpts, socio_security?: SocioSecurity | null, decrypt_opts?: DecryptOptions, hard_crash?: boolean, session_defaults?: SessionsDefaults, prop_upd_diff?: boolean, auto_recon_by_ip?:boolean, [key:string]:any } & LoggingOpts;
+type SocioServerOptions = { db: DBOpts, socio_security?: SocioSecurity | null, decrypt_opts?: DecryptOptions, hard_crash?: boolean, session_defaults?: SessionsDefaults, prop_upd_diff?: boolean, auto_recon_by_ip?: boolean, send_sensitive_error_msgs_to_client?:boolean, [key:string]:any } & LoggingOpts;
 type AdminServerMessageDataObj = {function:string, args?:any[], secure_key:string};
 
 
@@ -74,8 +74,9 @@ export class SocioServer extends LogHandler {
     session_defaults: SessionsDefaults = { timeouts: false, timeouts_check_interval_ms: 1000 * 60, session_timeout_ttl_ms: Infinity, session_delete_delay_ms: 1000 * 5, recon_ttl_ms: 1000 * 60 * 60 };
     prop_reg_timeout_ms!: number;
     auto_recon_by_ip:boolean = false;
+    send_sensitive_error_msgs_to_client!:boolean;
 
-    constructor(opts: ServerOptions | undefined = {}, { db, socio_security = null, logging = { verbose: false, hard_crash: false }, decrypt_opts = { decrypt_sql: true, decrypt_prop: false, decrypt_endpoint: false }, session_defaults = undefined, prop_upd_diff = false, prop_reg_timeout_ms = 1000 * 10, auto_recon_by_ip = false }: SocioServerOptions){
+    constructor(opts: ServerOptions | undefined = {}, { db, socio_security = null, logging = { verbose: false, hard_crash: false }, decrypt_opts = { decrypt_sql: true, decrypt_prop: false, decrypt_endpoint: false }, session_defaults = undefined, prop_upd_diff = false, prop_reg_timeout_ms = 1000 * 10, auto_recon_by_ip = false, send_sensitive_error_msgs_to_client = true }: SocioServerOptions){
         super({ ...logging, prefix:'SocioServer'});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
         //hard_crash will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
@@ -92,6 +93,7 @@ export class SocioServer extends LogHandler {
         this.session_defaults = Object.assign(this.session_defaults, session_defaults);
         this.prop_reg_timeout_ms = prop_reg_timeout_ms;
         this.auto_recon_by_ip = auto_recon_by_ip;
+        this.send_sensitive_error_msgs_to_client = send_sensitive_error_msgs_to_client;
 
         this.#wss.on('connection', this.#Connect.bind(this)); //https://thenewstack.io/mastering-javascript-callbacks-bind-apply-call/ have to bind 'this' to the function, otherwise it will use the .on()'s 'this', so that this.[prop] are not undefined
         this.#wss.on('close', (...stuff) => { this.HandleInfo('WebSocketServer close event', ...stuff) });
@@ -109,6 +111,8 @@ export class SocioServer extends LogHandler {
                 this.HandleInfo('WARNING! Your server is using an unsecure WebSocket protocol, setup wss:// instead, when you can!');
             if (!socio_security)
                 this.HandleInfo('WARNING! Please use the SocioSecurity class in production to securely de/encrypt Socio strings from clients!');
+            if (this.send_sensitive_error_msgs_to_client) 
+                this.HandleInfo('WARNING! send_sensitive_error_msgs_to_client field IS TRUE, which means server error messages are sent to the client as is. They might include sesitive info. If false, the server will only send a generic error message.')
         }
     }
 
@@ -520,7 +524,7 @@ export class SocioServer extends LogHandler {
             }catch(e:err){
                 client.Send(ClientMessageKind.RES, {
                     id: data.id,
-                    result: { success: 0, error: String(e) }
+                    result: { success: 0, error: this.send_sensitive_error_msgs_to_client ? String(e) : 'Server had an error with this request.' }
                 } as C_UPD_data);
                 this.HandleError(e);
             }
