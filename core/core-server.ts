@@ -289,8 +289,19 @@ export class SocioServer extends LogHandler {
                         client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 1, res: await res } } as C_RES_data); //wait for result and send it back
 
                         //if the sql wasnt a SELECT, but altered some resource, then need to propogate that to other connection hooks
-                        if (query_verb !== 'SELECT')
-                            this.Update(client, (data as S_SQL_data).sql || '', (data as S_SQL_data)?.params);
+                        if (query_verb !== 'SELECT'){
+                            if(query_verb === 'DROP'){
+                                //to avoid problems for the dev, Socio will auto unsub all subs to the dropped table. The clients needn't be notified, since they just wont ever receive and UPD for it anymore. Which isnt an issue. 
+                                const dropped_table = ParseQueryTables((data as S_SQL_data).sql);
+                                if(dropped_table){
+                                    for(const session of this.#sessions.values())
+                                        for (const sub of session.GetSubsForTables(dropped_table))
+                                            session.UnRegisterSub(sub.id);
+                                }
+                                else throw new E('Failed to parse table of a client DROP query', {kind, data});
+                            }else
+                                this.Update(client, (data as S_SQL_data).sql || '', (data as S_SQL_data)?.params);
+                        }
                         break;
                     }
                     case CoreMessageKind.PING: {
