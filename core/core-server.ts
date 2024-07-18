@@ -33,7 +33,7 @@ export type QueryFunction = (client: SocioSession, id: id, sql: string, params?:
 
 type SessionsDefaults = { timeouts: boolean, timeouts_check_interval_ms?: number, session_delete_delay_ms?: number, recon_ttl_ms?: number } & SessionOpts;
 type DecryptOptions = { decrypt_sql: boolean, decrypt_prop: boolean, decrypt_endpoint: boolean };
-type DBOpts = { Query: QueryFunction, Arbiter?: (initiator: { client: SocioSession, sql: string, params: any }, current: { client: SocioSession, hook: SubObj }) => boolean | Promise<boolean>};
+type DBOpts = { Query?: QueryFunction, Arbiter?: (initiator: { client: SocioSession, sql: string, params: any }, current: { client: SocioSession, hook: SubObj }) => boolean | Promise<boolean>};
 type SocioServerOptions = { db: DBOpts, socio_security?: SocioSecurity | null, decrypt_opts?: DecryptOptions, hard_crash?: boolean, session_defaults?: SessionsDefaults, prop_upd_diff?: boolean, auto_recon_by_ip?:boolean, [key:string]:any } & LoggingOpts;
 type AdminServerMessageDataObj = {function:string, args?:any[], secure_key:string};
 
@@ -215,43 +215,41 @@ export class SocioServer extends LogHandler {
                         if (await this.#lifecycle_hooks.sub(client, kind, (data as S_SUB_data)))
                             return;
 
-                    //if the client happens to want to use an endpoint keyname instead of SQL, retrieve the SQL string from a hook call and procede with that.
-                    if ((data as S_SUB_data).endpoint && !(data as S_SUB_data).sql) {
-                        if (this.#lifecycle_hooks.endpoint)
-                            //@ts-expect-error
-                            (data as S_SUB_data).sql = await this.#lifecycle_hooks.endpoint(client, (data as S_SUB_data).endpoint);
-                        else throw new E('Client sent endpoint instead of SQL, but its hook is missing. [#no-endpoint-hook-SUB]');
-                    }
+                    try {
+                        if (!this.db.Query)
+                            throw 'This action requires a Database Query function on SocioServer! [#no-db-query-SUB]';
 
-                    if ((data as S_SUB_data).sql) {
-                        if (QueryIsSelect((data as S_SUB_data).sql || '')) {
-                            //set up hook
-                            const tables = ParseQueryTables((data as S_SUB_data).sql || '');
-                            if (tables)
+                        //if the client happens to want to use an endpoint keyname instead of SQL, retrieve the SQL string from a hook call and procede with that.
+                        if ((data as S_SUB_data).endpoint && !(data as S_SUB_data).sql) {
+                            if (this.#lifecycle_hooks.endpoint)
                                 //@ts-expect-error
-                                client.RegisterSub(tables, data.id as id, (data as S_SUB_data).sql || '', (data as S_SUB_data)?.params, (data as S_SUB_data)?.rate_limit);
+                                (data as S_SUB_data).sql = await this.#lifecycle_hooks.endpoint(client, (data as S_SUB_data).endpoint);
+                            else throw 'Client sent endpoint instead of SQL, but its hook is missing, so cant resolve it. [#no-endpoint-hook-SUB]';
+                        }
 
-                            //send response
-                            try{
+                        if ((data as S_SUB_data).sql) {
+                            if (QueryIsSelect((data as S_SUB_data).sql || '')) {
+                                //set up hook
+                                const tables = ParseQueryTables((data as S_SUB_data).sql || '');
+                                if (tables)
+                                    //@ts-expect-error
+                                    client.RegisterSub(tables, data.id as id, (data as S_SUB_data).sql || '', (data as S_SUB_data)?.params, (data as S_SUB_data)?.rate_limit);
+
+                                //send response
                                 const res = await this.db.Query(client, data.id || 0, (data as S_SUB_data).sql || '', (data as S_SUB_data)?.params);
                                 client.Send(ClientMessageKind.UPD, {
-                                        id: data.id,
-                                        result: {success:1, res}
-                                } as C_UPD_data);
-                            }catch(e){
-                                client.Send(ClientMessageKind.UPD, {
                                     id: data.id,
-                                    result: {success:0, error:String(e)}
+                                    result: { success: 1, res }
                                 } as C_UPD_data);
-                            }
-                        } else client.Send(ClientMessageKind.RES, {
+                            } else throw 'Only SELECT queries may be subscribed to! [#reg-not-select]';
+                        } else throw 'Nothing to subscribe to! [#reg-no-res]';
+                    } catch (e:err) {
+                        client.Send(ClientMessageKind.RES, {
                             id: data.id,
-                            result: { success: 0, error: 'Only SELECT queries may be subscribed to! [#reg-not-select]' }
+                            result: { success: 0, error:String(e) }
                         } as C_UPD_data);
-                    } else client.Send(ClientMessageKind.RES, {
-                        id: data.id,
-                        result: { success: 0, error: 'Nothing to subscribe to! [#reg-no-res]' }
-                    } as C_UPD_data);
+                        throw new E(e);
+                    }
                     break;
                 }
                 case  CoreMessageKind.UNSUB:{
@@ -263,20 +261,30 @@ export class SocioServer extends LogHandler {
                     break;
                 }
                 case  CoreMessageKind.SQL:{
-                    //if the client happens to want to use an endpoint keyname instead of SQL, retrieve the SQL string from a hook call and procede with that.
-                    if ((data as S_SQL_data)?.sql_is_endpoint && (data as S_SQL_data).sql) {
-                        if (this.#lifecycle_hooks.endpoint)
-                            (data as S_SQL_data).sql = await this.#lifecycle_hooks.endpoint(client, (data as S_SQL_data).sql);
-                        else throw new E('Client sent endpoint instead of SQL, but its hook is missing. [#no-endpoint-hook-SQL]');
+                    try{
+                        if (!this.db.Query)
+                            throw 'This action requires a Database Query function on SocioServer! [#no-db-query-SQL]';
+
+                        //if the client happens to want to use an endpoint keyname instead of SQL, retrieve the SQL string from a hook call and procede with that.
+                        if ((data as S_SQL_data)?.sql_is_endpoint && (data as S_SQL_data).sql) {
+                            if (this.#lifecycle_hooks.endpoint)
+                                (data as S_SQL_data).sql = await this.#lifecycle_hooks.endpoint(client, (data as S_SQL_data).sql);
+                            else throw new E('Client sent endpoint instead of SQL, but its hook is missing. [#no-endpoint-hook-SQL]');
+                        }
+                        //have to do the query in every case
+                        const res = this.db.Query(client, data.id || 0, (data as S_SQL_data).sql || '', (data as S_SQL_data).params);
+                        client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 1, res: await res } } as C_RES_data); //wait for result and send it back
+
+                        //if the sql wasnt a SELECT, but altered some resource, then need to propogate that to other connection hooks
+                        if (!QueryIsSelect((data as S_SQL_data).sql || ''))
+                            this.Update(client, (data as S_SQL_data).sql || '', (data as S_SQL_data)?.params);
+                    } catch (e: err) {
+                        client.Send(ClientMessageKind.RES, {
+                            id: data.id,
+                            result: { success: 0, error: String(e) }
+                        } as C_UPD_data);
+                        throw new E(e);
                     }
-                    //have to do the query in every case
-                    const res = this.db.Query(client, data.id || 0, (data as S_SQL_data).sql || '', (data as S_SQL_data).params);
-                    client.Send(ClientMessageKind.RES, { id: data.id, result: {success:1, res: await res} } as C_RES_data); //wait for result and send it back
-
-                    //if the sql wasnt a SELECT, but altered some resource, then need to propogate that to other connection hooks
-                    if (!QueryIsSelect((data as S_SQL_data).sql || ''))
-                        this.Update(client, (data as S_SQL_data).sql || '', (data as S_SQL_data)?.params);
-
                     break;
                 }
                 case  CoreMessageKind.PING:{
@@ -594,6 +602,9 @@ export class SocioServer extends LogHandler {
         if (this.#lifecycle_hooks.upd)
             if (await this.#lifecycle_hooks.upd(this.#sessions, initiator, sql, params))
                 return;
+
+        if (!this.db.Query)
+            throw 'SocioServer.Update requires a Database Query function on SocioServer! [#no-db-query-UPDATE]';
 
         //or go through each session's every hook and query the DB for its result, then send it to the client
         try{
