@@ -203,7 +203,7 @@ export class SocioServer extends LogHandler {
             const client_id = client.id; //cache the ID, since its used so much here
 
             // this try catch allows the body to freely throw E or strings or crash in any other way, 
-            // and the client will still receive a RES with success:0
+            // and the client will still receive a RES with success:0, since now it has the message ID from data
             // it will then throw again to the outter try
             try{
                 //if the socio security instance exists and some specific string fields was recieved and they are to be decrypted, then do so here
@@ -237,22 +237,26 @@ export class SocioServer extends LogHandler {
                             else throw new E('Client sent endpoint instead of SQL, but its hook is missing, so cant resolve it. [#no-endpoint-hook-SUB]', {kind, data});
                         }
 
-                        if ((data as S_SUB_data).sql) {
-                            if (QueryIsSelect((data as S_SUB_data).sql || '')) {
-                                //set up hook
-                                const tables = ParseQueryTables((data as S_SUB_data).sql || '');
-                                if (tables)
-                                    //@ts-expect-error
-                                    client.RegisterSub(tables, data.id as id, (data as S_SUB_data).sql || '', (data as S_SUB_data)?.params, (data as S_SUB_data)?.rate_limit);
+                        // check that there is sql to work with; the verb can be parsed; verb is allowed
+                        if (!(data as S_SQL_data)?.sql) throw new E('SQL or endpoint field missing in request. [#no-sql]', { kind, data });
+                        const query_verb = ParseQueryVerb((data as S_SQL_data).sql);
+                        if ((data as S_SQL_data)?.sql && !query_verb) throw new E('Could not parse query verb. [#parse-verb-SUB]', { kind, data, query_verb });
+                        if (query_verb && !this.db.allowed_SQL_verbs?.includes(query_verb)) throw new E('Server doesnt allow this query verb. (case-sensitive) [#verb-not-allowed-SUB]', { kind, data, query_verb, allowed: this.db.allowed_SQL_verbs });
 
-                                //send response
-                                const res = await this.db.Query(client, data.id || 0, (data as S_SUB_data).sql || '', (data as S_SUB_data)?.params);
-                                client.Send(ClientMessageKind.UPD, {
-                                    id: data.id,
-                                    result: { success: 1, res }
-                                } as C_UPD_data);
-                            } else throw new E('Only SELECT queries may be subscribed to! [#reg-not-select]', { kind, data });
-                        } else throw new E('Nothing to subscribe to! SQL or endpoint field missing in request. [#reg-no-res]', { kind, data });
+                        if (query_verb === 'SELECT') {
+                            //set up hook
+                            const tables = ParseQueryTables((data as S_SUB_data).sql || '');
+                            if (tables)
+                                //@ts-expect-error
+                                client.RegisterSub(tables, data.id as id, (data as S_SUB_data).sql || '', (data as S_SUB_data)?.params, (data as S_SUB_data)?.rate_limit);
+
+                            //send response
+                            const res = await this.db.Query(client, data.id || 0, (data as S_SUB_data).sql || '', (data as S_SUB_data)?.params);
+                            client.Send(ClientMessageKind.UPD, {
+                                id: data.id,
+                                result: { success: 1, res }
+                            } as C_UPD_data);
+                        } else throw new E('Only SELECT queries may be subscribed to! [#reg-not-select]', { kind, data });
                         break;
                     }
                     case CoreMessageKind.UNSUB: {
@@ -273,12 +277,19 @@ export class SocioServer extends LogHandler {
                                 (data as S_SQL_data).sql = await this.#lifecycle_hooks.endpoint(client, (data as S_SQL_data).sql);
                             else throw new E('Client sent endpoint instead of SQL, but its hook is missing. [#no-endpoint-hook-SQL]');
                         }
+
+                        // check that there is sql to work with; the verb can be parsed; verb is allowed
+                        if (!(data as S_SQL_data)?.sql) throw new E('SQL or endpoint field missing in request. [#no-sql]', { kind, data });
+                        const query_verb = ParseQueryVerb((data as S_SQL_data).sql);
+                        if ((data as S_SQL_data)?.sql && !query_verb) throw new E('Could not parse query verb. [#parse-verb-SUB]', { kind, data, query_verb });
+                        if (query_verb && !this.db.allowed_SQL_verbs?.includes(query_verb)) throw new E('Server doesnt allow this query verb. (case-sensitive) [#verb-not-allowed-SUB]', { kind, data, query_verb, allowed: this.db.allowed_SQL_verbs });
+
                         //have to do the query in every case
                         const res = this.db.Query(client, data.id || 0, (data as S_SQL_data).sql || '', (data as S_SQL_data).params);
                         client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 1, res: await res } } as C_RES_data); //wait for result and send it back
 
                         //if the sql wasnt a SELECT, but altered some resource, then need to propogate that to other connection hooks
-                        if (!QueryIsSelect((data as S_SQL_data).sql || ''))
+                        if (query_verb !== 'SELECT')
                             this.Update(client, (data as S_SQL_data).sql || '', (data as S_SQL_data)?.params);
                         break;
                     }
