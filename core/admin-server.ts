@@ -51,11 +51,6 @@ export class AdminClient extends LogHandler{
                 this.#HandleBasicPromiseMessage(data);
                 break;
             }
-            case ClientMessageKind.ERR:{
-                this.HandleError(new E('recv:', kind, data));
-                this.#HandleBasicPromiseMessage(data);
-                break;
-            }
             default: throw new E(`Unrecognized message kind!`, kind, data);
         }
     }
