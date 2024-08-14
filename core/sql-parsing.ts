@@ -11,12 +11,12 @@ export const socio_string_regex = /socio`(?<sql>.*?)`/igs;
 // precompiled regex:
 const table_extract_regex = '(?<tables>[\\w\\s\\.,_]+?)'
 const Verb2TableRegex = {
-    SELECT: RegExp('FROM' + table_extract_regex + '(?:WHERE|ON|USING|;|$)', 'mi'),
-    INSERT: RegExp('INTO' + table_extract_regex + '(?:\\(|VALUES|DEFAULT)', 'i'),
-    UPDATE: RegExp('UPDATE\\s+(?:OR\\s+(?:ABORT|FAIL|IGNORE|REPLACE|ROLLBACK))?' + table_extract_regex + 'SET', 'i'),
-    DROP: RegExp('TABLE(?:\\s+IF EXISTS)?\\s+' + table_extract_regex + '(?:$|;)', 'mi'),
-    CREATE: RegExp('TABLE(?:\\s+IF NOT EXISTS)?\\s+' + table_extract_regex + '(?:AS|\\(|;|$)', 'mi'),
-    ALTER: RegExp('TABLE(?:\\s+IF NOT EXISTS)?\\s+' + table_extract_regex + '(?:RENAME|ADD|DROP)', 'i'),
+    SELECT: RegExp('FROM' + table_extract_regex + '(?:WHERE|ON|USING|;|$)', 'mi'), // https://www.sqlite.org/lang_select.html
+    INSERT: RegExp('INTO' + table_extract_regex + '(?:\\(|VALUES|DEFAULT)', 'i'), // https://www.sqlite.org/lang_insert.html
+    UPDATE: RegExp('UPDATE\\s+(?:OR\\s+(?:ABORT|FAIL|IGNORE|REPLACE|ROLLBACK))?' + table_extract_regex + 'SET', 'i'), // https://www.sqlite.org/lang_update.html
+    DROP: RegExp('TABLE(?:\\s+IF EXISTS)?\\s+' + table_extract_regex + '(?:$|;)', 'mi'), // https://www.sqlite.org/lang_droptable.html
+    CREATE: RegExp('TABLE(?:\\s+IF NOT EXISTS)?\\s+' + table_extract_regex + '(?:AS|\\(|;|$)', 'mi'), // https://www.sqlite.org/lang_createtable.html
+    ALTER: RegExp('TABLE(?:\\s+IF NOT EXISTS)?\\s+' + table_extract_regex + '(?:RENAME|ADD|DROP)', 'i'), // https://www.sqlite.org/lang_altertable.html
 }
 
 //query helper functions
