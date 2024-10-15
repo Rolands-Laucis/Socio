@@ -7,7 +7,7 @@ import { LogHandler, E, err, log, info, done } from './logging.js';
 import { yaml_parse, yaml_stringify, clamp, CoreMessageKind } from './utils.js';
 
 //types
-import type { id, PropKey, PropValue, PropOpts, Bit, ClientLifecycleHooks, ClientID, SocioFiles, LoggingOpts, ClientSubscribeOpts } from './types.js';
+import type { id, PropKey, PropValue, PropOpts, Bit, ClientLifecycleHooks, ClientID, SocioFiles, LoggingOpts, ClientSubscribeOpts, data_result_block } from './types.js';
 
 // cross network data objects
 // client data msg
@@ -64,7 +64,7 @@ export class SocioClient extends LogHandler {
 
         // log info for the dev
         if(this.verbose){
-            if (window || undefined && url.startsWith('ws://'))
+            if (window && url.startsWith('ws://'))
                 this.HandleInfo('WARNING, UNSECURE WEBSOCKET URL CONNECTION! Please use wss:// and https:// protocols in production to protect against man-in-the-middle attacks. You need to host an https server with bought SCTs - Signed Certificate Timestamps (keys) - from an authority.');
         }
     }
@@ -438,16 +438,16 @@ export class SocioClient extends LogHandler {
             this.Send(CoreMessageKind.PROP_SET, { id, prop: prop_name, prop_val: new_val, prop_upd_as_diff } as S_PROP_SET_data);
             this.#UpdateQueryPromisePayloadSize(id);
 
-            return prom;
+            return prom as Promise<data_base & data_result_block>;
         } catch (e: err) { this.HandleError(e); return null; }
     }
-    GetProp(prop_name: PropKey, local: boolean = false): PropValue | undefined | Promise<unknown> {
-        if (local) return this.#props.get(prop_name)?.val;
+    GetProp(prop_name: PropKey, local: boolean = false){
+        if (local) return { result: { success: 1, res: this.#props.get(prop_name)?.val as PropValue }};
         else{
             const { id, prom } = this.CreateQueryPromise();
             this.Send(CoreMessageKind.PROP_GET, { id, prop: prop_name } as S_PROP_GET_data);
             this.#UpdateQueryPromisePayloadSize(id);
-            return prom;
+            return prom as Promise<data_base & data_result_block>;
         }
     }
     SubscribeProp(prop_name: PropKey, onUpdate: PropUpdateCallback, { rate_limit = null, receive_initial_update = true }: { rate_limit?: RateLimit | null, receive_initial_update?: boolean } = {}): Promise<{ id: id, result: { success: Bit } } | any> {
@@ -496,6 +496,23 @@ export class SocioClient extends LogHandler {
             return (prom as unknown) as Promise<{ prop: PropKey }>;
         } catch (e: err) { this.HandleError(e); return null; }
     }
+    // async Prop(prop_name: PropKey){
+    //     const client_this = this; //use for inside the Proxy scope
+    //     const prop_proxy = new Proxy(await this.GetProp(prop_name), {
+    //         async get(p: PropValue, property) {
+    //             const res = await client_this.GetProp.bind(client_this)(prop_name);
+    //             return res?.result?.success === 1 ? res?.result?.res[property] : p[property];
+    //         },
+    //         // @ts-expect-error
+    //         async set(p: PropValue, property, new_val) { //ive run tests in other projects and the async set does work fine. TS doesnt want to allow it for some reason 
+    //             p[property] = new_val;
+    //             return (await client_this.SetProp.bind(client_this)(prop_name, p))?.result?.success === 1;
+    //         }
+    //     });
+
+    //     this.SubscribeProp(prop_name, (new_val) => { prop_proxy[]})
+    //     return prop_proxy;
+    // }
 
 
     // socio query marker related --auth and --perm:

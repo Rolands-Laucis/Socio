@@ -94,5 +94,4 @@ export type C_PROP_UPD_data = data_base & { prop: string } & ({ prop_val: PropVa
 export type C_RECON_Data = data_base & data_result_block & { old_client_id: ClientID, auth: boolean };
 export type C_RECV_FILES_Data = data_base & data_result_block & { files: SocioFiles };
 // export type C_PROP_REG_data = data_base & data_result_block & { prop?: string, initial_value: any, opts: Omit<PropOpts, "observationaly_temporary"> };
-
 export type ClientMessageDataObj = data_base | CON_data | RES_data | AUTH_data | PROP_UPD_data | RECON_Data | RECV_FILES_Data;

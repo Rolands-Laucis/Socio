@@ -1,0 +1,12 @@
+{
+    "name": "@roland/socio",
+    "version": "1.9.0",
+    "exports": "./core-server.ts",
+    "publish": {
+        "exclude": [
+            "dist",
+            "node_modules"
+        ]
+    },
+    "license":"MIT"
+}
