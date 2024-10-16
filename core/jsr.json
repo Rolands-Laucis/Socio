@@ -8,5 +8,23 @@
             "node_modules"
         ]
     },
-    "license":"MIT"
+    "license":"MIT",
+    "description": "A WebSocket Real-Time Communication (RTC) API framework.",
+    "keywords": [
+        "websocket",
+        "rtc",
+        "api",
+        "framework",
+        "reactive",
+        "database",
+        "sync",
+        "live",
+        "SQL",
+        "query"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Rolands-Laucis/Socio.git"
+    },
+    "homepage": "https://github.com/Rolands-Laucis/Socio#readme"
 }
