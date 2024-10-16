@@ -2,7 +2,7 @@
 // By silence, I hear other men’s imperfections and conceal my own. /Zeno of Citium/
 
 //types
-import type { ClientID, S_SERV_data, ServerMessageDataObj } from "./types";
+import type { ClientID, S_SERV_data, ServerMessageDataObj } from "./types.d.ts";
 import type { SocioSession } from "./core-session";
 import { E, log } from "./logging";
 export type User = { client_id: ClientID, username?: string };

@@ -7,7 +7,7 @@ import { ClientMessageKind } from './core-client';
 
 //types
 import type { WebSocket } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
-import type { id, Bit, LoggingOpts, SessionOpts, Auth_Hook } from './types';
+import type { id, Bit, LoggingOpts, SessionOpts, Auth_Hook } from './types.d.ts';
 import type { RateLimit } from './ratelimit';
 
 export type SubObj = {

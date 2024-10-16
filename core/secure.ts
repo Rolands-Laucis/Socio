@@ -9,7 +9,7 @@ import { LogHandler, E, log, info, done } from './logging';
 import { extname } from 'path';
 
 //types
-import type { LoggingOpts } from './types';
+import type { LoggingOpts } from './types.d.ts';
 export type SocioSecurityOptions = { secure_private_key: Buffer | string, rand_int_gen?: ((min: number, max: number) => number) } & LoggingOpts;
 export type SocioSecurityPluginOptions = { include_file_types?: string[], exclude_file_types?: string[], exclude_svelte_server_files?: boolean, exclude_regex?:RegExp };
 

@@ -1,6 +1,6 @@
 //I ask not for a lighter burden, but for broader shoulders. -Atlas, when asking Zeus for sympathy.
 
-import type { QueryMarker } from "./types";
+import type { QueryMarker } from "./types.d.ts";
 import type { SocioStringObj } from "./sql-parsing";
 
 export enum CoreMessageKind {

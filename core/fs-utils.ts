@@ -3,7 +3,7 @@ import { default as os_path } from "path";
 import pako from 'pako'; //https://github.com/nodeca/pako
 
 //types
-import type { SocioFiles, FS_Util_Response } from './types';
+import type { SocioFiles, FS_Util_Response } from './types.d.ts';
 
 //FS interaction
 export function SaveFilesToDiskPath(string_array_path: string[], files: SocioFiles): Promise<FS_Util_Response> {
