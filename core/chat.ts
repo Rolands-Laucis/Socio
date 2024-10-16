@@ -2,9 +2,9 @@
 // By silence, I hear other men’s imperfections and conceal my own. /Zeno of Citium/
 
 //types
-import type { ClientID, S_SERV_data, ServerMessageDataObj } from "./types.js";
-import type { SocioSession } from "./core-session.js";
-import { E, log } from "./logging.js";
+import type { ClientID, S_SERV_data, ServerMessageDataObj } from "./types";
+import type { SocioSession } from "./core-session";
+import { E, log } from "./logging";
 export type User = { client_id: ClientID, username?: string };
 export type ChatRoomMessage = { user: User, ts: number, text:string};
 type ServerInterfaceFunction = (client_ids: string[], data: object) => void;

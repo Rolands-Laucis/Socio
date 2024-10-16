@@ -1,14 +1,14 @@
 //Homo vitae commodatus non donatus est. - Man's life is lent, not given. /Syrus/
 
-import { LogHandler, E, log, info, done } from './logging.js';
-import { RateLimiter } from './ratelimit.js';
-import { yaml_stringify, FastHash } from './utils.js';
-import { ClientMessageKind } from './core-client.js';
+import { LogHandler, E, log, info, done } from './logging';
+import { RateLimiter } from './ratelimit';
+import { yaml_stringify, FastHash } from './utils';
+import { ClientMessageKind } from './core-client';
 
 //types
 import type { WebSocket } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
-import type { id, Bit, LoggingOpts, SessionOpts, Auth_Hook } from './types.js';
-import type { RateLimit } from './ratelimit.js';
+import type { id, Bit, LoggingOpts, SessionOpts, Auth_Hook } from './types';
+import type { RateLimit } from './ratelimit';
 
 export type SubObj = {
     tables: string[],

@@ -3,7 +3,7 @@ import { default as os_path } from "path";
 import pako from 'pako'; //https://github.com/nodeca/pako
 
 //types
-import type { SocioFiles, FS_Util_Response } from './types.js';
+import type { SocioFiles, FS_Util_Response } from './types';
 
 //FS interaction
 export function SaveFilesToDiskPath(string_array_path: string[], files: SocioFiles): Promise<FS_Util_Response> {
@@ -12,6 +12,7 @@ export function SaveFilesToDiskPath(string_array_path: string[], files: SocioFil
             if (!string_array_path || !files) return rej({ result: 0, error: 'function arguments are falsy' });
             for (const [filename, file_data] of files.entries()) {
                 const file_path = os_path.join(...string_array_path, filename);
+                //@ts-expect-error
                 const bin = pako.inflate(Buffer.from(file_data.bin, 'base64')); //file_data.bin should be a base64 encoded string, so make a buffer from it and decompress with pako
                 fs.writeFileSync(file_path, bin, { flag: 'w' });
             }
@@ -27,6 +28,7 @@ export function ReadFilesFromDisk(file_paths: string[]): Promise<FS_Util_Respons
             for (const path of file_paths) {
                 const filename = os_path.basename(path);
                 const file = fs.readFileSync(path);
+                //@ts-expect-error
                 files.set(filename, { meta: { size: file.byteLength }, bin: Buffer.from(pako.deflate(file)).toString('base64')}); //compress the file binary and conver to base64 string
             }
             res({ result: 1, files });

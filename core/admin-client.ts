@@ -1,8 +1,8 @@
 //If God did not exist, it would be necessary to invent Him. /Voltaire/
 
-import { E } from "./logging.js";
-import { SocioClient, SocioClientOptions } from './core-client.js';
-import { CoreMessageKind } from './utils.js';
+import { E } from "./logging";
+import { SocioClient, SocioClientOptions } from './core-client';
+import { CoreMessageKind } from './utils';
 
 //types
 type AdminClientOptions = { url:string, client_secret: string, socio_client_opts: SocioClientOptions }

@@ -1,9 +1,9 @@
-import type { SocioSession } from "./core-session.js";
-import type { MessageDataObj } from "./core-server.ts";
-import type { ClientMessageDataObj, SocioClient } from './core-client.js';
+import type { SocioSession } from "./core-session";
+import type { MessageDataObj } from "./core-server";
+import type { ClientMessageDataObj, SocioClient } from './core-client';
 import type { IncomingMessage } from 'http';
-import type { E, LoggerOptions } from "./logging.js";
-import type { RateLimit } from './ratelimit.js';
+import type { E, LoggerOptions } from "./logging";
+import type { RateLimit } from './ratelimit';
 import exp from "constants";
 
 //general types

@@ -1,7 +1,7 @@
 //I ask not for a lighter burden, but for broader shoulders. -Atlas, when asking Zeus for sympathy.
 
-import type { QueryMarker } from "./types.js";
-import type { SocioStringObj } from "./sql-parsing.js";
+import type { QueryMarker } from "./types";
+import type { SocioStringObj } from "./sql-parsing";
 
 export enum CoreMessageKind {
     SUB, UNSUB, SQL, PING, AUTH, GET_PERM, PROP_SUB, PROP_UNSUB, PROP_GET, PROP_SET, PROP_REG, SERV, ADMIN, RECON, UP_FILES, GET_FILES

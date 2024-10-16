@@ -6,13 +6,13 @@ import { WebSocketServer } from 'ws'; //https://github.com/websockets/ws https:/
 import * as diff_lib from 'recursive-diff'; //https://www.npmjs.com/package/recursive-diff
 
 //mine
-import { QueryIsSelect, ParseQueryTables, ParseQueryVerb } from './sql-parsing.js';
-import { SocioStringParse, GetAllMethodNamesOf, yaml_parse } from './utils.js';
-import { E, LogHandler, err, log, info, done } from './logging.js';
-import { UUID, type SocioSecurity } from './secure.js';
-import { SocioSession, type SubObj } from './core-session.js';
-import { RateLimiter } from './ratelimit.js';
-import { CoreMessageKind } from './utils.js';
+import { QueryIsSelect, ParseQueryTables, ParseQueryVerb } from './sql-parsing';
+import { SocioStringParse, GetAllMethodNamesOf, yaml_parse } from './utils';
+import { E, LogHandler, err, log, info, done } from './logging';
+import { UUID, type SocioSecurity } from './secure';
+import { SocioSession, type SubObj } from './core-session';
+import { RateLimiter } from './ratelimit';
+import { CoreMessageKind } from './utils';
 
 //types
 import type { ServerOptions, WebSocket, AddressInfo } from 'ws';
@@ -20,14 +20,14 @@ import type { IncomingMessage } from 'http';
 
 // cross network data objects
 // server data msg
-import type { data_base, S_SUB_data, ServerMessageDataObj, S_UNSUB_data, S_SQL_data, S_AUTH_data, S_GET_PERM_data, S_PROP_SUB_data, S_PROP_UNSUB_data, S_PROP_GET_data, S_PROP_SET_data, S_PROP_REG_data, S_RECON_GET_data, S_RECON_USE_data, S_UP_FILES_data, S_GET_FILES_data } from './types.js';
+import type { data_base, S_SUB_data, ServerMessageDataObj, S_UNSUB_data, S_SQL_data, S_AUTH_data, S_GET_PERM_data, S_PROP_SUB_data, S_PROP_UNSUB_data, S_PROP_GET_data, S_PROP_SET_data, S_PROP_REG_data, S_RECON_GET_data, S_RECON_USE_data, S_UP_FILES_data, S_GET_FILES_data } from './types';
 // client data msg
-import type { C_RES_data, C_CON_data, C_UPD_data, C_AUTH_data, C_GET_PERM_data, C_PROP_UPD_data, C_RECON_Data, C_RECV_FILES_Data } from './types.js'; //types over network for the data object
+import type { C_RES_data, C_CON_data, C_UPD_data, C_AUTH_data, C_GET_PERM_data, C_PROP_UPD_data, C_RECON_Data, C_RECV_FILES_Data } from './types'; //types over network for the data object
 
-import type { id, PropKey, PropValue, PropAssigner, PropOpts, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts, Bit, SessionOpts } from './types.js';
-import { ClientMessageKind } from './core-client.js';
-import type { RateLimit } from './ratelimit.js';
-import type { SocioStringObj } from './sql-parsing.js';
+import type { id, PropKey, PropValue, PropAssigner, PropOpts, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts, Bit, SessionOpts } from './types';
+import { ClientMessageKind } from './core-client';
+import type { RateLimit } from './ratelimit';
+import type { SocioStringObj } from './sql-parsing';
 export type QueryFuncParams = { id?: id, sql: string, params?: any };
 export type QueryFunction = (client: SocioSession, id: id, sql: string, params?: any) => Promise<object>;
 

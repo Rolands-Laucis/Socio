@@ -1,6 +1,6 @@
 //You can always count on Americans to do the right thing - after they've tried everything else. /Winston Churchill/
 
-import { E, LogHandler } from "./logging.js";
+import { E, LogHandler } from "./logging";
 
 type RateLimitTimeUnit = { ms?: number, seconds?: number, minutes?: number } //can specify any combination of these
 export type RateLimit = { n: number } & RateLimitTimeUnit;
