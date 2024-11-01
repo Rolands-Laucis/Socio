@@ -3,8 +3,8 @@
 import pako from 'pako'; //https://github.com/nodeca/pako
 import * as diff_lib from 'recursive-diff'; //https://www.npmjs.com/package/recursive-diff
 
-import { LogHandler, E, err, log, info, done } from './logging';
-import { yaml_parse, yaml_stringify, clamp, CoreMessageKind } from './utils';
+import { LogHandler, E, err, log, info, done } from './logging.js';
+import { yaml_parse, yaml_stringify, clamp, CoreMessageKind } from './utils.js';
 
 //types
 import type { id, PropKey, PropValue, PropOpts, Bit, ClientLifecycleHooks, ClientID, SocioFiles, LoggingOpts, ClientSubscribeOpts, data_result_block } from './types.d.ts';
@@ -16,7 +16,7 @@ import type { data_base, C_RES_data, C_CON_data, C_UPD_data, C_AUTH_data, C_GET_
 import type { S_SUB_data, S_UNSUB_data, S_SQL_data, S_AUTH_data, S_GET_PERM_data, S_PROP_SUB_data, S_PROP_UNSUB_data, S_PROP_GET_data, S_PROP_SET_data, S_PROP_REG_data, S_RECON_GET_data, S_RECON_USE_data, S_UP_FILES_data, S_GET_FILES_data } from './types.d.ts';
 import type { ClientMessageDataObj } from './types.d.ts';
 
-import type { RateLimit } from './ratelimit';
+import type { RateLimit } from './ratelimit.js';
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
 type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?: Function};
 type QueryObject = ClientSubscribeOpts & { onUpdate: SubscribeCallbackObject };
@@ -499,18 +499,27 @@ export class SocioClient extends LogHandler {
     // async Prop(prop_name: PropKey){
     //     const client_this = this; //use for inside the Proxy scope
     //     const prop_proxy = new Proxy(await this.GetProp(prop_name), {
-    //         async get(p: PropValue, property) {
-    //             const res = await client_this.GetProp.bind(client_this)(prop_name);
-    //             return res?.result?.success === 1 ? res?.result?.res[property] : p[property];
+    //         get(p: PropValue, property) {
+    //             return p[property];
+    //             // const res = await client_this.GetProp.bind(client_this)(prop_name);
+    //             // return res?.result?.success === 1 ? res?.result?.res[property] : p[property];
     //         },
-    //         // @ts-expect-error
-    //         async set(p: PropValue, property, new_val) { //ive run tests in other projects and the async set does work fine. TS doesnt want to allow it for some reason 
-    //             p[property] = new_val;
-    //             return (await client_this.SetProp.bind(client_this)(prop_name, p))?.result?.success === 1;
+    //         //ive run tests in other projects and the async set does work fine. TS doesnt want to allow it for some reason 
+    //         set(p: PropValue, property, new_val) {
+    //             //the sub will run this too, which means the value would've already been set
+    //             if (p[property] !== new_val){
+    //                 p[property] = new_val;
+    //                 client_this.SetProp.bind(client_this)(prop_name, p);
+    //             }
+
+    //             return true;
+    //             // return (await client_this.SetProp.bind(client_this)(prop_name, p))?.result?.success === 1;
     //         }
     //     });
 
-    //     this.SubscribeProp(prop_name, (new_val) => { prop_proxy[]})
+    //     this.SubscribeProp(prop_name, (new_val) => { 
+    //         for(const [key, val] of Object.entries(new_val)) prop_proxy[key] = val; //set each key, bcs cant just assign the new obj, bcs then it wouldnt be a proxy anymore
+    //     });
     //     return prop_proxy;
     // }
 

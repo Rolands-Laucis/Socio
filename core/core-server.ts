@@ -6,13 +6,13 @@ import { WebSocketServer } from 'ws'; //https://github.com/websockets/ws https:/
 import * as diff_lib from 'recursive-diff'; //https://www.npmjs.com/package/recursive-diff
 
 //mine
-import { QueryIsSelect, ParseQueryTables, ParseQueryVerb } from './sql-parsing';
-import { SocioStringParse, GetAllMethodNamesOf, yaml_parse } from './utils';
-import { E, LogHandler, err, log, info, done } from './logging';
-import { UUID, type SocioSecurity } from './secure';
-import { SocioSession, type SubObj } from './core-session';
-import { RateLimiter } from './ratelimit';
-import { CoreMessageKind } from './utils';
+import { QueryIsSelect, ParseQueryTables, ParseQueryVerb } from './sql-parsing.js';
+import { SocioStringParse, GetAllMethodNamesOf, yaml_parse } from './utils.js';
+import { E, LogHandler, err, log, info, done } from './logging.js';
+import { UUID, type SocioSecurity } from './secure.js';
+import { SocioSession, type SubObj } from './core-session.js';
+import { RateLimiter } from './ratelimit.js';
+import { CoreMessageKind } from './utils.js';
 
 //types
 import type { ServerOptions, WebSocket, AddressInfo } from 'ws';
@@ -25,9 +25,9 @@ import type { data_base, S_SUB_data, ServerMessageDataObj, S_UNSUB_data, S_SQL_d
 import type { C_RES_data, C_CON_data, C_UPD_data, C_AUTH_data, C_GET_PERM_data, C_PROP_UPD_data, C_RECON_Data, C_RECV_FILES_Data } from './types.d.ts'; //types over network for the data object
 
 import type { id, PropKey, PropValue, PropAssigner, PropOpts, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts, Bit, SessionOpts } from './types.d.ts';
-import { ClientMessageKind } from './core-client';
-import type { RateLimit } from './ratelimit';
-import type { SocioStringObj } from './sql-parsing';
+import { ClientMessageKind } from './core-client.js';
+import type { RateLimit } from './ratelimit.js';
+import type { SocioStringObj } from './sql-parsing.js';
 export type QueryFuncParams = { id?: id, sql: string, params?: any };
 export type QueryFunction = (client: SocioSession, id: id, sql: string, params?: any) => Promise<object>;
 

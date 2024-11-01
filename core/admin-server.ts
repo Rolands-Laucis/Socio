@@ -1,12 +1,12 @@
 //If God did not exist, it would be necessary to invent Him. /Voltaire/
 
-import { LogHandler, E } from "./logging";
+import { LogHandler, E } from "./logging.js";
 import { WebSocket as nodeWebSocket } from "ws";
-import { yaml_parse, yaml_stringify } from './utils';
+import { yaml_parse, yaml_stringify } from './utils.js';
 
 //types
 import type { id, PropValue, LoggingOpts } from './types.d.ts';
-import { ClientMessageKind } from './core-client';
+import { ClientMessageKind } from './core-client.js';
 type MessageDataObj = { id: id, status?: string, result?: string | object | boolean | PropValue, data?: object };
 type AdminClientOptions = { url: string, client_secret: string } & LoggingOpts;
 

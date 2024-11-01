@@ -1,5 +1,5 @@
 // To err is human; to persist in it - diabolial.  /Lucius Annaeus Seneca/
-import { soft_error } from './logging';
+import { soft_error } from './logging.js';
 
 export type SocioStringObj = { str: string, markers: string[] };
 //socio template literal tag. Dummy function, that doesnt ever get used. See Socio <= 1.3.4 on github for a working implementation of this function.

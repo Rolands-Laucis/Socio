@@ -4,8 +4,8 @@
 
 import MagicString from 'magic-string'; //https://github.com/Rich-Harris/magic-string
 import { randomUUID, createCipheriv, createDecipheriv, getCiphers, randomBytes, createHash, type CipherGCMTypes } from 'crypto'; //https://nodejs.org/api/crypto.html
-import { socio_string_regex } from './sql-parsing';
-import { LogHandler, E, log, info, done } from './logging';
+import { socio_string_regex } from './sql-parsing.js';
+import { LogHandler, E, log, info, done } from './logging.js';
 import { extname } from 'path';
 
 //types

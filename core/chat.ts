@@ -3,8 +3,8 @@
 
 //types
 import type { ClientID, S_SERV_data, ServerMessageDataObj } from "./types.d.ts";
-import type { SocioSession } from "./core-session";
-import { E, log } from "./logging";
+import type { SocioSession } from "./core-session.js";
+import { E, log } from "./logging.js";
 export type User = { client_id: ClientID, username?: string };
 export type ChatRoomMessage = { user: User, ts: number, text:string};
 type ServerInterfaceFunction = (client_ids: string[], data: object) => void;
@@ -43,7 +43,7 @@ export class ServerChatRoom{
         const new_message = { user: { client_id }, ts: (new Date()).getTime(), text };
         this.#messages.add(new_message);
         if(this.#messages.size > this.history_length)
-            this.#messages.delete(this.#messages.values().next().value); //remove the first message, if over history limit
+            this.#messages.delete(this.#messages.values().next().value as ChatRoomMessage); //remove the first message, if over history limit
         
         //send new message to clients
         const clients = [...this.#users.values()].map(c => c.client_id); //could filter out the current client as well, but that actually complicates things more than solves
