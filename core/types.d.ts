@@ -64,7 +64,7 @@ export type Server_Error_ClientHook = (client:SocioClient, error_msgs:string[]) 
 
 // over network data types
 export type data_base = { id: id };
-export type data_result_block = { result: { success: BIT, res?: any, error: string } };
+export type data_result_block = { result: { success: BIT, res?: any, error?: string } };
 
 // server receive data in Message from client
 export type S_SUB_data = data_base & ClientSubscribeOpts & { rate_limit: RateLimit | null };

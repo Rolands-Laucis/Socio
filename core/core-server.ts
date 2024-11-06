@@ -24,7 +24,7 @@ import type { data_base, S_SUB_data, ServerMessageDataObj, S_UNSUB_data, S_SQL_d
 // client data msg
 import type { C_RES_data, C_CON_data, C_UPD_data, C_AUTH_data, C_GET_PERM_data, C_PROP_UPD_data, C_RECON_Data, C_RECV_FILES_Data } from './types.d.ts'; //types over network for the data object
 
-import type { id, PropKey, PropValue, PropAssigner, PropOpts, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts, Bit, SessionOpts } from './types.d.ts';
+import type { id, PropKey, PropValue, PropAssigner, PropOpts, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts, Bit, SessionOpts, data_result_block } from './types.d.ts';
 import { ClientMessageKind } from './core-client.js';
 import type { RateLimit } from './ratelimit.js';
 import type { SocioStringObj } from './sql-parsing.js';
@@ -384,10 +384,11 @@ export class SocioServer extends LogHandler {
                     }
                     case CoreMessageKind.PROP_GET: {
                         this.#CheckPropExists((data as S_PROP_GET_data)?.prop, client, data.id as id, `Prop key [${(data as S_PROP_GET_data)?.prop}] does not exist on the backend! [#prop-reg-not-found-get]`);
+                        const prop_val = this.GetPropVal((data as S_PROP_GET_data)?.prop);
                         client.Send(ClientMessageKind.RES, {
                             id: data.id,
-                            result: this.GetPropVal((data as S_PROP_GET_data).prop)
-                        });
+                            result: { success: prop_val !== undefined ? 1 : 0, res: prop_val, error: prop_val === undefined ? 'Server couldnt find prop' : ''}
+                        } as data_result_block);
                         break;
                     }
                     case CoreMessageKind.PROP_SET: {
@@ -395,7 +396,7 @@ export class SocioServer extends LogHandler {
                         if (this.#props.get((data as S_PROP_SET_data).prop as string)?.client_writable) {
                             //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value.
                             const result = this.UpdatePropVal((data as S_PROP_SET_data).prop as string, (data as S_PROP_SET_data)?.prop_val, client.id, data.hasOwnProperty('prop_upd_as_diff') ? (data as S_PROP_SET_data).prop_upd_as_diff : this.#prop_upd_diff); //the assigner inside Update dictates, if this was a successful set.
-                            client.Send(ClientMessageKind.RES, { id: data.id, result: { success: result } }); //resolve this request to true, so the client knows everything went fine.
+                            client.Send(ClientMessageKind.RES, { id: data.id, result: { success: result } } as data_result_block); //resolve this request to true, so the client knows everything went fine.
                         } 
                         else throw new E('Prop is not client_writable.', data);
                         break;

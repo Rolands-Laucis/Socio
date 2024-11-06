@@ -441,6 +441,32 @@ Now clients can connect to the socio server with a url as usual, but the url wou
 ### Server Props
 A shared JSON serializable value/object/state on the server that is live synced to subscribed clients and is modifyable by clients and the server.
 
+The simplest use (since v1.10.0):
+```ts
+//server code
+import { SocioServer } from 'socio/dist/core';
+const socserv = new SocioServer(...)
+
+// create with the unique name "my_obj"
+socserv.RegisterProp('my_obj', {num:0}, {emit_to_sender:false});
+//more technical stuff below, but here "emit_to_sender" prevents infinite loops in the network.
+```
+
+Then in the browser any client can get this object, which will always be completely synced for all clients:
+```ts
+//browser code
+const sc = new SocioClient(...);
+await sc.ready();
+const my_obj = await sc.Prop('my_obj'); //get it by the unique name. Under the hood, this returns a js Proxy https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy
+
+// use like a regular js obj, but its value is always synced (magic!):
+if(my_obj?.num === 0) my_obj.num += 1;
+my_obj.num--;
+my_obj['num'] = 0;
+// etc.
+```
+
+More fine-grained control version:
 ```ts
 //server code
 import { SocioServer } from 'socio/dist/core'
@@ -459,7 +485,7 @@ socserv.RegisterProp('color', '#ffffff', {
     
     //success, so assign
     return socserv.SetPropVal('color', new_val); //assign the prop. Returns truthy, if was set succesfully
-  }, //default SocioServer.SetPropVal
+  }, //default is SocioServer.SetPropVal()
   client_writable:true, //clients can change this value. Default true
   send_as_diff:false, //send only the differences in the prop values. Overrules the diff global flag. Default false.
   emit_to_sender:false, //emit an update to the original client, that set a prop val and caused the update to happen, if the client is subbed to this prop. Default false.
@@ -482,7 +508,7 @@ col = await sc.GetProp('color', true); //last arg local=true
 
 Though usable for realtime web chat applications, i advise against that. There is a socio/chat.ts file that handles such a usecase in a more generic and extendable way.
 
-To be more network efficient, Socio can be set to use the [recursive-diff](https://www.npmjs.com/package/recursive-diff) lib for props. This is a good idea when your prop is a large or deeply nested JS object and only small parts of its structure get updated. Only differeneces in this object will be sent through the network on PROP_UPD msgs. Keep in mind, that if one of these msgs gets lost for a client, then its frontend prop will go out of sync unnoticeably and irreparably. The setup is a flag on the SocioServer constructor options:
+To be more network efficient, Socio can be set to use the [recursive-diff](https://www.npmjs.com/package/recursive-diff) lib for props. This is a good idea when your prop is a large or deeply nested JS object and only small parts of its structure get updated. Only differeneces in this object will be sent through the network on PROP_UPD msgs. Keep in mind, that if one of these msgs gets lost for a client, then its frontend prop will go out of sync unnoticeably and irreparably, though i've not seen this happen with the WS protocol. The setup is a flag on the SocioServer constructor options:
 
 ```ts
 //server code

@@ -257,7 +257,7 @@ export class SocioClient extends LogHandler {
                     // notify dev and crash with error
                     if(error){
                         const file_count = Object.keys((data as C_RECV_FILES_Data)?.files || {}).length;
-                        this.#HandleServerError(error, (data as C_RECV_FILES_Data).result.error, 'files received: ' + file_count);
+                        this.#HandleServerError(error, (data as C_RECV_FILES_Data)?.result?.error as string, 'files received: ' + file_count);
                         throw new E(error, { err_msg:(data as C_RECV_FILES_Data).result.error, file_count });
                     }
                     
@@ -447,7 +447,7 @@ export class SocioClient extends LogHandler {
             const { id, prom } = this.CreateQueryPromise();
             this.Send(CoreMessageKind.PROP_GET, { id, prop: prop_name } as S_PROP_GET_data);
             this.#UpdateQueryPromisePayloadSize(id);
-            return prom as Promise<data_base & data_result_block>;
+            return prom as Promise<any>;
         }
     }
     SubscribeProp(prop_name: PropKey, onUpdate: PropUpdateCallback, { rate_limit = null, receive_initial_update = true }: { rate_limit?: RateLimit | null, receive_initial_update?: boolean } = {}): Promise<{ id: id, result: { success: Bit } } | any> {
@@ -496,32 +496,43 @@ export class SocioClient extends LogHandler {
             return (prom as unknown) as Promise<{ prop: PropKey }>;
         } catch (e: err) { this.HandleError(e); return null; }
     }
-    // async Prop(prop_name: PropKey){
-    //     const client_this = this; //use for inside the Proxy scope
-    //     const prop_proxy = new Proxy(await this.GetProp(prop_name), {
-    //         get(p: PropValue, property) {
-    //             return p[property];
-    //             // const res = await client_this.GetProp.bind(client_this)(prop_name);
-    //             // return res?.result?.success === 1 ? res?.result?.res[property] : p[property];
-    //         },
-    //         //ive run tests in other projects and the async set does work fine. TS doesnt want to allow it for some reason 
-    //         set(p: PropValue, property, new_val) {
-    //             //the sub will run this too, which means the value would've already been set
-    //             if (p[property] !== new_val){
-    //                 p[property] = new_val;
-    //                 client_this.SetProp.bind(client_this)(prop_name, p);
-    //             }
+    // get a PropProxy object. The prop has to be a js object datatype on the server side. This automagically handles the PropGet, PropSet and SubscribeProp base functions for you.
+    async Prop(prop_name: PropKey){
+        const client_this = this; //use for inside the Proxy scope
+        const prop = await this.GetProp(prop_name, false);
+        if(prop === undefined){
+            this.HandleError(new E(`Couldnt retrieve server prop [${prop_name}]`, { prop_name, prop }));
+            return undefined;
+        }
+        if (typeof prop !== 'object') {
+            this.HandleError(new E(`Can only proxy js objects, but [${prop_name}] is not an object.`, { prop_name, prop }));
+            return undefined;
+        }
+        const prop_proxy = new Proxy(prop, {
+            get(p: PropValue, property) {
+                // log(`${prop_name} GET`, {p, property});
+                return p[property];
+            },
+            //ive run tests in other projects and the async set does work fine. TS doesnt want to allow it for some reason 
+            set(p: PropValue, property, new_val) {
+                // log(`${prop_name} SET`, { p, property, new_val });
+                //the sub will run this too, which means the value would've already been set
+                if (p[property] !== new_val){
+                    p[property] = new_val;
+                    client_this.SetProp.bind(client_this)(prop_name, p);
+                }
 
-    //             return true;
-    //             // return (await client_this.SetProp.bind(client_this)(prop_name, p))?.result?.success === 1;
-    //         }
-    //     });
+                return true;
+                // return (await client_this.SetProp.bind(client_this)(prop_name, p))?.result?.success === 1;
+            }
+        });
 
-    //     this.SubscribeProp(prop_name, (new_val) => { 
-    //         for(const [key, val] of Object.entries(new_val)) prop_proxy[key] = val; //set each key, bcs cant just assign the new obj, bcs then it wouldnt be a proxy anymore
-    //     });
-    //     return prop_proxy;
-    // }
+        await client_this.SubscribeProp(prop_name, (new_val) => {
+            // log(`${prop_name} SUB UPD`, { new_val });
+            for (const [key, val] of Object.entries(new_val)) prop_proxy[key] = val; //set each key, bcs cant just assign the new obj, bcs then it wouldnt be a proxy anymore
+        });
+        return prop_proxy;
+    }
 
 
     // socio query marker related --auth and --perm:
@@ -551,9 +562,11 @@ export class SocioClient extends LogHandler {
         this.#FindID(kind, data?.id);
         const q = this.#queries.get(data.id) as QueryObject | QueryPromise;
         if (q.hasOwnProperty('res')){
-            if (data.result.success === 1)
+            if (data.result.success === 1){
                 (q as QueryPromise).res(data?.result?.res as any);
-            else this.#HandleServerError(data.result.error);
+                // log('query prom res called', {kind, q, data});
+            }
+            else this.#HandleServerError(data.result?.error as string);
         }
         else if (q.hasOwnProperty('onUpdate'))
             if (data.result.success === 1){
@@ -565,7 +578,7 @@ export class SocioClient extends LogHandler {
                 if ((q as QueryObject).onUpdate?.error)
                     //@ts-expect-error
                     (q as QueryObject).onUpdate.error(data.result.error);
-                else this.#HandleServerError(``, data.result.error);
+                else this.#HandleServerError(``, data.result?.error as string);
             }
         
         this.#queries.delete(data.id); //clear memory
@@ -623,7 +636,7 @@ export class SocioClient extends LogHandler {
         else{
             const error = 'Failed to reconnect'
             this.HandleError(new E(error, data));
-            this.#HandleServerError(error, data.result.error);
+            this.#HandleServerError(error, data.result?.error as string);
         }
     }
 
