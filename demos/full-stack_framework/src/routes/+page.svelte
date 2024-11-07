@@ -1,8 +1,8 @@
 <script lang="ts">
     //imports
-    import { SocioClient } from "socio/dist/core-client";
+    import { ClientMessageKind, SocioClient } from "socio/dist/core-client";
     import { onMount, onDestroy } from "svelte";
-    import {socio} from 'socio/dist/utils';
+    import {socio} from 'socio/dist/sql-parsing';
 
     import { slide } from "svelte/transition";
     import toast from 'svelte-french-toast'; //https://github.com/kbrgl/svelte-french-toast
@@ -22,8 +22,8 @@
     });
 
     //setup toasts
-    sc.lifecycle_hooks.msg = (name:string, client_id:string, kind:string, data:any) => {
-        if(['UPD', 'PROP_UPD'].includes(kind))
+    sc.lifecycle_hooks.msg = (client_id:SocioClient, kind:ClientMessageKind, data:any) => {
+        if(['UPD', 'PROP_UPD'].includes(ClientMessageKind[kind]))
             toast('An update came in from the Socio Server.', {style:'background: #0D0D0E; color: #fff; padding:2px;',position: "bottom-center", duration:1000});
         // else if(kind == 'ERR')
         //     toast.error(`An error arrived for a query or prop. MSG ID:${data.id}`,{position: "bottom-center", duration:500});
@@ -33,7 +33,7 @@
     let ready = false;
     let user_count = 0, Users: { userid: number; name: string; num: number }[] = [];
     let insert_fields = { name: "Bob", num: 42 };
-    let color_prop = "#ffffff", num = 0;
+    let color_prop = "#ffffff", num = {num:0};
     let progress = writable(0);
 
     onMount(async () => {
@@ -51,7 +51,7 @@
         );
 
         log(await sc.SubscribeProp("color", c => color_prop = c as string)); //can await the sub to get success status
-        sc.SubscribeProp("num", n => num = n as number, {receive_initial_update:false}); //by default SubscribeProp will run this as soon as the sub is successful, but u can opt out of that like this
+        num = await sc.Prop("num"); //returns a js Object Proxy, that manages the subscription for you, such that this obj is always synced for everyone
     });
 
     //cleanup for dev server reloads.
@@ -148,9 +148,9 @@
         <hr>
 
         <section>
-            <Bloom style="--b:2px;--s:0.4;--s_h:2;--b_h:8px;--c:1;--c_h:2;"><Button on:click={() => sc.SetProp('num', --num)}>-</Button></Bloom>
-            <input type="number" bind:value={num} on:change={() => sc.SetProp('num', num)}>
-            <Bloom style="--b:2px;--s:0.4;--s_h:2;--b_h:8px;--c:1;--c_h:2;"><Button on:click={() => sc.SetProp('num', ++num)}>+</Button></Bloom>
+            <Bloom style="--b:2px;--s:0.4;--s_h:2;--b_h:8px;--c:1;--c_h:2;"><Button on:click={() => num.num--}>-</Button></Bloom>
+            <input type="number" bind:value={num.num}>
+            <Bloom style="--b:2px;--s:0.4;--s_h:2;--b_h:8px;--c:1;--c_h:2;"><Button on:click={() => num.num++}>+</Button></Bloom>
         </section>
 
         <hr>

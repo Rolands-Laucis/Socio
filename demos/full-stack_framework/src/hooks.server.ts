@@ -30,7 +30,7 @@ try {
             return socserv.SetPropVal('color', new_val);
         }
     });
-    socserv.RegisterProp('num', 0);
+    socserv.RegisterProp('num', {num:0});
 
     socserv.RegisterLifecycleHookHandler('file_upload', async (client: SocioSession, files: SocioFiles) => {
         return (await SaveFilesToDiskPath(['.', 'upload_files'], files)).result;
