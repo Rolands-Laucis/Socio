@@ -60,9 +60,14 @@ await sc.ready(); //wait to establish the connection
 const sub_id = sc.Subscribe({sql:socio`SELECT * FROM Users;`}, (res:object) => {...});
 
 //send a single query and wait for its result:
-await sc.Query(socio`INSERT INTO Users (name, num) VALUES(:name, :num);`, {name:'bob', num:42}); //sanatize dynamic data yourself in QueryWrap!
+await sc.Query(socio`INSERT INTO Users (name, num) VALUES(:name, :num);`, {name:'bob', num:42}); //sanatize dynamic data yourself in QueryWrap on the server!
 
-//or work with general server side data:
+//work with general server side data - "props":
+const my_obj = await sc.Prop('my_obj') as {num:0}; //in this case the prop must be a js object registered on the server
+if(my_obj?.num === 0) my_obj.num += 1; // use it like a regular js obj, but its value is always synced across clients and server (magic!):
+my_obj.num--; my_obj['num'] = 0; //etc.
+
+// or have manual control over any js datatype as a prop:
 let color = await sc.GetProp('color') as string; //the prop needs first to be created on the server and can be any json serializable object (including Map and Set)
 sc.SubscribeProp('color', (c:string) => color = c); //can be unsubscribed
 const res = await sc.SetProp('color', '#ffffff'); //this will rerun ^ the sub, if/when the server has set it, so no need to double your code everywhere!

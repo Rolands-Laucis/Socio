@@ -459,7 +459,7 @@ const sc = new SocioClient(...);
 await sc.ready();
 const my_obj = await sc.Prop('my_obj'); //get it by the unique name. Under the hood, this returns a js Proxy https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy
 
-// use like a regular js obj, but its value is always synced (magic!):
+// use like a regular js obj, but its value is always synced across clients and server (magic!):
 if(my_obj?.num === 0) my_obj.num += 1;
 my_obj.num--;
 my_obj['num'] = 0;
