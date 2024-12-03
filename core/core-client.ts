@@ -73,9 +73,24 @@ export class SocioClient extends LogHandler {
     async #connect(url: string, keep_alive: boolean, verbose: boolean, reconnect_tries:number){
         this.#ws = new WebSocket(url);
         this.#ws.addEventListener('message', this.#message.bind(this));
+        // on socket error events, keep retrying the connection until retries runs out
         if (keep_alive && reconnect_tries){
             this.#ws.addEventListener("close", (event: CloseEvent) => { this.#RetryConn(url, keep_alive, verbose, reconnect_tries, event) });
             this.#ws.addEventListener("error", (event: Event) => { this.#RetryConn(url, keep_alive, verbose, reconnect_tries, event) });
+        }
+        // or notify everything that the connection has failed
+        else{
+            const notify = (event: Event | CloseEvent) => {
+                // log to console, as thats the first sign for the dev that smth is wrong
+                if (event instanceof CloseEvent) this.HandleInfo('Connection closed.');
+                else this.HandleError(new E(`Socio failed to connect [${url}]`, event));
+
+                // notify the hook, if it exists. retries would be 0 here, since the top if would've run it to 0
+                if (this.lifecycle_hooks.discon)
+                    this.lifecycle_hooks.discon(this, url, keep_alive, verbose, reconnect_tries, event);
+            };
+            this.#ws.addEventListener("close", notify);
+            this.#ws.addEventListener("error", notify);
         }
     }
     #RetryConn(url: string, keep_alive: boolean, verbose: boolean, reconnect_tries: number, event:any) {
