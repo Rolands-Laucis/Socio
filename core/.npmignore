@@ -1,4 +1,6 @@
 node_modules
 docs.md
+jsr.json
+tests.js
 # README.md
 # https://docs.npmjs.com/cli/v9/configuring-npm/package-json#description
