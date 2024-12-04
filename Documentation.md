@@ -9,7 +9,7 @@ import { SocioServer } from 'socio/dist/core-server.js'; //or .ts
 
 const socserv = new SocioServer({ port: 3000 }, {
     db: {
-      Query: async (client:SocioSession, id:id, sql:string, params: object | null | Array<any> = {}) => {return ...} //do ur SQL query however you want
+      Query: async (caller_client: SocioSession, id:id, sql:string, params: object | null | Array<any> = {}) => {return ...} //do ur SQL query however you want
     }, 
     logging: {verbose:true}
   }
@@ -81,7 +81,7 @@ import type { id, Admin_Hook } from 'socio/dist/types';
 
 //SocioServer needs a "query" function that it can call to fetch data from your DB. This would usually be your preffered ORM lib interface raw query function, but really this function is as simple as input and output, so it can work however you want. Like read from a local txt file or whatever. Socio will always await its response to send back to the client.
 //id is a unique auto incrementing index for the query itself that is sent from the client - not really important for you, but perhaps for debugging.
-const QueryWrap: QueryFunction = async (client:SocioSession, id:id, sql:string, params: object | null | Array<any> = {}) => (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))?.at(0)
+const QueryWrap: QueryFunction = async (caller_client: SocioSession, id:id, sql:string, params: object | null | Array<any> = {}) => (await sequelize.query(sql, { logging: false, raw: true, replacements: params }))?.at(0)
 //https://sequelize.org/docs/v6/core-concepts/raw-queries/#replacements how replacements work. I use the sequelize lib here and in demos and my personal projects for very crude convecience, but it should be noted that i despise this ORM to my very core, its unreal. Implement this function in any other way you see fit.
 
 //Instance of SocioServer on port 3000 using the created query function. Verbose will make it print all incoming and outgoing traffic from all sockets. The first object is WSS Options - https://github.com/websockets/ws/blob/master/doc/ws.md#new-websocketserveroptions-callback
@@ -100,7 +100,7 @@ const socserv = new SocioServer({ port: 3000 }, {
 
 //This class has a few public fields that you can alter, as well as useful functions to call later in your program at any time. E.g. set up lifecycle hooks:
 socserv.LifecycleHookNames; //get an array of the hooks currently recognized by Socio.
-socserv.RegisterLifecycleHookHandler("con", (client:SocioSession, req:IncomingMessage) => {
+socserv.RegisterLifecycleHookHandler("con", (caller_client: SocioSession, req:IncomingMessage) => {
     //woohoo a new client connection!
     //client is the already created instance of Session class, that has useful properties and methods, like the ID and IP of the client.
 });
@@ -115,8 +115,8 @@ socserv.RegisterLifecycleHookHandler("auth", handle_auth_hook);
 //server code
 
 //the "db" object can have more features than just the hook-up with your backend database.
-type QueryFunction = (client: SocioSession, id: id, sql: string, params?: any) => Promise<object>;
-type Arbiter = (initiator: { client: SocioSession, sql: string, params: any }, current: { client: SocioSession, hook: SubObj }) => boolean | Promise<boolean>;
+type QueryFunction = (caller_client: SocioSession, id: id, sql: string, params?: any) => Promise<object>;
+type Arbiter = (initiator: { caller_client: SocioSession, sql: string, params: any }, current: { caller_client: SocioSession, hook: SubObj }) => boolean | Promise<boolean>;
 const socserv = new SocioServer({ ... }, {
     db: {
       Query: fun as QueryFunction, //optional. If you wish to only use socio props or other features. Will cause an error, when using features that require this
@@ -155,14 +155,14 @@ import type { SocioSession } from 'socio/dist/core-session.js'
 
 //keep track of which SocioSession client_id's have which of your database user_id's.
 const auth_clients:{[client_id:string]: number} = {};
-socserv.RegisterLifecycleHookHandler("auth", (client:SocioSession, params: object | null | Array<any>) => {
+socserv.RegisterLifecycleHookHandler("auth", (caller_client: SocioSession, params: object | null | Array<any>) => {
     const user_id = DB.get(params);//...do some DB stuff to get the user_id from params, that may contain like username and password. This data will be encrypted by lower OSI layers, if using WSS:// (secure sockets). However, its still a good practice, that DB passwords should not be sent in plain-text.
     auth_clients[client.id] = user_id;
     return true;
 })
 
 //then in your qeury function, add in the user_id dynamic param
-async function QueryWrap (client:SocioSession, id:id, sql:string, params: object | null | Array<any> = {}) {
+async function QueryWrap (caller_client: SocioSession, id:id, sql:string, params: object | null | Array<any> = {}) {
   if('user_id' in params) //replace the params client side dummy user_id with the real one. Because the client side user_id cannot be trusted.
     params.user_id = auth_clients[client.id]; 
   //you could also check if(client.authenticated) ... but that is unnecessary since the incoming msg wouldn't even get this far if the -auth flag is set and the user isnt authed.
@@ -186,7 +186,7 @@ const endpoints: {[e:string]: string} = {
 const socserv = new SocioServer(...);
 
 //this hook will be called when socio server gets a subscription request payload that contains an endpoint string and no sql string. Your callback must then by any means resolve to a valid SQL string and return it. The hook response can be async and it will be awaited. Here it is just fetched from a local dict instantly. These subscriptions work identically to regular ones.
-socserv.RegisterLifecycleHookHandler('endpoint', async (client:SocioSession, endpoint:string) => {
+socserv.RegisterLifecycleHookHandler('endpoint', async (caller_client: SocioSession, endpoint:string) => {
   return endpoints[endpoint];
 });
 ```
@@ -338,7 +338,7 @@ import { SaveFilesToDiskPath } from 'socio/dist/fs-utils';
 import type { SocioSession } from 'socio/dist/core-session';
 import type { SocioFiles, FS_Util_Response } from 'socio/dist/types';
 
-socserv.RegisterLifecycleHookHandler('file_upload', (client: SocioSession, files: SocioFiles) => {
+socserv.RegisterLifecycleHookHandler('file_upload', (caller_client: SocioSession, files: SocioFiles) => {
     return SaveFilesToDiskPath(['.', 'files', 'images'], files).result; //simple function for your convenience, that cross platform saves your files to your FS directory
     //returns FS_Util_Response, but this function must return truthy or falsy to indicate success.
     //FS_Util_Response contains result and error fields, that indicate if the FS call was successful and/or the os error msg. So you can log errors yourself.
@@ -359,7 +359,7 @@ const files: File[] = await sc.GetFiles(data); //This will request files from th
 import { ReadFilesFromDisk, MapPathsToFolder } from 'socio/dist/fs-utils';
 import type { FS_Util_Response } from 'socio/dist/types';
 
-socserv.RegisterLifecycleHookHandler('file_download', (client: SocioSession, data: any) => {
+socserv.RegisterLifecycleHookHandler('file_download', (caller_client: SocioSession, data: any) => {
     //data is anything you passed into the client exactly the same. Up to you how you want to locate your files via paths, aliases, whatever.
     return ReadFilesFromDisk(['./images/hello.avif', ...data]); //simple utility. Does not include lastModified or mime type, but you can add those yourself with some lib.
     //MUST return the FS_Util_Response type!! ReadFilesFromDisk returns it.
@@ -561,7 +561,7 @@ import type { MessageDataObj } from 'socio/dist/core-server.js'
 import type { SocioSession } from 'socio/dist/core-session.js'
 const socserv = new SocioServer(...)
 
-socserv.RegisterLifecycleHookHandler('serv', (client:SocioSession, data:MessageDataObj) => {
+socserv.RegisterLifecycleHookHandler('serv', (caller_client: SocioSession, data:MessageDataObj) => {
   //data has field "id" and "data" that is the literal param to the client-side serv() function
 
   //respond, bcs the client always awaits some answer
@@ -620,6 +620,17 @@ await sc.ready();
 // this gives {client_id:{name, ip}} at the time of writing this, but can be any data
 console.log(await sc.DiscoverSessions());
 ```
+There is also a server hook for customizing the returned discovery info:
+```ts
+//server code
+socserv.RegisterLifecycleHookHandler('discovery', (caller_client: SocioSession, data:MessageDataObj) => {
+  // return whatever truthy data structure you want. Return falsy, if u want socio to send the default.
+  
+  const ids = socserv.session_ids; // you can get session IDs. This call performs a calculation, so dont spam it
+  const client = socserv.GetClientSession(ids[0]); // then get individual clients, that have name, ip etc.
+  socserv.GetSessionsInfo(); // get the discovery default dict
+})
+```
 
 
 ### Socio Rooms/Spaces/Presentations/Collabs (Divided, shared Contexts)
@@ -633,7 +644,7 @@ import { ClientMessageKind } from 'socio/core-client';
 const socserv = new SocioServer(...)
 
 //use the generic communications mechanism to init a room
-socserv.RegisterLifecycleHookHandler('serv', (client:SocioSession, data:MessageDataObj) => {
+socserv.RegisterLifecycleHookHandler('serv', (caller_client: SocioSession, data:MessageDataObj) => {
   if(data.data.action == 'create_room'){
     //generate new room id
     const id = UUID()
@@ -667,7 +678,7 @@ import { ServerChatRoom, HandleChatRoomServ } from 'socio/dist/chat.js'; //safe 
 const socserv = new SocioServer(...);
 const chat_room = new ServerChatRoom(socserv.SendToClients.bind(socserv), 10); //create a chat room, that will use the SocioServer "emit" function to send to clients. Also specifies msg history length
 
-socserv.RegisterLifecycleHookHandler('serv', (client: SocioSession, data: MessageDataObj) => {
+socserv.RegisterLifecycleHookHandler('serv', (caller_client: SocioSession, data: MessageDataObj) => {
     HandleChatRoomServ(client, data, [chat_room]); //convenience, if you use the socio CMD protocol. Will handle taking in new msgs from clients and emit to others in the room.
     //an array of chats, because this handles all rooms. Here we have 1 room.
 })
@@ -756,7 +767,7 @@ const res = await ac.Run('GetPropVal', 'color') //will call SocioServer.GetPropV
 const socserv = new SocioServer(...);
 
 //'admin' will be called whenever any socket attempts to take action as an admin.
-socserv.RegisterLifecycleHookHandler('admin', (client:SocioSession, data:any) => {
+socserv.RegisterLifecycleHookHandler('admin', (caller_client: SocioSession, data:any) => {
     console.log(client.id, client.ipAddr, client.last_seen, data?.function, data?.args, data?.client_secret) //perform any checks with this - IMPORTANT for your own safety
     return true; //return truthy to grant access to the call.
     //Any public SocioServer instance method or object property can be called by its name
