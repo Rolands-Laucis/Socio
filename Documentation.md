@@ -86,8 +86,9 @@ const QueryWrap: QueryFunction = async (caller_client: SocioSession, id:id, sql:
 
 //Instance of SocioServer on port 3000 using the created query function. Verbose will make it print all incoming and outgoing traffic from all sockets. The first object is WSS Options - https://github.com/websockets/ws/blob/master/doc/ws.md#new-websocketserveroptions-callback
 const socserv = new SocioServer({ port: 3000 }, {
+    // the db object is optional, if you only use socio props
     db: {
-      Query: QueryWrap as QueryFunction,
+      Query: QueryWrap as QueryFunction, //optional
       ...//optional other db settings
     }, 
     logging: {verbose:true}
@@ -99,15 +100,26 @@ const socserv = new SocioServer({ port: 3000 }, {
 //---- More advanced stuff:
 
 //This class has a few public fields that you can alter, as well as useful functions to call later in your program at any time. E.g. set up lifecycle hooks:
-socserv.LifecycleHookNames; //get an array of the hooks currently recognized by Socio.
+socserv.LifecycleHookNames; //get an array of the hooks currently recognized by Socio. Or get the TS definitions from ./core/types.d.ts
 socserv.RegisterLifecycleHookHandler("con", (caller_client: SocioSession, req:IncomingMessage) => {
     //woohoo a new client connection!
     //client is the already created instance of Session class, that has useful properties and methods, like the ID and IP of the client.
 });
 
-//all the hooks have their types in "socio/dist/types", so that you can see the hook param type inference in your IDE:
-const handle_auth_hook: Auth_Hook = (client, ...) => {...}
-socserv.RegisterLifecycleHookHandler("auth", handle_auth_hook);
+import type { ServerLifecycleHooks, ClientLifecycleHooks } from 'socio/types';
+//all params should have automatic type inference with a TS language server in your IDE.
+socserv.RegisterLifecycleHookHandler('auth', (client, ...) => {...});
+socserv.UnRegisterLifecycleHookHandler('auth'); //and unreg, if u want
+
+// you can also optionally supply the hooks on initialization
+const socserv = new SocioServer({ port: 3000 }, {
+    ...,
+    hooks:{
+      auth: (client, ...) => {...},
+      ...
+    }
+  }
+);
 ```
 
 #### DB init object (Database, Query, Arbiter, allowed verbs)
@@ -135,18 +147,16 @@ const socserv = new SocioServer({ ... }, {
 ```
 
 #### Server and Client Hook definitions
-The types.d.ts file contains type definitions for all the server-side and client-side hook functions, so that you know what args they pass to your callback.
-You can import and use them as such:
-```ts
-//server hook functions:
-import type { Admin_Hook } from 'socio/types';
-const handle: Admin_Hook = (client, data) => {...}; //(client, data) both params should have automatic type inference with a TS language server in your IDE.
-socserv.RegisterLifecycleHookHandler('admin', handle);
+The types.d.ts file contains type definitions for all the server-side and client-side hook functions, so that you know what args they pass to your callback and what your callback should return.
 
-//client hook function signatures:
-import type { Cmd_ClientHook, Msg_ClientHook, Discon_ClientHook, Timeout_ClientHook ... } from 'socio/types';
+```ts
+import type { ServerLifecycleHooks, ClientLifecycleHooks } from 'socio/types';
+
+//all params should have automatic type inference with a TS language server in your IDE.
+const auth_handle: ServerLifecycleHooks['auth'] = (client, ...) => {...}; 
+socserv.RegisterLifecycleHookHandler('auth', handle);
+socserv.RegisterLifecycleHookHandler('auth', (client, ...) => {...});
 ```
-Perhaps you know of a better way to use them, but i am not as familiar with TS.
 
 #### Authentification hook - a simple mechanism
 ```ts

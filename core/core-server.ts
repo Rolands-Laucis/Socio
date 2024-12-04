@@ -7,7 +7,7 @@ import * as diff_lib from 'recursive-diff'; //https://www.npmjs.com/package/recu
 
 //mine
 import { QueryIsSelect, ParseQueryTables, ParseQueryVerb } from './sql-parsing.js';
-import { SocioStringParse, GetAllMethodNamesOf, yaml_parse } from './utils.js';
+import { SocioStringParse, GetAllMethodNamesOf, yaml_parse, initLifecycleHooks } from './utils.js';
 import { E, LogHandler, err, log, info, done, ErrorOrigin } from './logging.js';
 import { UUID, type SocioSecurity } from './secure.js';
 import { SocioSession, type SubObj } from './core-session.js';
@@ -52,7 +52,8 @@ type SocioServerOptions = {
     session_defaults?: SessionsDefaults, 
     prop_upd_diff?: boolean, 
     auto_recon_by_ip?: boolean, 
-    send_sensitive_error_msgs_to_client?:boolean, 
+    send_sensitive_error_msgs_to_client?:boolean,
+    hooks?: Partial<ServerLifecycleHooks> 
     [key:string]:any 
 } & LoggingOpts;
 type AdminServerMessageDataObj = {function:string, args?:any[], secure_key:string};
@@ -75,7 +76,7 @@ export class SocioServer extends LogHandler {
     //rate limits server functions globally
     #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
 
-    #lifecycle_hooks: ServerLifecycleHooks = { con: undefined, discon: undefined, msg: undefined, sub: undefined, unsub: undefined, upd: undefined, auth: undefined, gen_client_id: undefined, grant_perm: undefined, serv: undefined, admin: undefined, blob: undefined, file_upload: undefined, file_download: undefined, endpoint: undefined, gen_prop_name: undefined, identify:undefined, discovery:undefined }; //call the register function to hook on these. They will be called if they exist
+    #lifecycle_hooks!: ServerLifecycleHooks; //call the register function to hook on these. They will be called if they exist
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //msg hook receives all incomming msgs to the server. 
     //upd works the same as msg, but for every time that updates need to be propogated to all the sockets.
@@ -96,7 +97,19 @@ export class SocioServer extends LogHandler {
     auto_recon_by_ip:boolean = false;
     send_sensitive_error_msgs_to_client!:boolean;
 
-    constructor(opts: ServerOptions | undefined = {}, { db, socio_security = null, allow_discovery = false, logging = { verbose: false, hard_crash: false }, decrypt_opts = { decrypt_sql: true, decrypt_prop: false, decrypt_endpoint: false }, session_defaults = undefined, prop_upd_diff = false, prop_reg_timeout_ms = 1000 * 10, auto_recon_by_ip = false, send_sensitive_error_msgs_to_client = true }: SocioServerOptions){
+    constructor(opts: ServerOptions | undefined = {}, { 
+            db, 
+            socio_security = null, 
+            allow_discovery = false, 
+            logging = { verbose: false, hard_crash: false }, 
+            decrypt_opts = { decrypt_sql: true, decrypt_prop: false, decrypt_endpoint: false }, 
+            session_defaults = undefined, 
+            prop_upd_diff = false, 
+            prop_reg_timeout_ms = 1000 * 10, 
+            auto_recon_by_ip = false, 
+            send_sensitive_error_msgs_to_client = true,
+            hooks
+         }: SocioServerOptions){
         super({ ...logging, prefix:'SocioServer'});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
         //hard_crash will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
@@ -106,6 +119,7 @@ export class SocioServer extends LogHandler {
         this.#wss = new WebSocketServer({ ...opts, clientTracking: true }); //take a look at the WebSocketServer docs - the opts can have a server param, that can be your http server
         this.#secure = { socio_security, ...decrypt_opts, allow_discovery };
         this.#prop_upd_diff = prop_upd_diff;
+        this.#lifecycle_hooks = { ...initLifecycleHooks<ServerLifecycleHooks>(), ...hooks };
 
         //public:
         if (!db.hasOwnProperty('allowed_SQL_verbs')) db.allowed_SQL_verbs = ['SELECT', 'INSERT', 'UPDATE']; //add in defaults for DB, since cant seem to do it in the constructor args
@@ -713,7 +727,7 @@ export class SocioServer extends LogHandler {
         }
     }
 
-    RegisterLifecycleHookHandler(f_name:string, handler:Function|null=null){
+    RegisterLifecycleHookHandler<K extends keyof ServerLifecycleHooks>(f_name: K, handler?: ServerLifecycleHooks[K]){
         try{
             if (f_name in this.#lifecycle_hooks)
                 this.#lifecycle_hooks[f_name] = handler;

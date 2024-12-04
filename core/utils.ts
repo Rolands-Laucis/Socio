@@ -18,6 +18,11 @@ export function SocioMarkerHas(marker: QueryMarker, { parsed = null, str = '' }:
     return marker ? (parsed ? parsed.includes(marker) : (str ? SocioStringParse(str).markers.includes(marker) : false)) : false
 }
 
+// TS/JS helpers
+// Helper to dynamically generate default hooks dict of undefineds
+export function initLifecycleHooks<T extends Record<string, unknown>>(): T {
+    return Object.create(null) as T; // Use an empty object to simulate "undefined" for all properties
+}
 
 //misc
 export function sleep(seconds: number = 2) {

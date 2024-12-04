@@ -27,57 +27,47 @@ export type SessionOpts = { session_timeout_ttl_ms: number, max_payload_size?: n
 // client types
 export type ClientSubscribeOpts = { sql?: string, endpoint?: string, params?: object | null };
 
-//server hook functions
-export type ServerLifecycleHooks = { 
-    con?: Con_Hook, 
-    discon?: Discon_Hook, 
-    msg?: Msg_Hook, 
-    sub?: Sub_Hook, 
-    unsub?: Unsub_Hook, 
-    upd?: Upd_Hook, 
-    auth?: Auth_Hook, 
-    gen_client_id?: GenCLientID_Hook, 
-    grant_perm?: GrantPerm_Hook, 
-    serv?: Serv_Hook, 
-    admin?: Admin_Hook, 
-    blob?: Blob_Hook, 
-    file_upload?: FileUpload_Hook, 
-    file_download?: FileDownload_Hook, 
-    endpoint?: Endpoint_Hook, 
-    gen_prop_name?: Gen_Prop_Name_Hook, 
-    identify?: Identify_Hook, 
-    discovery?: Discovery_Hook 
+//Hook functions and types
+export type discovery_resp_obj = { [client_id: string]: { name?: string, ip: string, [key: string]: any } };
+type ServerHookDefinitions = {
+    con?: (caller_client: SocioSession, request: IncomingMessage) => void | Promise<void>,
+    discon?: (caller_client: SocioSession) => void | Promise<void>,
+    msg?: (caller_client: SocioSession, kind: CoreMessageKind, data: MessageDataObj) => boolean | void | Promise<boolean> | Promise<void>,
+    sub?: (caller_client: SocioSession, kind: CoreMessageKind, data: MessageDataObj) => boolean | Promise<boolean>,
+    unsub?: (caller_client: SocioSession, kind: CoreMessageKind, data: MessageDataObj) => boolean | Promise<boolean>,
+    upd?: (sessions: Map<ClientID, SocioSession>, initiator: SocioSession, sql: string, params: object | null) => boolean | Promise<boolean>,
+    auth?: (caller_client: SocioSession, params: object | null) => boolean | Promise<boolean>,
+    gen_client_id?: () => ClientID | Promise<ClientID>,
+    grant_perm?: (caller_client: SocioSession, data: GET_PERM_data) => boolean | Promise<boolean>,
+    serv?: (caller_client: SocioSession, data: MessageDataObj) => void | Promise<void>,
+    admin?: (caller_client: SocioSession, data: MessageDataObj) => boolean | Promise<boolean>,
+    blob?: (caller_client: SocioSession, request: Buffer | ArrayBuffer | Buffer[]) => boolean | Promise<boolean>,
+    file_upload?: (caller_client: SocioSession, files?: SocioFiles, data?: any) => Bit | boolean | Promise<Bit | boolean>,
+    file_download?: (caller_client: SocioSession, data: any) => FS_Util_Response | Promise<FS_Util_Response>,
+    endpoint?: (caller_client: SocioSession, endpoint: string) => string | Promise<string>,
+    gen_prop_name?: () => string | Promise<string>,
+    identify?: (caller_client: SocioSession, name: string) => void,
+    discovery?: (caller_client: SocioSession) => { [client_id: string]: { name?: string, ip: string, [key: string]: any } } | any,
 };
-export type GenCLientID_Hook = () => ClientID | Promise<ClientID>;
-export type Con_Hook = (caller_client: SocioSession, request: IncomingMessage) => void | Promise<void>;
-export type Discon_Hook = (caller_client: SocioSession) => void | Promise<void>;
-export type Blob_Hook = (caller_client: SocioSession, request: Buffer | ArrayBuffer | Buffer[]) => boolean | Promise<boolean>;
-export type Msg_Hook = (caller_client: SocioSession, kind: CoreMessageKind, data: MessageDataObj) => boolean | void | Promise<boolean> | Promise<void>;
-export type Sub_Hook = (caller_client: SocioSession, kind: CoreMessageKind, data: MessageDataObj) => boolean | Promise<boolean>;
-export type Unsub_Hook = (caller_client: SocioSession, kind: CoreMessageKind, data: MessageDataObj) => boolean | Promise<boolean>;
-export type Auth_Hook = (caller_client: SocioSession, params: object | null) => boolean | Promise<boolean>;
-export type GrantPerm_Hook = (caller_client: SocioSession, data: GET_PERM_data) => boolean | Promise<boolean>;
-export type Serv_Hook = (caller_client: SocioSession, data: MessageDataObj) => void | Promise<void>;
-export type Admin_Hook = (caller_client: SocioSession, data: MessageDataObj) => boolean | Promise<boolean>;
-export type FileUpload_Hook = (caller_client: SocioSession, files?: SocioFiles, data?: any) => Bit | boolean | Promise<Bit | boolean>;
-export type FileDownload_Hook = (caller_client: SocioSession, data: any) => FS_Util_Response | Promise<FS_Util_Response>;
-export type Upd_Hook = (sessions: Map<ClientID, SocioSession>, initiator: SocioSession, sql: string, params:object|null) => boolean | Promise<boolean>;
-export type Endpoint_Hook = (caller_client: SocioSession, endpoint: string) => string | Promise<string>;
-export type Gen_Prop_Name_Hook = () => string | Promise<string>;
-export type Identify_Hook = (caller_client: SocioSession, name:string) => void;
-type discovery_resp_obj = { [client_id: string]: { name?: string, ip: string } };
-export type Discovery_Hook = (caller_client: SocioSession) => discovery_resp_obj | any;
-// export type _Hook = (client: SocioSession) => boolean;
+// Use a mapped type to define individual importable types. Import this and use like ServerLifecycleHooks['con']
+export type ServerLifecycleHooks = {
+    [K in keyof ServerHookDefinitions]?: ServerHookDefinitions[K];
+};
 
-//client hook functions
-export type ClientLifecycleHooks = { discon?: Discon_ClientHook, msg?: Msg_ClientHook, cmd?: Cmd_ClientHook, timeout?: Timeout_ClientHook, prop_drop?: PropDrop_ClientHook, server_error?: Server_Error_ClientHook };
-export type Discon_ClientHook = (client:SocioClient, url:string, keep_alive:boolean, verbose:boolean, reconnect_tries:number, event: Event | CloseEvent) => void;
-export type Msg_ClientHook = (client:SocioClient, kind: ClientMessageKind, data: ClientMessageDataObj) => boolean | void | Promise<boolean> | Promise<void>;
-export type Cmd_ClientHook = (data:ClientMessageDataObj) => void;
-export type Timeout_ClientHook = (client:SocioClient) => void;
-export type PropDrop_ClientHook = (client:SocioClient, prop_key:PropKey, sub_id:id) => void;
-export type Server_Error_ClientHook = (client:SocioClient, error_msgs:string[]) => void;
-// export type _ClientHook = (client:SocioClient,) => boolean;
+// Define a base record of hook names and their signatures
+type ClientHookDefinitions = {
+    discon: (client: SocioClient, url: string, keep_alive: boolean, verbose: boolean, reconnect_tries: number, event: Event | CloseEvent) => void;
+    msg: (client: SocioClient, kind: ClientMessageKind, data: ClientMessageDataObj) => boolean | void | Promise<boolean> | Promise<void>;
+    cmd: (data: ClientMessageDataObj) => void;
+    timeout: (client: SocioClient) => void;
+    prop_drop: (client: SocioClient, prop_key: PropKey, sub_id: id) => void;
+    server_error: (client: SocioClient, error_msgs: string[]) => void;
+};
+// Use a mapped type to define individual importable types. Import this and use like ClientLifecycleHooks['con']
+export type ClientLifecycleHooks = {
+    [K in keyof ClientHookDefinitions]?: ClientHookDefinitions[K];
+};
+
 
 // over network data types
 export type data_base = { id: id };

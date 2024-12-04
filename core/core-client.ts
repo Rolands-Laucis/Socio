@@ -4,7 +4,7 @@ import pako from 'pako'; //https://github.com/nodeca/pako
 import * as diff_lib from 'recursive-diff'; //https://www.npmjs.com/package/recursive-diff
 
 import { LogHandler, E, err, log, info, done } from './logging.js';
-import { yaml_parse, yaml_stringify, clamp, CoreMessageKind } from './utils.js';
+import { yaml_parse, yaml_stringify, clamp, CoreMessageKind, initLifecycleHooks } from './utils.js';
 
 import { ErrorOrigin } from './logging.js'; //its an enum, not a type, so this import
 
@@ -27,7 +27,13 @@ export type ProgressOnUpdate = (percentage: number) => void;
 
 type PropUpdateCallback = ((new_val: PropValue, diff?: diff_lib.rdiffResult[]) => void) | null;
 export type ClientProp = { val: PropValue | undefined, subs: { [id: id]: PropUpdateCallback } };
-export type SocioClientOptions = { name?: string, keep_alive?: boolean, reconnect_tries?: number, persistent?: boolean } & LoggingOpts;
+export type SocioClientOptions = { 
+    name?: string, 
+    keep_alive?: boolean, 
+    reconnect_tries?: number, 
+    persistent?: boolean,
+    hooks?: Partial<ClientLifecycleHooks>
+} & LoggingOpts;
 export enum ClientMessageKind {
     CON, UPD, PONG, AUTH, GET_PERM, RES, PROP_UPD, PROP_DROP, CMD, RECON, RECV_FILES, TIMEOUT
 };
@@ -49,16 +55,24 @@ export class SocioClient extends LogHandler {
     //public:
     config: SocioClientOptions;
     key_generator: (() => number | string) | undefined;
-    lifecycle_hooks: ClientLifecycleHooks = { discon: undefined, msg: undefined, cmd: undefined, timeout: undefined, prop_drop:undefined, server_error:undefined }; //assign your function to hook on these. They will be called if they exist
+    lifecycle_hooks!: ClientLifecycleHooks; //assign your function to hook on these. They will be called if they exist
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
     // progs: Map<Promise<any>, number> = new Map(); //the promise is that of a socio generic data going out from client async. Number is WS send buffer payload size at the time of query
 
-    constructor(url: string, { name, logging = { verbose: false, hard_crash: false }, keep_alive = true, reconnect_tries = 1, persistent = false}: SocioClientOptions = {}) {
+    constructor(url: string, { 
+            name, 
+            logging = { verbose: false, hard_crash: false }, 
+            keep_alive = true, 
+            reconnect_tries = 1, 
+            persistent = false,
+            hooks,
+        }: SocioClientOptions = {}) {
         super({ ...logging, prefix: name ? `SocioClient:${name}` : 'SocioClient' });
 
         // public:
         this.config = {name, logging, keep_alive, reconnect_tries, persistent};
+        this.lifecycle_hooks = { ...initLifecycleHooks<ClientLifecycleHooks>(), ...hooks };
         
         // private:
         this.#latency = (new Date()).getTime();
