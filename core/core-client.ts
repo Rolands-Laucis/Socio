@@ -6,6 +6,8 @@ import * as diff_lib from 'recursive-diff'; //https://www.npmjs.com/package/recu
 import { LogHandler, E, err, log, info, done } from './logging.js';
 import { yaml_parse, yaml_stringify, clamp, CoreMessageKind } from './utils.js';
 
+import { ErrorOrigin } from './logging.js'; //its an enum, not a type, so this import
+
 //types
 import type { id, PropKey, PropValue, PropOpts, Bit, ClientLifecycleHooks, ClientID, SocioFiles, LoggingOpts, ClientSubscribeOpts, data_result_block, discovery_resp_obj } from './types.d.ts';
 
@@ -83,7 +85,7 @@ export class SocioClient extends LogHandler {
             const notify = (event: Event | CloseEvent) => {
                 // log to console, as thats the first sign for the dev that smth is wrong
                 if (event instanceof CloseEvent) this.HandleInfo('Connection closed.');
-                else this.HandleError(new E(`Socio failed to connect [${url}]`, event));
+                else this.#HandleClientError(new E(`Socio failed to connect [${url}]`, event));
 
                 // notify the hook, if it exists. retries would be 0 here, since the top if would've run it to 0
                 if (this.lifecycle_hooks.discon)
@@ -94,7 +96,7 @@ export class SocioClient extends LogHandler {
         }
     }
     #RetryConn(url: string, keep_alive: boolean, verbose: boolean, reconnect_tries: number, event:any) {
-        this.HandleError(new E(`"${this.config.name || ''}" WebSocket closed. Retrying... Event details:`, event));
+        this.#HandleClientError(new E(`"${this.config.name || ''}" WebSocket closed. Retrying... Event details:`, event));
         this.#resetConn(); //invalidate any state this session had
         this.#connect(url, keep_alive, verbose, reconnect_tries - 1); //reconnect
         // Our greatest glory is not in never falling, but in rising every time we fall. /Confucius/
@@ -294,7 +296,7 @@ export class SocioClient extends LogHandler {
                     throw new E(`Unrecognized message kind!`, { kind, data });
                 }
             }
-        } catch (e:err) { this.HandleError(e) }
+        } catch (e:err) { this.#HandleClientError(e) }
     }
 
     //accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
@@ -303,7 +305,7 @@ export class SocioClient extends LogHandler {
             if (data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, ...data); //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
             this.#ws?.send(yaml_stringify(Object.assign({}, { kind, data: data[0] }, ...data.slice(1))));
             this.HandleInfo('sent:', CoreMessageKind[kind], data);
-        } catch (e: err) { this.HandleError(e); }
+        } catch (e: err) { this.#HandleClientError(e); }
     }
     SendFiles(files:File[], other_data:object|undefined=undefined){
         const { id, prom } = this.CreateQueryPromise(); //this up here, bcs we await in the lower lines, so that a prog tracker async can find this query as soon as it is available.
@@ -425,7 +427,7 @@ export class SocioClient extends LogHandler {
             this.Send(CoreMessageKind.SUB, { id, sql, endpoint, params, rate_limit } as S_SUB_data);
 
             return id; //the ID of the query
-        } catch (e: err) { this.HandleError(e); return null; }
+        } catch (e: err) { this.#HandleClientError(e); return null; }
     }
     async Unsubscribe(sub_id: id, force=false) {
         try {
@@ -444,7 +446,7 @@ export class SocioClient extends LogHandler {
             }
             else
                 throw new E('Cannot unsubscribe query, because provided ID is not currently tracked.', sub_id);
-        } catch (e:err) { this.HandleError(e); return false; }
+        } catch (e:err) { this.#HandleClientError(e); return false; }
     }
     Query(sql: string, params: object | null | Array<any> = null, { sql_is_endpoint = undefined, onUpdate, freq_ms = undefined }: { sql_is_endpoint?:boolean, onUpdate?: ProgressOnUpdate, freq_ms?:number } = {}){
         //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
@@ -470,7 +472,7 @@ export class SocioClient extends LogHandler {
             this.#UpdateQueryPromisePayloadSize(id);
 
             return prom as Promise<data_base & data_result_block>;
-        } catch (e: err) { this.HandleError(e); return null; }
+        } catch (e: err) { this.#HandleClientError(e); return null; }
     }
     GetProp(prop_name: PropKey, local: boolean = false){
         if (local) return { result: { success: 1, res: this.#props.get(prop_name)?.val as PropValue }};
@@ -497,7 +499,7 @@ export class SocioClient extends LogHandler {
             }
 
             return prom as Promise<any>;
-        } catch (e: err) { this.HandleError(e); return new Promise(res => res({ id, result: { success: 0 } })); }
+        } catch (e: err) { this.#HandleClientError(e); return new Promise(res => res({ id, result: { success: 0 } })); }
     }
     async UnsubscribeProp(prop_name: PropKey, force = false) {
         try {
@@ -516,7 +518,7 @@ export class SocioClient extends LogHandler {
             }
             else
                 throw new E('Cannot unsubscribe query, because provided prop_name is not currently tracked.', prop_name);
-        } catch (e: err) { this.HandleError(e); return false; }
+        } catch (e: err) { this.#HandleClientError(e); return false; }
     }
     RegisterProp(prop_name: PropKey | undefined | null, initial_value: any = null, prop_reg_opts: Omit<PropOpts, "observationaly_temporary"> = {}) { //"client_writable" & 
         try {
@@ -525,18 +527,18 @@ export class SocioClient extends LogHandler {
             this.#UpdateQueryPromisePayloadSize(id);
             
             return (prom as unknown) as Promise<{ prop: PropKey }>;
-        } catch (e: err) { this.HandleError(e); return null; }
+        } catch (e: err) { this.#HandleClientError(e); return null; }
     }
     // get a PropProxy object. The prop has to be a js object datatype on the server side. This automagically handles the PropGet, PropSet and SubscribeProp base functions for you.
     async Prop(prop_name: PropKey){
         const client_this = this; //use for inside the Proxy scope
         const prop = await this.GetProp(prop_name, false);
         if(prop === undefined){
-            this.HandleError(new E(`Couldnt retrieve server prop [${prop_name}]`, { prop_name, prop }));
+            this.#HandleClientError(new E(`Couldnt retrieve server prop [${prop_name}]`, { prop_name, prop }));
             return undefined;
         }
         if (typeof prop !== 'object') {
-            this.HandleError(new E(`Can only proxy js objects, but [${prop_name}] is not an object.`, { prop_name, prop }));
+            this.#HandleClientError(new E(`Can only proxy js objects, but [${prop_name}] is not an object.`, { prop_name, prop }));
             return undefined;
         }
         const prop_proxy = new Proxy(prop, {
@@ -618,7 +620,10 @@ export class SocioClient extends LogHandler {
         if (this.lifecycle_hooks.server_error)
             this.lifecycle_hooks.server_error(this, error_msgs);
         else
-            this.HandleError(new E(...error_msgs));
+            this.HandleError(new E(...error_msgs), ErrorOrigin.SERVER);
+    }
+    #HandleClientError(...error_msgs: any[]) {
+        this.HandleError(new E(...error_msgs), ErrorOrigin.CLIENT);
     }
 
 
@@ -666,7 +671,7 @@ export class SocioClient extends LogHandler {
         }
         else{
             const error = 'Failed to reconnect'
-            this.HandleError(new E(error, data));
+            this.#HandleClientError(new E(error, data));
             this.#HandleServerError(error, data.result?.error as string);
         }
     }

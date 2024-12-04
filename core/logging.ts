@@ -1,5 +1,6 @@
 // The greatest compliment that was ever paid me was when one asked me what I thought, and attended to my answer.  /Henry David Thoreau/
 
+
 //https://stackoverflow.com/questions/9781218/how-to-change-node-jss-console-font-color
 /**
  * some default colors to pick from so to not memorize the format
@@ -36,13 +37,19 @@ export const colors = {
 export type err = E | string | any;
 export type LogHandlers = { [handler in "error" | "info" | "debug"]: Function | null; };
 export type LoggerOptions = { log_handlers?: LogHandlers, verbose?: boolean, hard_crash?: boolean, prefix?: string, use_color?: boolean, log_level?:LogLevel};
+
+// enums, which compile to js dicts
 export enum LogLevel{
     DEBUG, INFO, DONE, WARN, ERROR
 };
+export enum ErrorOrigin {
+    SERVER, CLIENT, FOREIGN_CLIENT
+}
 
 //for my own error throwing, bcs i want to throw a msg + some objects maybe to log the current state of the program
 export class E extends Error {
     logs: any[];
+    origin?: ErrorOrigin; //this gets inserted right before being printed, if need be. Bcs i didnt want to update all legacy code logs
 
     constructor(msg = '', ...logs) {
         super(msg);
@@ -86,13 +93,15 @@ export class LogHandler {
             console.log(`${LogHandler.prefix(prefix, color)} ${msg}`, ...args);
     }
 
-    HandleError(e: E | Error | undefined | string){ //e is of type class E ^
-        if (this.hard_crash) throw e;
+    HandleError(e: E | Error | string, origin?: ErrorOrigin) { //e is usually class instance of E
+        log('HandleError', {e, origin});
+        if (e && (e instanceof E || e instanceof Error)) e['origin'] = origin;
+        if (this.hard_crash) throw e instanceof E ? (e as E).message : e;
         if (this.log_handlers?.error && typeof this.log_handlers.error === 'function') this.log_handlers.error(e);
         if (this.verbose) {
             if(typeof e == 'string') this.soft_error(e);
-            else if (typeof e == 'object')
-                this.soft_error(e, ...("logs" in e ? e.logs : []));
+            else // if (typeof e == 'object') //y not just handle all cases here, so that no errors slip unnoticed
+                this.soft_error(e, ...(e as E)?.logs || []);
         }
     }
     HandleInfo(...args: any[]){
@@ -130,15 +139,15 @@ export class LogHandler {
         console.log(`${LogHandler.prefix('Socio', colors.BgGreen + colors.FgBlack)} ${msg}`, ...args);
     }
 
-    soft_error(msg: any, ...args: any[]) {
-        this.BaseLog(LogLevel.WARN, this.prefix + ' WARN', colors.BgRed + colors.FgBlack, msg);
+    soft_error(e: E | Error | string, ...args: any[]) {
+        this.BaseLog(LogLevel.WARN, this.prefix + (e instanceof E && e?.origin !== undefined ? ` | ${ErrorOrigin[e.origin as ErrorOrigin]} Error` : '') + ' | WARN', colors.BgRed + colors.FgBlack, (e instanceof E ? e.message : e) as string);
         if (args)
-            console.error(...args, '\n');
+            console.error((e instanceof E ? e.message : e) as string, ...args, '\n');
     }
     static soft_error(msg: any, ...args: any[]) {
         console.log(`${LogHandler.prefix(`Socio WARN`, colors.BgRed + colors.FgBlack)} ${msg}`);
         if (args)
-            console.error(...args, '\n');
+            console.error(msg, ...args, '\n');
     }
     // error(msg: any, ...args: any[]) {
     //     this.BaseLog(LogLevel.ERROR, this.prefix + ' ERROR', colors.BgRed + colors.FgBlack, msg);

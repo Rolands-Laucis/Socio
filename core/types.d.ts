@@ -4,7 +4,6 @@ import type { ClientMessageDataObj, SocioClient } from './core-client';
 import type { IncomingMessage } from 'http';
 import type { E, LoggerOptions } from "./logging";
 import type { RateLimit } from './ratelimit';
-import exp from "constants";
 
 //general types
 export type id = string | number;
@@ -24,10 +23,6 @@ export type QueryMarker = 'socio' | 'auth' | 'perm';
 export type FS_Util_Response = { result: Bit, error?: string | Error | E | object | any, files?: SocioFiles }
 export type LoggingOpts = { logging?: LoggerOptions };
 export type SessionOpts = { session_timeout_ttl_ms: number, max_payload_size?: number };
-// export type BasicClientRes = { id: id, result: Bit };
-// export type BasicClientResPromise = Promise<{ id: id, result: Bit, error?:string, msg?:string }>;
-// export type BasicClientQuery = { id: id, result: Bit };
-// export type BasicClientResPromise = Promise<{ id: id, result: Bit, error?: string, msg?: string }>;
 
 // client types
 export type ClientSubscribeOpts = { sql?: string, endpoint?: string, params?: object | null };

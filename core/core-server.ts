@@ -8,7 +8,7 @@ import * as diff_lib from 'recursive-diff'; //https://www.npmjs.com/package/recu
 //mine
 import { QueryIsSelect, ParseQueryTables, ParseQueryVerb } from './sql-parsing.js';
 import { SocioStringParse, GetAllMethodNamesOf, yaml_parse } from './utils.js';
-import { E, LogHandler, err, log, info, done } from './logging.js';
+import { E, LogHandler, err, log, info, done, ErrorOrigin } from './logging.js';
 import { UUID, type SocioSecurity } from './secure.js';
 import { SocioSession, type SubObj } from './core-session.js';
 import { RateLimiter } from './ratelimit.js';
@@ -156,6 +156,7 @@ export class SocioServer extends LogHandler {
                 await this.#lifecycle_hooks.con(client, request); //u can get the client_id and client_ip off the client object
 
             //set this client websockets event handlers
+            // have to .bind(this), bcs this is inside a callback with its own this in the lib and bcs js closures
             conn.on('message', (req: Buffer | ArrayBuffer | Buffer[], isBinary: Boolean) => {
                 if (this.#sessions.has(client_id))//@ts-expect-error
                     this.#Message.bind(this)(this.#sessions.get(client_id), req, isBinary);
