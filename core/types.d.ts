@@ -46,7 +46,7 @@ export type Upd_Hook = (sessions: Map<ClientID, SocioSession>, initiator: SocioS
 export type Endpoint_Hook = (caller_client: SocioSession, endpoint: string) => string | Promise<string>;
 export type Gen_Prop_Name_Hook = () => string | Promise<string>;
 type discovery_resp_obj = { [client_id: string]: { name?: string, ip: string } };
-export type Discovery_Hook = (caller_client: SocioSession) => discovery_resp_obj;
+export type Discovery_Hook = (caller_client: SocioSession) => discovery_resp_obj | any;
 // export type _Hook = (client: SocioSession) => boolean;
 
 //client hook functions
