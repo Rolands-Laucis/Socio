@@ -17,7 +17,7 @@ export type SubObj = {
     rate_limiter?: RateLimiter,
     cache_hash:number
 }
-export type SocioSessionOptions = { default_perms?: Map<string, string[]>, session_opts?: SessionOpts } & LoggingOpts;
+export type SocioSessionOptions = { default_perms?: Map<string, string[]>, session_opts?: SessionOpts, name?:string } & LoggingOpts;
 
 export class SocioSession extends LogHandler {
     //private:
@@ -31,8 +31,9 @@ export class SocioSession extends LogHandler {
     verbose = false;
     last_seen: number = 0; //ms since epoch when this session was last active
     session_opts: SessionOpts = { session_timeout_ttl_ms: Infinity, max_payload_size: 1024 };
+    name?:string;
 
-    constructor(client_id: string, ws_client: WebSocket, client_ipAddr: string, { logging = { verbose: false, hard_crash: false }, default_perms, session_opts }: SocioSessionOptions  = {}) {
+    constructor(client_id: string, ws_client: WebSocket, client_ipAddr: string, { logging = { verbose: false, hard_crash: false }, default_perms, session_opts, name }: SocioSessionOptions  = {}) {
         super({ ...logging, prefix: 'SocioSession' });
         
         //private:
@@ -44,6 +45,7 @@ export class SocioSession extends LogHandler {
         //public:
         this.verbose = logging.verbose || false;
         this.session_opts = Object.assign(this.session_opts, session_opts);
+        this.name = name;
 
         this.last_seen_now();
     }
@@ -66,7 +68,7 @@ export class SocioSession extends LogHandler {
                 } else {
                     this.#ws.send(payload);
                     if(this.verbose) //this check here, bcs it is faster than adding a function onto the callstack, and this f will be spammed a lot.
-                        this.HandleInfo(`sent: [${ClientMessageKind[kind]}] to [${this.id}]`, ...(kind != ClientMessageKind.RECV_FILES ? data : []));
+                        this.HandleInfo(`sent: [${ClientMessageKind[kind]}] to [${this.name ? this.name + ' | ' : ''}${this.id}]`, ...(kind != ClientMessageKind.RECV_FILES ? data : []));
                     this.last_seen_now();
                 }
                 resolve();
@@ -134,5 +136,6 @@ export class SocioSession extends LogHandler {
         this.#ws['socio_client_ipAddr'] = old_client.ipAddr;
         this.verbose = old_client.verbose;
         this.last_seen = old_client.last_seen;
+        this.name = old_client.name;
     }
 }

@@ -213,7 +213,7 @@ export class SocioServer extends LogHandler {
                             data[field] = this.#Decrypt(client, data[field], field === 'sql');
                 }
 
-                this.HandleInfo(`recv: [${CoreMessageKind[kind]}] from [${client_id}]`, kind != CoreMessageKind.UP_FILES ? data : `File count: ${(data as S_UP_FILES_data).files?.size}`);
+                this.HandleInfo(`recv: [${CoreMessageKind[kind]}] from [${client.name ? client.name + ' | ' : ''}${client_id}]`, kind != CoreMessageKind.UP_FILES ? data : `File count: ${(data as S_UP_FILES_data).files?.size}`);
 
                 //let the developer handle the msg
                 if (this.#lifecycle_hooks.msg)
