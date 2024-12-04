@@ -566,6 +566,10 @@ export class SocioServer extends LogHandler {
                             client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 0, error: 'A session already has this name!' } });
                         }else{
                             client.name = name;
+
+                            if (this.#lifecycle_hooks?.identify)
+                                this.#lifecycle_hooks.identify(client, name);
+
                             client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 1 } });
                         }
 

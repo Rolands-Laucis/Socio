@@ -597,6 +597,16 @@ await sc.ready();
 //name it anything, but it must be a unique name on the server currently, otherwise you get an error msg 
 await sc.IdentifySelf(`Main ${new Date().toISOString()}`);
 ```
+There is also a server hook for being notified of a client identifying itself, bcs this turns out to be very convenient in code:
+```ts
+//server code
+socserv.RegisterLifecycleHookHandler('identify', (caller_client: SocioSession, name:string) => {
+  // name is the new name this caller_client has been assigned.
+  // this only gets called if the identification was successful.
+  // the client session name property has already been set
+  // return void
+})
+```
 
 ##### Network Discovery
 Enable it on the server:
