@@ -7,7 +7,7 @@ import { LogHandler, E, err, log, info, done } from './logging.js';
 import { yaml_parse, yaml_stringify, clamp, CoreMessageKind } from './utils.js';
 
 //types
-import type { id, PropKey, PropValue, PropOpts, Bit, ClientLifecycleHooks, ClientID, SocioFiles, LoggingOpts, ClientSubscribeOpts, data_result_block } from './types.d.ts';
+import type { id, PropKey, PropValue, PropOpts, Bit, ClientLifecycleHooks, ClientID, SocioFiles, LoggingOpts, ClientSubscribeOpts, data_result_block, discovery_resp_obj } from './types.d.ts';
 
 // cross network data objects
 // client data msg
@@ -52,7 +52,7 @@ export class SocioClient extends LogHandler {
     //discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
     // progs: Map<Promise<any>, number> = new Map(); //the promise is that of a socio generic data going out from client async. Number is WS send buffer payload size at the time of query
 
-    constructor(url: string, { name = 'Main', logging = { verbose: false, hard_crash: false }, keep_alive = true, reconnect_tries = 1, persistent = false}: SocioClientOptions = {}) {
+    constructor(url: string, { name, logging = { verbose: false, hard_crash: false }, keep_alive = true, reconnect_tries = 1, persistent = false}: SocioClientOptions = {}) {
         super({ ...logging, prefix: name ? `SocioClient:${name}` : 'SocioClient' });
 
         // public:
@@ -141,6 +141,11 @@ export class SocioClient extends LogHandler {
                     if (this.verbose) this.done(`Socio WebSocket [${this.config.name}] connected.`);
 
                     this.#is_ready = true;
+
+                    // once ready, attempt to use the given name as a global identifier. No problem, if this fails.
+                    if(this.config?.name)
+                        this.IdentifySelf(this.config.name);
+
                     break;
                 }
                 case ClientMessageKind.UPD:{
@@ -377,8 +382,13 @@ export class SocioClient extends LogHandler {
         return (prom as unknown) as Promise<File[] | null>; //fuck TS fr. wtf is this syntax. r u trying to make me kms?
     }
     //sends a ping with either the user provided number or an auto generated number, for keeping track of packets and debugging
-    Ping(num = 0) {
-        this.Send(CoreMessageKind.PING, { id: num || this.GenKey })
+    Ping(id_num = undefined) {
+        this.Send(CoreMessageKind.PING, { id: typeof id_num === 'number' ? id_num : this.GenKey });
+    }
+    DiscoverSessions(){
+        const { id, prom } = this.CreateQueryPromise();
+        this.Send(CoreMessageKind.DISCOVERY, { id });
+        return prom as Promise<data_base & data_result_block & discovery_resp_obj>;
     }
     UnsubscribeAll({ props = true, queries = true, force = false } = {}) {
         if (props)
@@ -387,6 +397,12 @@ export class SocioClient extends LogHandler {
         if (queries)
             for (const q of [...this.#queries.keys()])
                 this.Unsubscribe(q, force);
+    }
+    IdentifySelf(name:string){
+        if(!name) throw new E('Must provide a unique string name to indetify this session globally.');
+        const { id, prom } = this.CreateQueryPromise();
+        this.Send(CoreMessageKind.IDENTIFY, {id, name});
+        return prom as Promise<data_base & data_result_block>;
     }
 
 

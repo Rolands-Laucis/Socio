@@ -33,23 +33,25 @@ export type SessionOpts = { session_timeout_ttl_ms: number, max_payload_size?: n
 export type ClientSubscribeOpts = { sql?: string, endpoint?: string, params?: object | null };
 
 //server hook functions
-export type ServerLifecycleHooks = { con?: Con_Hook, discon?: Discon_Hook, msg?: Msg_Hook, sub?: Sub_Hook, unsub?: Unsub_Hook, upd?: Upd_Hook, auth?: Auth_Hook, gen_client_id?: GenCLientID_Hook, grant_perm?: GrantPerm_Hook, serv?: Serv_Hook, admin?: Admin_Hook, blob?: Blob_Hook, file_upload?: FileUpload_Hook, file_download?: FileDownload_Hook, endpoint?: Endpoint_Hook, gen_prop_name?: Gen_Prop_Name_Hook };
+export type ServerLifecycleHooks = { con?: Con_Hook, discon?: Discon_Hook, msg?: Msg_Hook, sub?: Sub_Hook, unsub?: Unsub_Hook, upd?: Upd_Hook, auth?: Auth_Hook, gen_client_id?: GenCLientID_Hook, grant_perm?: GrantPerm_Hook, serv?: Serv_Hook, admin?: Admin_Hook, blob?: Blob_Hook, file_upload?: FileUpload_Hook, file_download?: FileDownload_Hook, endpoint?: Endpoint_Hook, gen_prop_name?: Gen_Prop_Name_Hook, discovery?: Discovery_Hook };
 export type GenCLientID_Hook = () => ClientID | Promise<ClientID>;
-export type Con_Hook = (client: SocioSession, request: IncomingMessage) => void | Promise<void>;
-export type Discon_Hook = (client: SocioSession) => void | Promise<void>;
-export type Blob_Hook = (client: SocioSession, request: Buffer | ArrayBuffer | Buffer[]) => boolean | Promise<boolean>;
-export type Msg_Hook = (client: SocioSession, kind: CoreMessageKind, data: MessageDataObj) => boolean | void | Promise<boolean> | Promise<void>;
-export type Sub_Hook = (client: SocioSession, kind: CoreMessageKind, data: MessageDataObj) => boolean | Promise<boolean>;
-export type Unsub_Hook = (client: SocioSession, kind: CoreMessageKind, data: MessageDataObj) => boolean | Promise<boolean>;
-export type Auth_Hook = (client: SocioSession, params: object | null) => boolean | Promise<boolean>;
-export type GrantPerm_Hook = (client: SocioSession, data: GET_PERM_data) => boolean | Promise<boolean>;
-export type Serv_Hook = (client: SocioSession, data: MessageDataObj) => void | Promise<void>;
-export type Admin_Hook = (client: SocioSession, data: MessageDataObj) => boolean | Promise<boolean>;
-export type FileUpload_Hook = (client: SocioSession, files?: SocioFiles, data?: any) => Bit | boolean | Promise<Bit | boolean>;
-export type FileDownload_Hook = (client: SocioSession, data: any) => FS_Util_Response | Promise<FS_Util_Response>;
+export type Con_Hook = (caller_client: SocioSession, request: IncomingMessage) => void | Promise<void>;
+export type Discon_Hook = (caller_client: SocioSession) => void | Promise<void>;
+export type Blob_Hook = (caller_client: SocioSession, request: Buffer | ArrayBuffer | Buffer[]) => boolean | Promise<boolean>;
+export type Msg_Hook = (caller_client: SocioSession, kind: CoreMessageKind, data: MessageDataObj) => boolean | void | Promise<boolean> | Promise<void>;
+export type Sub_Hook = (caller_client: SocioSession, kind: CoreMessageKind, data: MessageDataObj) => boolean | Promise<boolean>;
+export type Unsub_Hook = (caller_client: SocioSession, kind: CoreMessageKind, data: MessageDataObj) => boolean | Promise<boolean>;
+export type Auth_Hook = (caller_client: SocioSession, params: object | null) => boolean | Promise<boolean>;
+export type GrantPerm_Hook = (caller_client: SocioSession, data: GET_PERM_data) => boolean | Promise<boolean>;
+export type Serv_Hook = (caller_client: SocioSession, data: MessageDataObj) => void | Promise<void>;
+export type Admin_Hook = (caller_client: SocioSession, data: MessageDataObj) => boolean | Promise<boolean>;
+export type FileUpload_Hook = (caller_client: SocioSession, files?: SocioFiles, data?: any) => Bit | boolean | Promise<Bit | boolean>;
+export type FileDownload_Hook = (caller_client: SocioSession, data: any) => FS_Util_Response | Promise<FS_Util_Response>;
 export type Upd_Hook = (sessions: Map<ClientID, SocioSession>, initiator: SocioSession, sql: string, params:object|null) => boolean | Promise<boolean>;
-export type Endpoint_Hook = (client: SocioSession, endpoint: string) => string | Promise<string>;
+export type Endpoint_Hook = (caller_client: SocioSession, endpoint: string) => string | Promise<string>;
 export type Gen_Prop_Name_Hook = () => string | Promise<string>;
+type discovery_resp_obj = { [client_id: string]: { name?: string, ip: string } };
+export type Discovery_Hook = (caller_client: SocioSession) => discovery_resp_obj;
 // export type _Hook = (client: SocioSession) => boolean;
 
 //client hook functions

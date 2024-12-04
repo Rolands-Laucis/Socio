@@ -31,10 +31,30 @@ import type { SocioStringObj } from './sql-parsing.js';
 export type QueryFuncParams = { id?: id, sql: string, params?: any };
 export type QueryFunction = (client: SocioSession, id: id, sql: string, params?: any) => Promise<object>;
 
-type SessionsDefaults = { timeouts: boolean, timeouts_check_interval_ms?: number, session_delete_delay_ms?: number, recon_ttl_ms?: number } & SessionOpts;
+type SessionsDefaults = { 
+    timeouts: boolean, 
+    timeouts_check_interval_ms?: number, 
+    session_delete_delay_ms?: number, 
+    recon_ttl_ms?: number 
+} & SessionOpts;
 type DecryptOptions = { decrypt_sql: boolean, decrypt_prop: boolean, decrypt_endpoint: boolean };
-type DBOpts = { Query?: QueryFunction, Arbiter?: (initiator: { client: SocioSession, sql: string, params: any }, current: { client: SocioSession, hook: SubObj }) => boolean | Promise<boolean>, allowed_SQL_verbs?: string[] };
-type SocioServerOptions = { db: DBOpts, socio_security?: SocioSecurity | null, decrypt_opts?: DecryptOptions, hard_crash?: boolean, session_defaults?: SessionsDefaults, prop_upd_diff?: boolean, auto_recon_by_ip?: boolean, send_sensitive_error_msgs_to_client?:boolean, [key:string]:any } & LoggingOpts;
+type DBOpts = { 
+    Query?: QueryFunction, 
+    Arbiter?: (initiator: { client: SocioSession, sql: string, params: any }, current: { client: SocioSession, hook: SubObj }) => boolean | Promise<boolean>, 
+    allowed_SQL_verbs?: string[] 
+};
+type SocioServerOptions = { 
+    db: DBOpts, 
+    socio_security?: SocioSecurity | null, 
+    decrypt_opts?: DecryptOptions,
+    allow_discovery?: boolean,
+    hard_crash?: boolean, 
+    session_defaults?: SessionsDefaults, 
+    prop_upd_diff?: boolean, 
+    auto_recon_by_ip?: boolean, 
+    send_sensitive_error_msgs_to_client?:boolean, 
+    [key:string]:any 
+} & LoggingOpts;
 type AdminServerMessageDataObj = {function:string, args?:any[], secure_key:string};
 
 
@@ -46,7 +66,7 @@ export class SocioServer extends LogHandler {
     #sessions: Map<ClientID, SocioSession> = new Map(); //Maps are quite more performant than objects. And their keys dont overlap with Object prototype.
 
     //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages, if the msg flag is set
-    #secure: { socio_security: SocioSecurity | null } & DecryptOptions;
+    #secure: { socio_security: SocioSecurity | null, allow_discovery:boolean } & DecryptOptions;
     #cypther_text_cache: Map<string, SocioStringObj> = new Map(); //decyphering at runtime is costly, so cache validated, secure results.
 
     //backend props, e.g. strings for colors, that clients can subscribe to and alter
@@ -55,7 +75,7 @@ export class SocioServer extends LogHandler {
     //rate limits server functions globally
     #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
 
-    #lifecycle_hooks: ServerLifecycleHooks = { con: undefined, discon: undefined, msg: undefined, sub: undefined, unsub: undefined, upd: undefined, auth: undefined, gen_client_id: undefined, grant_perm: undefined, serv: undefined, admin: undefined, blob: undefined, file_upload: undefined, file_download: undefined, endpoint: undefined, gen_prop_name:undefined }; //call the register function to hook on these. They will be called if they exist
+    #lifecycle_hooks: ServerLifecycleHooks = { con: undefined, discon: undefined, msg: undefined, sub: undefined, unsub: undefined, upd: undefined, auth: undefined, gen_client_id: undefined, grant_perm: undefined, serv: undefined, admin: undefined, blob: undefined, file_upload: undefined, file_download: undefined, endpoint: undefined, gen_prop_name:undefined, discovery:undefined }; //call the register function to hook on these. They will be called if they exist
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //msg hook receives all incomming msgs to the server. 
     //upd works the same as msg, but for every time that updates need to be propogated to all the sockets.
@@ -76,7 +96,7 @@ export class SocioServer extends LogHandler {
     auto_recon_by_ip:boolean = false;
     send_sensitive_error_msgs_to_client!:boolean;
 
-    constructor(opts: ServerOptions | undefined = {}, { db, socio_security = null, logging = { verbose: false, hard_crash: false }, decrypt_opts = { decrypt_sql: true, decrypt_prop: false, decrypt_endpoint: false }, session_defaults = undefined, prop_upd_diff = false, prop_reg_timeout_ms = 1000 * 10, auto_recon_by_ip = false, send_sensitive_error_msgs_to_client = true }: SocioServerOptions){
+    constructor(opts: ServerOptions | undefined = {}, { db, socio_security = null, allow_discovery = false, logging = { verbose: false, hard_crash: false }, decrypt_opts = { decrypt_sql: true, decrypt_prop: false, decrypt_endpoint: false }, session_defaults = undefined, prop_upd_diff = false, prop_reg_timeout_ms = 1000 * 10, auto_recon_by_ip = false, send_sensitive_error_msgs_to_client = true }: SocioServerOptions){
         super({ ...logging, prefix:'SocioServer'});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
         //hard_crash will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
@@ -84,7 +104,7 @@ export class SocioServer extends LogHandler {
         
         //private:
         this.#wss = new WebSocketServer({ ...opts, clientTracking: true }); //take a look at the WebSocketServer docs - the opts can have a server param, that can be your http server
-        this.#secure = { socio_security, ...decrypt_opts };
+        this.#secure = { socio_security, ...decrypt_opts, allow_discovery };
         this.#prop_upd_diff = prop_upd_diff;
 
         //public:
@@ -538,6 +558,30 @@ export class SocioServer extends LogHandler {
                         }
                         break;
                     }
+                    case CoreMessageKind.IDENTIFY: { //use for session to identify itself with a unique human-readable string
+                        const name = (data as { id: id, name: string }).name;
+                        
+                        if (Object.values(this.GetSessionsInfo()).some(s => s.name === name)){
+                            client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 0, error: 'A session already has this name!' } });
+                        }else{
+                            client.name = name;
+                            client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 1 } });
+                        }
+
+                        break;
+                    }
+                    case CoreMessageKind.DISCOVERY: {
+                        if(this.#secure.allow_discovery === true){
+                            // let the dev hook handle the discovery logic of what info to get and send from sessions to client
+                            if (this.#lifecycle_hooks?.discovery)
+                                if (this.#lifecycle_hooks.discovery(client)) 
+                                    return;
+
+                            // or use my provided basic info response
+                            client.Send(ClientMessageKind.RES, {id: data.id, result: {success:1, res: this.GetSessionsInfo()}})
+                        }
+                        break;
+                    }
                     // case CoreMessageKind: { break;}
                     default: {
                         const exhaustiveCheck: never = kind; // This ensures that if a new enum value is added and not handled, it will result in a compile-time error
@@ -853,6 +897,10 @@ export class SocioServer extends LogHandler {
         const data = { result: { success: 1 }, old_client_id: old_id, auth: new_session.authenticated };
         if (client_notify_msg_id) data['id'] = client_notify_msg_id;
         new_session.Send(ClientMessageKind.RECON, data as C_RECON_Data);
+    }
+
+    GetSessionsInfo(){
+        return Object.fromEntries([...this.#sessions.values()].map(s => [s.id, { name: s.name, ip: s.ipAddr}]));
     }
 
     get session_ids(){return this.#sessions.keys();}

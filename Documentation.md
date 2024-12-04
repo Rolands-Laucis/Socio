@@ -585,6 +585,43 @@ const sc = new SocioClient(...)
 sc.lifecycle_hooks.cmd = (data:any) => { console.log(data) }
 ```
 
+#### Client session unique global identification and network discovery
+You may want clients to have human-readable labels and to discover other current connections:
+
+##### IdentifySelf()
+```ts
+//browser code
+const sc = new SocioClient(`ws://${location.hostname}:3000`, { logging: {verbose:true} })
+await sc.ready();
+
+//name it anything, but it must be a unique name on the server currently, otherwise you get an error msg 
+await sc.IdentifySelf(`Main ${new Date().toISOString()}`);
+```
+
+##### Network Discovery
+Enable it on the server:
+```ts
+//server code
+const socserv = new SocioServer({ port: 3000 }, {
+    db: {}, 
+    logging: {verbose:true},
+    ...,
+    allow_discovery:true, //this needs to be enabled for clients to get sensitive info about other clients. Default false.
+    // careful though - any client can use this info to spam the server or other clients. I'd only use this in local networks or with some firewall setup, so that i know for sure who has access to this info.
+  }
+);
+```
+Then any client:
+```ts
+//browser code
+const sc = new SocioClient(`ws://${location.hostname}:3000`, { logging: {verbose:true} })
+await sc.ready();
+
+// this gives {client_id:{name, ip}} at the time of writing this, but can be any data
+console.log(await sc.DiscoverSessions());
+```
+
+
 ### Socio Rooms/Spaces/Presentations/Collabs (Divided, shared Contexts)
 For a lot of SaaS and Digital Document type Web Apps or multiplayer games you're gonna want some form of the idea of a "room" for users - a shared data/state context with certain users (subset of all possible users). Socio doesn't have a special solution for such a pattern, but only because it doesn't need one. 😎
 You can create such a pattern simply with Socio Server Props. The prop name would be a unique "room" ID, that Socio Clients can subscribe to. Then the entire "room" or "game" shared state can be a large JSON serializable object. Thus only specific users will interact with this global state and it will be live synced to the others in that "room".
