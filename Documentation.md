@@ -95,31 +95,6 @@ const socserv = new SocioServer({ port: 3000 }, {
   }
 );
 //the clients can now interact with your backend DB via the SocioClient.Query() and other functions!
-
-
-//---- More advanced stuff:
-
-//This class has a few public fields that you can alter, as well as useful functions to call later in your program at any time. E.g. set up lifecycle hooks:
-socserv.LifecycleHookNames; //get an array of the hooks currently recognized by Socio. Or get the TS definitions from ./core/types.d.ts
-socserv.RegisterLifecycleHookHandler("con", (caller_client: SocioSession, req:IncomingMessage) => {
-    //woohoo a new client connection!
-    //client is the already created instance of Session class, that has useful properties and methods, like the ID and IP of the client.
-});
-
-import type { ServerLifecycleHooks, ClientLifecycleHooks } from 'socio/types';
-//all params should have automatic type inference with a TS language server in your IDE.
-socserv.RegisterLifecycleHookHandler('auth', (client, ...) => {...});
-socserv.UnRegisterLifecycleHookHandler('auth'); //and unreg, if u want
-
-// you can also optionally supply the hooks on initialization
-const socserv = new SocioServer({ port: 3000 }, {
-    ...,
-    hooks:{
-      auth: (client, ...) => {...},
-      ...
-    }
-  }
-);
 ```
 
 #### DB init object (Database, Query, Arbiter, allowed verbs)
@@ -150,13 +125,30 @@ const socserv = new SocioServer({ ... }, {
 The types.d.ts file contains type definitions for all the server-side and client-side hook functions, so that you know what args they pass to your callback and what your callback should return.
 
 ```ts
-import type { ServerLifecycleHooks, ClientLifecycleHooks } from 'socio/types';
+import type { ServerLifecycleHooks, ClientLifecycleHooks } from 'socio/types'; //all this applies both to SocioServer and SocioClient classes.
+socserv.lifecycle_hooks.con = (caller_client: SocioSession, req:IncomingMessage) => {
+    //woohoo a new client connection!
+    //client is the already created instance of Session class, that has useful properties and methods, like the ID and IP of the client.
+};
+//in all these methods, all params should have automatic type inference with a TS language server in your IDE.
+const auth: ServerLifecycleHooks['auth'] = (client, params) => { return true; }
+socserv.lifecycle_hooks.auth = auth; //your IDE should provide intelisense of all the valid hook keys and their function types
+socserv.lifecycle_hooks = {...socserv.lifecycle_hooks, auth};
+socserv.lifecycle_hooks['auth'] = (client, params) => { return true; };
+// to remove a hook, simply set the key to falsy. Or overwrite the hook with a new function.
 
-//all params should have automatic type inference with a TS language server in your IDE.
-const auth_handle: ServerLifecycleHooks['auth'] = (client, ...) => {...}; 
-socserv.RegisterLifecycleHookHandler('auth', handle);
-socserv.RegisterLifecycleHookHandler('auth', (client, ...) => {...});
+// you can also optionally supply the hooks on initialization
+const socserv = new SocioServer({ port: 3000 }, {
+    ...,
+    hooks:{
+      auth: (client, ...) => {...},
+      ...
+    }
+  }
+);
 ```
+If the hook returns a truthy value, then for most hooks it is assumed, that the hook handled the msg and Socio will not. Otherwise, by default, Socio handles the msg.
+All hooks that can steal control from Socio are awaited, so you can do any async task in the callbacks.
 
 #### Authentification hook - a simple mechanism
 ```ts
@@ -165,11 +157,11 @@ import type { SocioSession } from 'socio/dist/core-session.js'
 
 //keep track of which SocioSession client_id's have which of your database user_id's.
 const auth_clients:{[client_id:string]: number} = {};
-socserv.RegisterLifecycleHookHandler("auth", (caller_client: SocioSession, params: object | null | Array<any>) => {
+socserv.lifecycle_hooks.auth = (caller_client: SocioSession, params: object | null | Array<any>) => {
     const user_id = DB.get(params);//...do some DB stuff to get the user_id from params, that may contain like username and password. This data will be encrypted by lower OSI layers, if using WSS:// (secure sockets). However, its still a good practice, that DB passwords should not be sent in plain-text.
     auth_clients[client.id] = user_id;
     return true;
-})
+};
 
 //then in your qeury function, add in the user_id dynamic param
 async function QueryWrap (caller_client: SocioSession, id:id, sql:string, params: object | null | Array<any> = {}) {
@@ -196,9 +188,9 @@ const endpoints: {[e:string]: string} = {
 const socserv = new SocioServer(...);
 
 //this hook will be called when socio server gets a subscription request payload that contains an endpoint string and no sql string. Your callback must then by any means resolve to a valid SQL string and return it. The hook response can be async and it will be awaited. Here it is just fetched from a local dict instantly. These subscriptions work identically to regular ones.
-socserv.RegisterLifecycleHookHandler('endpoint', async (caller_client: SocioSession, endpoint:string) => {
+socserv.lifecycle_hooks.endpoint = async (caller_client: SocioSession, endpoint:string) => {
   return endpoints[endpoint];
-});
+};
 ```
 
 ```ts
@@ -214,17 +206,6 @@ sc.Query('all', {sql_is_endpoint:true, params:{}}, (val) => {
   log(val);
 });
 ```
-
-#### All lifecycle hooks:
-
-Descriptions of hook purpose. See [types.d.ts](./core/types.d.ts) for their type definitions.
-
-Register hook handlers with
-```ts
-socserv.RegisterLifecycleHookHandler('...', (...) => {return ...});
-```
-If the hook returns a truthy value, then it is assumed, that the hook handled the msg and Socio will not. Otherwise, by default, Socio handles the msg.
-All hooks are awaited, so you can do any async task in the callbacks.
 
 ##### SocioServer hooks:
 * con: when a new WS/TCP connection with a client is created
@@ -348,11 +329,11 @@ import { SaveFilesToDiskPath } from 'socio/dist/fs-utils';
 import type { SocioSession } from 'socio/dist/core-session';
 import type { SocioFiles, FS_Util_Response } from 'socio/dist/types';
 
-socserv.RegisterLifecycleHookHandler('file_upload', (caller_client: SocioSession, files: SocioFiles) => {
+socserv.lifecycle_hooks.file_upload = (caller_client: SocioSession, files: SocioFiles) => {
     return SaveFilesToDiskPath(['.', 'files', 'images'], files).result; //simple function for your convenience, that cross platform saves your files to your FS directory
     //returns FS_Util_Response, but this function must return truthy or falsy to indicate success.
     //FS_Util_Response contains result and error fields, that indicate if the FS call was successful and/or the os error msg. So you can log errors yourself.
-});
+}
 ```
 
 #### Client Requesting Files
@@ -369,13 +350,13 @@ const files: File[] = await sc.GetFiles(data); //This will request files from th
 import { ReadFilesFromDisk, MapPathsToFolder } from 'socio/dist/fs-utils';
 import type { FS_Util_Response } from 'socio/dist/types';
 
-socserv.RegisterLifecycleHookHandler('file_download', (caller_client: SocioSession, data: any) => {
+socserv.lifecycle_hooks.file_download = (caller_client: SocioSession, data: any) => {
     //data is anything you passed into the client exactly the same. Up to you how you want to locate your files via paths, aliases, whatever.
     return ReadFilesFromDisk(['./images/hello.avif', ...data]); //simple utility. Does not include lastModified or mime type, but you can add those yourself with some lib.
     //MUST return the FS_Util_Response type!! ReadFilesFromDisk returns it.
     //FS_Util_Response contains result and error fields, that indicate if the FS call was successful and/or the os error msg. So you can log errors yourself.
     //MapPathsToFolder can be used to map the clients file paths to your static files folder.
-});
+}
 ```
 
 #### Sending Blobs/Binary data
@@ -571,12 +552,12 @@ import type { MessageDataObj } from 'socio/dist/core-server.js'
 import type { SocioSession } from 'socio/dist/core-session.js'
 const socserv = new SocioServer(...)
 
-socserv.RegisterLifecycleHookHandler('serv', (caller_client: SocioSession, data:MessageDataObj) => {
+socserv.lifecycle_hooks.serv = (caller_client: SocioSession, data:MessageDataObj) => {
   //data has field "id" and "data" that is the literal param to the client-side serv() function
 
   //respond, bcs the client always awaits some answer
   client.Send(ClientMessageKind.RES, {id:data.id, result:1}) //result is optional
-})
+}
 ```
 
 Though the server can also intercept any msg that comes in from all clients via the 'msg' hook.
@@ -610,12 +591,12 @@ await sc.IdentifySelf(`Main ${new Date().toISOString()}`);
 There is also a server hook for being notified of a client identifying itself, bcs this turns out to be very convenient in code:
 ```ts
 //server code
-socserv.RegisterLifecycleHookHandler('identify', (caller_client: SocioSession, name:string) => {
+socserv.lifecycle_hooks.identify = (caller_client: SocioSession, name:string) => {
   // name is the new name this caller_client has been assigned.
   // this only gets called if the identification was successful.
   // the client session name property has already been set
   // return void
-})
+}
 ```
 
 ##### Network Discovery
@@ -643,13 +624,13 @@ console.log(await sc.DiscoverSessions());
 There is also a server hook for customizing the returned discovery info:
 ```ts
 //server code
-socserv.RegisterLifecycleHookHandler('discovery', (caller_client: SocioSession, data:MessageDataObj) => {
+socserv.lifecycle_hooks.discovery = (caller_client: SocioSession, data:MessageDataObj) => {
   // return whatever truthy data structure you want. Return falsy, if u want socio to send the default.
   
   const ids = socserv.session_ids; // you can get session IDs. This call performs a calculation, so dont spam it
   const client = socserv.GetClientSession(ids[0]); // then get individual clients, that have name, ip etc.
   socserv.GetSessionsInfo(); // get the discovery default dict
-})
+}
 ```
 
 
@@ -664,7 +645,7 @@ import { ClientMessageKind } from 'socio/core-client';
 const socserv = new SocioServer(...)
 
 //use the generic communications mechanism to init a room
-socserv.RegisterLifecycleHookHandler('serv', (caller_client: SocioSession, data:MessageDataObj) => {
+socserv.lifecycle_hooks.serv = (caller_client: SocioSession, data:MessageDataObj) => {
   if(data.data.action == 'create_room'){
     //generate new room id
     const id = UUID()
@@ -679,7 +660,7 @@ socserv.RegisterLifecycleHookHandler('serv', (caller_client: SocioSession, data:
     socserv.UnRegisterProp(data.data.room_id) //free memory of server
     client.Send(ClientMessageKind.RES, {id:data.id, result:1})
   }
-})
+}
 ```
 The more convenient way is for the client to register a new prop from the front-end. [Server Props](#server-props)
 
@@ -698,10 +679,10 @@ import { ServerChatRoom, HandleChatRoomServ } from 'socio/dist/chat.js'; //safe 
 const socserv = new SocioServer(...);
 const chat_room = new ServerChatRoom(socserv.SendToClients.bind(socserv), 10); //create a chat room, that will use the SocioServer "emit" function to send to clients. Also specifies msg history length
 
-socserv.RegisterLifecycleHookHandler('serv', (caller_client: SocioSession, data: MessageDataObj) => {
+socserv.lifecycle_hooks.serv = (caller_client: SocioSession, data: MessageDataObj) => {
     HandleChatRoomServ(client, data, [chat_room]); //convenience, if you use the socio CMD protocol. Will handle taking in new msgs from clients and emit to others in the room.
     //an array of chats, because this handles all rooms. Here we have 1 room.
-})
+}
 ```
 
 ```ts
@@ -787,11 +768,11 @@ const res = await ac.Run('GetPropVal', 'color') //will call SocioServer.GetPropV
 const socserv = new SocioServer(...);
 
 //'admin' will be called whenever any socket attempts to take action as an admin.
-socserv.RegisterLifecycleHookHandler('admin', (caller_client: SocioSession, data:any) => {
+socserv.lifecycle_hooks.admin = (caller_client: SocioSession, data:any) => {
     console.log(client.id, client.ipAddr, client.last_seen, data?.function, data?.args, data?.client_secret) //perform any checks with this - IMPORTANT for your own safety
     return true; //return truthy to grant access to the call.
     //Any public SocioServer instance method or object property can be called by its name
-})
+}
 ```
 
 The neat thing is that, this mechanism just uses WebSockets, so you can implement your own admin client in any language, even from a remote computer and even on the browser! Imagine how simple it would be to create an admin dashboard with this! Just look at the wrapper code, and it should be clear how to make your own. Its not that long.

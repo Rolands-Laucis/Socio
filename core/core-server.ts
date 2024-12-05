@@ -24,7 +24,7 @@ import type { data_base, S_SUB_data, ServerMessageDataObj, S_UNSUB_data, S_SQL_d
 // client data msg
 import type { C_RES_data, C_CON_data, C_UPD_data, C_AUTH_data, C_GET_PERM_data, C_PROP_UPD_data, C_RECON_Data, C_RECV_FILES_Data } from './types.d.ts'; //types over network for the data object
 
-import type { id, PropKey, PropValue, PropAssigner, PropOpts, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts, Bit, SessionOpts, data_result_block } from './types.d.ts';
+import type { id, PropKey, PropValue, PropAssigner, PropOpts, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts, Bit, SessionOpts, data_result_block, ServerHookDefinitions } from './types.d.ts';
 import { ClientMessageKind } from './core-client.js';
 import type { RateLimit } from './ratelimit.js';
 import type { SocioStringObj } from './sql-parsing.js';
@@ -76,7 +76,6 @@ export class SocioServer extends LogHandler {
     //rate limits server functions globally
     #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
 
-    #lifecycle_hooks!: ServerLifecycleHooks; //call the register function to hook on these. They will be called if they exist
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //msg hook receives all incomming msgs to the server. 
     //upd works the same as msg, but for every time that updates need to be propogated to all the sockets.
@@ -93,6 +92,7 @@ export class SocioServer extends LogHandler {
     //---public:
     db!: DBOpts;
     session_defaults: SessionsDefaults = { timeouts: false, timeouts_check_interval_ms: 1000 * 60, session_timeout_ttl_ms: Infinity, session_delete_delay_ms: 1000 * 5, recon_ttl_ms: 1000 * 60 * 60 };
+    lifecycle_hooks!: ServerLifecycleHooks; //Add your callback to a valid hook key here. They will be called if they exist
     prop_reg_timeout_ms!: number;
     auto_recon_by_ip:boolean = false;
     send_sensitive_error_msgs_to_client!:boolean;
@@ -119,7 +119,7 @@ export class SocioServer extends LogHandler {
         this.#wss = new WebSocketServer({ ...opts, clientTracking: true }); //take a look at the WebSocketServer docs - the opts can have a server param, that can be your http server
         this.#secure = { socio_security, ...decrypt_opts, allow_discovery };
         this.#prop_upd_diff = prop_upd_diff;
-        this.#lifecycle_hooks = { ...initLifecycleHooks<ServerLifecycleHooks>(), ...hooks };
+        this.lifecycle_hooks = { ...initLifecycleHooks<ServerLifecycleHooks>(), ...hooks };
 
         //public:
         if (!db.hasOwnProperty('allowed_SQL_verbs')) db.allowed_SQL_verbs = ['SELECT', 'INSERT', 'UPDATE']; //add in defaults for DB, since cant seem to do it in the constructor args
@@ -153,9 +153,9 @@ export class SocioServer extends LogHandler {
     async #Connect(conn: WebSocket, request: IncomingMessage){
         try{
             //construct the new session with a unique client ID
-            let client_id: ClientID = (this.#lifecycle_hooks.gen_client_id ? await this.#lifecycle_hooks.gen_client_id() : UUID())?.toString();
+            let client_id: ClientID = (this.lifecycle_hooks.gen_client_id ? await this.lifecycle_hooks.gen_client_id() : UUID())?.toString();
             while (this.#sessions.has(client_id)) //avoid id collisions
-                client_id = (this.#lifecycle_hooks.gen_client_id ? await this.#lifecycle_hooks.gen_client_id() : UUID())?.toString();
+                client_id = (this.lifecycle_hooks.gen_client_id ? await this.lifecycle_hooks.gen_client_id() : UUID())?.toString();
 
             //get the IP. Gets either from a reverse proxy header (like if u have nginx) or just straight off the http meta
             //@ts-ignore
@@ -166,8 +166,8 @@ export class SocioServer extends LogHandler {
             this.#sessions.set(client_id, client);
 
             //pass the object to the connection hook, if it exists. It cant take over
-            if (this.#lifecycle_hooks.con)
-                await this.#lifecycle_hooks.con(client, request); //u can get the client_id and client_ip off the client object
+            if (this.lifecycle_hooks.con)
+                await this.lifecycle_hooks.con(client, request); //u can get the client_id and client_ip off the client object
 
             //set this client websockets event handlers
             // have to .bind(this), bcs this is inside a callback with its own this in the lib and bcs js closures
@@ -201,8 +201,8 @@ export class SocioServer extends LogHandler {
 
     async #SocketClosed(client:SocioSession, event_args:any){
         //trigger hook
-        if (this.#lifecycle_hooks.discon)
-            await this.#lifecycle_hooks.discon(client);
+        if (this.lifecycle_hooks.discon)
+            await this.lifecycle_hooks.discon(client);
 
         const client_id = client.id;
         this.HandleInfo('DISCON', client_id, event_args);
@@ -225,8 +225,8 @@ export class SocioServer extends LogHandler {
             //handle binary data and return
             if(isBinary){
                 this.HandleInfo(`recv: BLOB from ${client.id}`)
-                if (this.#lifecycle_hooks.blob) {
-                    if (await this.#lifecycle_hooks.blob(client, req))
+                if (this.lifecycle_hooks.blob) {
+                    if (await this.lifecycle_hooks.blob(client, req))
                         client.Send(ClientMessageKind.RES, { id: 'BLOB', result: { success: 1 } } as C_RES_data);
                     else client.Send(ClientMessageKind.RES, { id: 'BLOB', result: { success: 0 } } as C_RES_data);
                 }
@@ -251,14 +251,14 @@ export class SocioServer extends LogHandler {
                 this.HandleInfo(`recv: [${CoreMessageKind[kind]}] from [${client.name ? client.name + ' | ' : ''}${client_id}]`, kind != CoreMessageKind.UP_FILES ? data : `File count: ${(data as S_UP_FILES_data).files?.size}`);
 
                 //let the developer handle the msg
-                if (this.#lifecycle_hooks.msg)
-                    if (await this.#lifecycle_hooks.msg(client, kind, data))
+                if (this.lifecycle_hooks.msg)
+                    if (await this.lifecycle_hooks.msg(client, kind, data))
                         return;
 
                 switch (kind) {
                     case CoreMessageKind.SUB: {
-                        if (this.#lifecycle_hooks.sub)
-                            if (await this.#lifecycle_hooks.sub(client, kind, (data as S_SUB_data)))
+                        if (this.lifecycle_hooks.sub)
+                            if (await this.lifecycle_hooks.sub(client, kind, (data as S_SUB_data)))
                                 return;
 
                         if (!this.db.Query)
@@ -266,9 +266,9 @@ export class SocioServer extends LogHandler {
 
                         //if the client happens to want to use an endpoint keyname instead of SQL, retrieve the SQL string from a hook call and procede with that.
                         if ((data as S_SUB_data).endpoint && !(data as S_SUB_data).sql) {
-                            if (this.#lifecycle_hooks.endpoint)
+                            if (this.lifecycle_hooks.endpoint)
                                 //@ts-expect-error
-                                (data as S_SUB_data).sql = await this.#lifecycle_hooks.endpoint(client, (data as S_SUB_data).endpoint);
+                                (data as S_SUB_data).sql = await this.lifecycle_hooks.endpoint(client, (data as S_SUB_data).endpoint);
                             else throw new E('Client sent endpoint instead of SQL, but its hook is missing, so cant resolve it. [#no-endpoint-hook-SUB]', {kind, data});
                         }
 
@@ -295,8 +295,8 @@ export class SocioServer extends LogHandler {
                         break;
                     }
                     case CoreMessageKind.UNSUB: {
-                        if (this.#lifecycle_hooks.unsub)
-                            if (await this.#lifecycle_hooks.unsub(client, kind, data))
+                        if (this.lifecycle_hooks.unsub)
+                            if (await this.lifecycle_hooks.unsub(client, kind, data))
                                 return;
 
                         client.Send(ClientMessageKind.RES, { id: data.id, result: { success: client.UnRegisterSub((data as S_UNSUB_data)?.unreg_id || '') } } as C_RES_data);
@@ -308,8 +308,8 @@ export class SocioServer extends LogHandler {
 
                         //if the client happens to want to use an endpoint keyname instead of SQL, retrieve the SQL string from a hook call and procede with that.
                         if ((data as S_SQL_data)?.sql_is_endpoint && (data as S_SQL_data).sql) {
-                            if (this.#lifecycle_hooks.endpoint)
-                                (data as S_SQL_data).sql = await this.#lifecycle_hooks.endpoint(client, (data as S_SQL_data).sql);
+                            if (this.lifecycle_hooks.endpoint)
+                                (data as S_SQL_data).sql = await this.lifecycle_hooks.endpoint(client, (data as S_SQL_data).sql);
                             else throw new E('Client sent endpoint instead of SQL, but its hook is missing. [#no-endpoint-hook-SQL]');
                         }
 
@@ -346,8 +346,8 @@ export class SocioServer extends LogHandler {
                     case CoreMessageKind.AUTH: {//client requests to authenticate itself with the server
                         if (client.authenticated) //check if already has auth
                             client.Send(ClientMessageKind.AUTH, { id: data.id, result: { success: 1 } } as C_AUTH_data);
-                        else if (this.#lifecycle_hooks.auth) {
-                            const res = await client.Authenticate(this.#lifecycle_hooks.auth, (data as S_AUTH_data).params); //bcs its a private class field, give this function the hook to call and params to it. It will set its field and give back the result. NOTE this is safer than adding a setter to a private field
+                        else if (this.lifecycle_hooks.auth) {
+                            const res = await client.Authenticate(this.lifecycle_hooks.auth, (data as S_AUTH_data).params); //bcs its a private class field, give this function the hook to call and params to it. It will set its field and give back the result. NOTE this is safer than adding a setter to a private field
                             client.Send(ClientMessageKind.AUTH, { id: data.id, result: { success: 1, res: res === true ? 1 : 0 } } as C_AUTH_data); //authenticated can be any truthy or falsy value, but the client will only receive a boolean, so its safe to set this to like an ID or token or smth for your own use
                         } else {
                             const error = 'AUTH function hook not registered, so client not authenticated. [#no-auth-func]';
@@ -359,8 +359,8 @@ export class SocioServer extends LogHandler {
                     case CoreMessageKind.GET_PERM: {
                         if (client.HasPermFor((data as S_GET_PERM_data)?.verb, (data as S_GET_PERM_data)?.table))//check if already has the perm
                             client.Send(ClientMessageKind.GET_PERM, { id: data.id, result: { success: 1 } } as C_GET_PERM_data);
-                        else if (this.#lifecycle_hooks.grant_perm) {//otherwise try to grant the perm
-                            const granted: boolean = await this.#lifecycle_hooks.grant_perm(client, data);
+                        else if (this.lifecycle_hooks.grant_perm) {//otherwise try to grant the perm
+                            const granted: boolean = await this.lifecycle_hooks.grant_perm(client, data);
                             client.Send(ClientMessageKind.GET_PERM, { id: data.id, result: granted === true ? 1 : 0 }) //the client will only receive a boolean, but still make sure to only return bools as well
                         }
                         else {
@@ -373,8 +373,8 @@ export class SocioServer extends LogHandler {
                     case CoreMessageKind.PROP_SUB: {
                         this.#CheckPropExists((data as S_PROP_SUB_data)?.prop, client, data.id, `Prop key [${(data as S_PROP_SUB_data)?.prop}] does not exist on the backend! [#prop-reg-not-found-sub]`)
 
-                        if (this.#lifecycle_hooks.sub)
-                            if (await this.#lifecycle_hooks.sub(client, kind, data))
+                        if (this.lifecycle_hooks.sub)
+                            if (await this.lifecycle_hooks.sub(client, kind, data))
                                 return;
 
                         //set up hook
@@ -398,8 +398,8 @@ export class SocioServer extends LogHandler {
                     case CoreMessageKind.PROP_UNSUB: {
                         this.#CheckPropExists((data as S_PROP_UNSUB_data)?.prop, client, data.id, `Prop key [${(data as S_PROP_UNSUB_data)?.prop}] does not exist on the backend! [#prop-reg-not-found-unsub]`)
 
-                        if (this.#lifecycle_hooks.unsub)
-                            if (await this.#lifecycle_hooks.unsub(client, kind, data))
+                        if (this.lifecycle_hooks.unsub)
+                            if (await this.lifecycle_hooks.unsub(client, kind, data))
                                 return;
 
                         //remove hook
@@ -447,7 +447,7 @@ export class SocioServer extends LogHandler {
                         }
                         // if a name hasnt been supplied, then generate a unique prop name and return it
                         if (!(data as S_PROP_REG_data)?.prop) {
-                            (data as S_PROP_REG_data).prop = this.#lifecycle_hooks.gen_prop_name ? await this.#lifecycle_hooks.gen_prop_name() : UUID();
+                            (data as S_PROP_REG_data).prop = this.lifecycle_hooks.gen_prop_name ? await this.lifecycle_hooks.gen_prop_name() : UUID();
                             while (this.#props.has((data as S_PROP_REG_data).prop as PropKey)) (data as S_PROP_REG_data).prop = UUID();
                         }
 
@@ -478,14 +478,14 @@ export class SocioServer extends LogHandler {
                         break;
                     }
                     case CoreMessageKind.SERV: {
-                        if (this.#lifecycle_hooks.serv)
-                            await this.#lifecycle_hooks.serv(client, data);
+                        if (this.lifecycle_hooks.serv)
+                            await this.lifecycle_hooks.serv(client, data);
                         else throw new E('Client sent generic data to the server, but the hook for it is not registed. [#no-serv-hook]', client_id);
                         break;
                     }
                     case CoreMessageKind.ADMIN: {
-                        if (this.#lifecycle_hooks.admin)
-                            if (await this.#lifecycle_hooks.admin(client, data)) //you get the client, which has its ID, ipAddr and last_seen fields, that can be used to verify access. Also data should contain some secret key, but thats up to you
+                        if (this.lifecycle_hooks.admin)
+                            if (await this.lifecycle_hooks.admin(client, data)) //you get the client, which has its ID, ipAddr and last_seen fields, that can be used to verify access. Also data should contain some secret key, but thats up to you
                                 client.Send(ClientMessageKind.RES, { id: data?.id, result: await this.#Admin(((data as unknown) as AdminServerMessageDataObj)?.function, ((data as unknown) as AdminServerMessageDataObj)?.args) });
                             else throw new E('A non Admin send an Admin message, but was not executed.', kind, data, client_id);
                         break;
@@ -551,8 +551,8 @@ export class SocioServer extends LogHandler {
                         break;
                     }
                     case CoreMessageKind.UP_FILES: {
-                        if (this.#lifecycle_hooks?.file_upload)
-                            client.Send(ClientMessageKind.RES, { id: data.id, result: { success: await this.#lifecycle_hooks.file_upload(client, (data as S_UP_FILES_data)?.files, (data as S_UP_FILES_data)?.data) ? 1 : 0 } } as C_RES_data);
+                        if (this.lifecycle_hooks?.file_upload)
+                            client.Send(ClientMessageKind.RES, { id: data.id, result: { success: await this.lifecycle_hooks.file_upload(client, (data as S_UP_FILES_data)?.files, (data as S_UP_FILES_data)?.data) ? 1 : 0 } } as C_RES_data);
                         else {
                             const error = 'file_upload hook not registered. [#no-file_upload-hook]';
                             this.HandleError(error);
@@ -561,8 +561,8 @@ export class SocioServer extends LogHandler {
                         break;
                     }
                     case CoreMessageKind.GET_FILES: {
-                        if (this.#lifecycle_hooks?.file_download) {
-                            const response = await this.#lifecycle_hooks.file_download(client, (data as S_GET_FILES_data)?.data) as FS_Util_Response;
+                        if (this.lifecycle_hooks?.file_download) {
+                            const response = await this.lifecycle_hooks.file_download(client, (data as S_GET_FILES_data)?.data) as FS_Util_Response;
                             if (!response?.result)
                                 this.HandleError(new E('file_download hook returned unsuccessful result.', response?.error));
                             client.Send(ClientMessageKind.RECV_FILES, { id: data.id, files: response.files, result: { success: response.result ? 1 : 0 } } as C_RECV_FILES_Data);
@@ -581,8 +581,8 @@ export class SocioServer extends LogHandler {
                         }else{
                             client.name = name;
 
-                            if (this.#lifecycle_hooks?.identify)
-                                this.#lifecycle_hooks.identify(client, name);
+                            if (this.lifecycle_hooks?.identify)
+                                this.lifecycle_hooks.identify(client, name);
 
                             client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 1 } });
                         }
@@ -592,8 +592,8 @@ export class SocioServer extends LogHandler {
                     case CoreMessageKind.DISCOVERY: {
                         if(this.#secure.allow_discovery === true){
                             // let the dev hook handle the discovery logic of what info to get and send from sessions to client
-                            if (this.#lifecycle_hooks?.discovery)
-                                if (this.#lifecycle_hooks.discovery(client)) 
+                            if (this.lifecycle_hooks?.discovery)
+                                if (this.lifecycle_hooks.discovery(client)) 
                                     return;
 
                             // or use my provided basic info response
@@ -670,8 +670,8 @@ export class SocioServer extends LogHandler {
                 return;
 
         //hand off to hook
-        if (this.#lifecycle_hooks.upd)
-            if (await this.#lifecycle_hooks.upd(this.#sessions, initiator, sql, params))
+        if (this.lifecycle_hooks.upd)
+            if (await this.lifecycle_hooks.upd(this.#sessions, initiator, sql, params))
                 return;
 
         if (!this.db.Query)
@@ -727,21 +727,9 @@ export class SocioServer extends LogHandler {
         }
     }
 
-    RegisterLifecycleHookHandler<K extends keyof ServerLifecycleHooks>(f_name: K, handler?: ServerLifecycleHooks[K]){
-        try{
-            if (f_name in this.#lifecycle_hooks)
-                this.#lifecycle_hooks[f_name] = handler;
-            else throw new E(`Lifecycle hook [${f_name}] does not exist! Settable: ${this.LifecycleHookNames}`);
-        } catch (e:err) { this.HandleError(e) }
-    }
-    UnRegisterLifecycleHookHandler(name = '') {
-        try{
-            if (name in this.#lifecycle_hooks)
-                this.#lifecycle_hooks[name] = null;
-            else throw new E(`Lifecycle hook [${name}] does not exist!`)
-        } catch (e:err) { this.HandleError(e) }
-    }
-    get LifecycleHookNames(){return Object.keys(this.#lifecycle_hooks)}
+    // SetLifecycleHookHandler<K extends keyof ServerLifecycleHooks>(f_name: K, handler?: ServerLifecycleHooks[K]){
+    //     this.lifecycle_hooks[f_name] = handler;
+    // }
 
     RegisterRateLimit(f_name: string, ratelimit: RateLimit | null = null){
         try {

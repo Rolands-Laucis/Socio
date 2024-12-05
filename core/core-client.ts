@@ -9,7 +9,7 @@ import { yaml_parse, yaml_stringify, clamp, CoreMessageKind, initLifecycleHooks 
 import { ErrorOrigin } from './logging.js'; //its an enum, not a type, so this import
 
 //types
-import type { id, PropKey, PropValue, PropOpts, Bit, ClientLifecycleHooks, ClientID, SocioFiles, LoggingOpts, ClientSubscribeOpts, data_result_block, discovery_resp_obj } from './types.d.ts';
+import type { id, PropKey, PropValue, PropOpts, Bit, ClientLifecycleHooks, ClientHookDefinitions, ClientID, SocioFiles, LoggingOpts, ClientSubscribeOpts, data_result_block, discovery_resp_obj } from './types.d.ts';
 
 // cross network data objects
 // client data msg
