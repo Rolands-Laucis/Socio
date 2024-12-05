@@ -66,7 +66,7 @@ export class SocioClient extends LogHandler {
             keep_alive = true, 
             reconnect_tries = 1, 
             persistent = false,
-            hooks,
+            hooks = {},
         }: SocioClientOptions = {}) {
         super({ ...logging, prefix: name ? `SocioClient:${name}` : 'SocioClient' });
 

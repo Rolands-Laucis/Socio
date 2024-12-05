@@ -108,7 +108,7 @@ export class SocioServer extends LogHandler {
             prop_reg_timeout_ms = 1000 * 10, 
             auto_recon_by_ip = false, 
             send_sensitive_error_msgs_to_client = true,
-            hooks
+            hooks = {},
          }: SocioServerOptions){
         super({ ...logging, prefix:'SocioServer'});
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
