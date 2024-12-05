@@ -2,8 +2,7 @@
 
 import { LogHandler, E, log, info, done } from './logging.js';
 import { RateLimiter } from './ratelimit.js';
-import { yaml_stringify, FastHash } from './utils.js';
-import { ClientMessageKind } from './core-client.js';
+import { yaml_stringify, FastHash, ClientMessageKind } from './utils.js';
 
 //types
 import type { WebSocket } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md

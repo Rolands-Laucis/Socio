@@ -2,7 +2,7 @@
 
 import { E } from "./logging.js";
 import { SocioClient, SocioClientOptions } from './core-client.js';
-import { CoreMessageKind } from './utils.js';
+import { ServerMessageKind } from './utils.js';
 
 //types
 type AdminClientOptions = { url:string, client_secret: string, socio_client_opts: SocioClientOptions }
@@ -24,7 +24,7 @@ export class AdminClient extends SocioClient {
         const {id, prom} = this.CreateQueryPromise();
 
         //send out the request
-        this.Send(CoreMessageKind.ADMIN, { id: id, client_secret: this.#client_secret, function: function_name, args: args });
+        this.Send(ServerMessageKind.ADMIN, { id: id, client_secret: this.#client_secret, function: function_name, args: args });
 
         //let the caller await the promise resolve
         return prom;

@@ -2,11 +2,10 @@
 
 import { LogHandler, E } from "./logging.js";
 import { WebSocket as nodeWebSocket } from "ws";
-import { yaml_parse, yaml_stringify } from './utils.js';
+import { yaml_parse, yaml_stringify, ClientMessageKind } from './utils.js';
 
 //types
 import type { id, PropValue, LoggingOpts } from './types.d.ts';
-import { ClientMessageKind } from './core-client.js';
 type MessageDataObj = { id: id, status?: string, result?: string | object | boolean | PropValue, data?: object };
 type AdminClientOptions = { url: string, client_secret: string } & LoggingOpts;
 

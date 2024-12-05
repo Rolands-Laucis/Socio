@@ -4,7 +4,7 @@ import pako from 'pako'; //https://github.com/nodeca/pako
 import * as diff_lib from 'recursive-diff'; //https://www.npmjs.com/package/recursive-diff
 
 import { LogHandler, E, err, log, info, done } from './logging.js';
-import { yaml_parse, yaml_stringify, clamp, CoreMessageKind, initLifecycleHooks } from './utils.js';
+import { yaml_parse, yaml_stringify, clamp, ServerMessageKind, ClientMessageKind, initLifecycleHooks } from './utils.js';
 
 import { ErrorOrigin } from './logging.js'; //its an enum, not a type, so this import
 
@@ -15,7 +15,7 @@ import type { id, PropKey, PropValue, PropOpts, Bit, ClientLifecycleHooks, Clien
 // client data msg
 import type { data_base, C_RES_data, C_CON_data, C_UPD_data, C_AUTH_data, C_GET_PERM_data, C_PROP_UPD_data, C_RECON_Data, C_RECV_FILES_Data } from './types.d.ts'; //types over network for the data object
 // server data msg
-import type { S_SUB_data, S_UNSUB_data, S_SQL_data, S_AUTH_data, S_GET_PERM_data, S_PROP_SUB_data, S_PROP_UNSUB_data, S_PROP_GET_data, S_PROP_SET_data, S_PROP_REG_data, S_RECON_GET_data, S_RECON_USE_data, S_UP_FILES_data, S_GET_FILES_data } from './types.d.ts';
+import type { S_SUB_data, S_UNSUB_data, S_SQL_data, S_AUTH_data, S_GET_PERM_data, S_PROP_SUB_data, S_PROP_UNSUB_data, S_PROP_GET_data, S_PROP_SET_data, S_PROP_REG_data, S_RECON_GET_data, S_RECON_USE_data, S_UP_FILES_data, S_GET_FILES_data, S_RPC_data } from './types.d.ts';
 import type { ClientMessageDataObj } from './types.d.ts';
 
 import type { RateLimit } from './ratelimit.js';
@@ -32,11 +32,9 @@ export type SocioClientOptions = {
     keep_alive?: boolean, 
     reconnect_tries?: number, 
     persistent?: boolean,
-    hooks?: Partial<ClientLifecycleHooks>
+    hooks?: Partial<ClientLifecycleHooks>,
+    allow_rpc?:boolean,
 } & LoggingOpts;
-export enum ClientMessageKind {
-    CON, UPD, PONG, AUTH, GET_PERM, RES, PROP_UPD, PROP_DROP, CMD, RECON, RECV_FILES, TIMEOUT
-};
 
 //"Because he not only wants to perform well, he wants to be well received  —  and the latter lies outside his control." /Epictetus/
 export class SocioClient extends LogHandler {
@@ -56,6 +54,7 @@ export class SocioClient extends LogHandler {
     config: SocioClientOptions;
     key_generator: (() => number | string) | undefined;
     lifecycle_hooks!: ClientLifecycleHooks; //assign your function to hook on these. They will be called if they exist
+    rpc_dict: {[f_name:string]: Function} = {};
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
     // progs: Map<Promise<any>, number> = new Map(); //the promise is that of a socio generic data going out from client async. Number is WS send buffer payload size at the time of query
@@ -67,11 +66,12 @@ export class SocioClient extends LogHandler {
             reconnect_tries = 1, 
             persistent = false,
             hooks = {},
+            allow_rpc = false,
         }: SocioClientOptions = {}) {
         super({ ...logging, prefix: name ? `SocioClient:${name}` : 'SocioClient' });
 
         // public:
-        this.config = {name, logging, keep_alive, reconnect_tries, persistent};
+        this.config = { name, logging, keep_alive, reconnect_tries, persistent, allow_rpc };
         this.lifecycle_hooks = { ...initLifecycleHooks<ClientLifecycleHooks>(), ...hooks };
         
         // private:
@@ -304,7 +304,25 @@ export class SocioClient extends LogHandler {
                         this.lifecycle_hooks.timeout(this);
                     break;
                 }
-                // case '': {break;}
+                case ClientMessageKind.RPC: {
+                    // this.#HandleBasicPromiseMessage(kind, data);
+                    if(this.config.allow_rpc === true){
+                        // let the hook handle it
+                        if(this.lifecycle_hooks.rpc)
+                            if (await this.lifecycle_hooks.rpc(this, (data as S_RPC_data).f_name, (data as S_RPC_data).args))
+                                return;
+
+                        // run the remote procedure call
+                        if ((data as S_RPC_data).f_name in this.rpc_dict) //first on the dict of registered functions
+                            this.rpc_dict[(data as S_RPC_data).f_name](...(data as S_RPC_data).args);
+                        else if ((data as S_RPC_data).target_client === null && (data as S_RPC_data).f_name in this) //secondly on the client class functions if target is null, bcs thats from the server
+                            this[(data as S_RPC_data).f_name](...(data as S_RPC_data).args);
+                        else this.HandleDebug('Received RPC, but the function name doesnt exist on this client. [#rpc-client-no-function]', data);
+                    
+                    } else this.HandleDebug('Received RPC, but the client hasnt enabled it. [#rpc-client-not-enabled]', data);
+                    break;
+                }
+                // case ClientMessageKind.: { break; }
                 default:{
                     const exhaustiveCheck: never = kind; // This ensures that if a new enum value is added and not handled, it will result in a compile-time error
                     throw new E(`Unrecognized message kind!`, { kind, data });
@@ -314,11 +332,11 @@ export class SocioClient extends LogHandler {
     }
 
     //accepts infinite arguments of data to send and will append these params as new key:val pairs to the parent object
-    Send(kind: CoreMessageKind, ...data){ //data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
+    Send(kind: ServerMessageKind, ...data){ //data is an array of parameters to this func, where every element (after first) is an object. First param can also not be an object in some cases
         try{
             if (data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, ...data); //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
             this.#ws?.send(yaml_stringify(Object.assign({}, { kind, data: data[0] }, ...data.slice(1))));
-            this.HandleInfo('sent:', CoreMessageKind[kind], data);
+            this.HandleInfo('sent:', ServerMessageKind[kind], data);
         } catch (e: err) { this.#HandleClientError(e); }
     }
     SendFiles(files:File[], other_data:object|undefined=undefined){
@@ -347,7 +365,7 @@ export class SocioClient extends LogHandler {
             const socio_form_data = { id, files: proc_files };
             if (other_data)
                 socio_form_data['data'] = other_data; //add the other data if exists
-            this.Send(CoreMessageKind.UP_FILES, socio_form_data as S_UP_FILES_data);
+            this.Send(ServerMessageKind.UP_FILES, socio_form_data as S_UP_FILES_data);
 
             this.#UpdateQueryPromisePayloadSize(id);
         })();
@@ -385,26 +403,26 @@ export class SocioClient extends LogHandler {
     }
     Serv(data: any) {
         const { id, prom } = this.CreateQueryPromise();
-        this.Send(CoreMessageKind.SERV, { id, data });
+        this.Send(ServerMessageKind.SERV, { id, data });
         this.#UpdateQueryPromisePayloadSize(id);
 
         return prom;
     }
     GetFiles(data: any) {
         const { id, prom } = this.CreateQueryPromise();
-        this.Send(CoreMessageKind.GET_FILES, { id, data } as S_GET_FILES_data);
+        this.Send(ServerMessageKind.GET_FILES, { id, data } as S_GET_FILES_data);
         this.#UpdateQueryPromisePayloadSize(id);
 
         return (prom as unknown) as Promise<File[] | null>; //fuck TS fr. wtf is this syntax. r u trying to make me kms?
     }
     //sends a ping with either the user provided number or an auto generated number, for keeping track of packets and debugging
     Ping(id_num = undefined) {
-        this.Send(CoreMessageKind.PING, { id: typeof id_num === 'number' ? id_num : this.GenKey });
+        this.Send(ServerMessageKind.PING, { id: typeof id_num === 'number' ? id_num : this.GenKey });
     }
     DiscoverSessions(){
         const { id, prom } = this.CreateQueryPromise();
-        this.Send(CoreMessageKind.DISCOVERY, { id });
-        return prom as Promise<data_base & data_result_block & discovery_resp_obj>;
+        this.Send(ServerMessageKind.DISCOVERY, { id });
+        return prom as Promise<discovery_resp_obj>;
     }
     UnsubscribeAll({ props = true, queries = true, force = false } = {}) {
         if (props)
@@ -417,7 +435,7 @@ export class SocioClient extends LogHandler {
     IdentifySelf(name:string){
         if(!name) throw new E('Must provide a unique string name to indetify this session globally.');
         const { id, prom } = this.CreateQueryPromise();
-        this.Send(CoreMessageKind.IDENTIFY, {id, name});
+        this.Send(ServerMessageKind.IDENTIFY, {id, name});
         return prom as Promise<data_base & data_result_block>;
     }
 
@@ -438,7 +456,7 @@ export class SocioClient extends LogHandler {
             const callbacks: SubscribeCallbackObject = { success: onUpdate, ...status_callbacks };
 
             this.#queries.set(id, { sql, endpoint, params, onUpdate: callbacks });
-            this.Send(CoreMessageKind.SUB, { id, sql, endpoint, params, rate_limit } as S_SUB_data);
+            this.Send(ServerMessageKind.SUB, { id, sql, endpoint, params, rate_limit } as S_SUB_data);
 
             return id; //the ID of the query
         } catch (e: err) { this.#HandleClientError(e); return null; }
@@ -451,7 +469,7 @@ export class SocioClient extends LogHandler {
                 
                 //set up new msg to the backend informing a wish to unregister query.
                 const { id, prom } = this.CreateQueryPromise();
-                this.Send(CoreMessageKind.UNSUB, { id, unreg_id: sub_id } as S_UNSUB_data)
+                this.Send(ServerMessageKind.UNSUB, { id, unreg_id: sub_id } as S_UNSUB_data)
 
                 const res = await (prom as unknown) as Bit; //await the response from backend
                 if(res === 1)//if successful, then remove the subscribe from the client
@@ -467,7 +485,7 @@ export class SocioClient extends LogHandler {
         const { id, prom } = this.CreateQueryPromise();
 
         //send off the request, which will be resolved in the message handler
-        this.Send(CoreMessageKind.SQL, { id, sql, params, sql_is_endpoint } as S_SQL_data);
+        this.Send(ServerMessageKind.SQL, { id, sql, params, sql_is_endpoint } as S_SQL_data);
         this.#UpdateQueryPromisePayloadSize(id);
 
         // immediate prog tracking for dev convenience.
@@ -482,7 +500,7 @@ export class SocioClient extends LogHandler {
         try {
             //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
             const { id, prom } = this.CreateQueryPromise();
-            this.Send(CoreMessageKind.PROP_SET, { id, prop: prop_name, prop_val: new_val, prop_upd_as_diff } as S_PROP_SET_data);
+            this.Send(ServerMessageKind.PROP_SET, { id, prop: prop_name, prop_val: new_val, prop_upd_as_diff } as S_PROP_SET_data);
             this.#UpdateQueryPromisePayloadSize(id);
 
             return prom as Promise<data_base & data_result_block>;
@@ -492,7 +510,7 @@ export class SocioClient extends LogHandler {
         if (local) return { result: { success: 1, res: this.#props.get(prop_name)?.val as PropValue }};
         else{
             const { id, prom } = this.CreateQueryPromise();
-            this.Send(CoreMessageKind.PROP_GET, { id, prop: prop_name } as S_PROP_GET_data);
+            this.Send(ServerMessageKind.PROP_GET, { id, prop: prop_name } as S_PROP_GET_data);
             this.#UpdateQueryPromisePayloadSize(id);
             return prom as Promise<any>;
         }
@@ -509,7 +527,7 @@ export class SocioClient extends LogHandler {
                 prop.subs[id] = onUpdate;
             else {//init the prop object
                 this.#props.set(prop_name, { val: undefined, subs: { [id]: onUpdate } });
-                this.Send(CoreMessageKind.PROP_SUB, { id, prop: prop_name, rate_limit, data: { receive_initial_update } } as S_PROP_SUB_data)
+                this.Send(ServerMessageKind.PROP_SUB, { id, prop: prop_name, rate_limit, data: { receive_initial_update } } as S_PROP_SUB_data)
             }
 
             return prom as Promise<any>;
@@ -523,7 +541,7 @@ export class SocioClient extends LogHandler {
 
                 //set up new msg to the backend informing a wish to unregister query.
                 const { id, prom } = this.CreateQueryPromise();
-                this.Send(CoreMessageKind.PROP_UNSUB, { id, prop: prop_name } as S_PROP_UNSUB_data);
+                this.Send(ServerMessageKind.PROP_UNSUB, { id, prop: prop_name } as S_PROP_UNSUB_data);
 
                 const res = await (prom as unknown) as Bit; //await the response from backend
                 if (res === 1)//if successful, then remove the subscribe from the client
@@ -537,7 +555,7 @@ export class SocioClient extends LogHandler {
     RegisterProp(prop_name: PropKey | undefined | null, initial_value: any = null, prop_reg_opts: Omit<PropOpts, "observationaly_temporary"> = {}) { //"client_writable" & 
         try {
             const { id, prom } = this.CreateQueryPromise();
-            this.Send(CoreMessageKind.PROP_REG, { id, prop:prop_name, initial_value, opts: prop_reg_opts } as S_PROP_REG_data);
+            this.Send(ServerMessageKind.PROP_REG, { id, prop:prop_name, initial_value, opts: prop_reg_opts } as S_PROP_REG_data);
             this.#UpdateQueryPromisePayloadSize(id);
             
             return (prom as unknown) as Promise<{ prop: PropKey }>;
@@ -585,7 +603,7 @@ export class SocioClient extends LogHandler {
     // socio query marker related --auth and --perm:
     Authenticate(params:object={}){ //params here can be anything, like username and password stuff etc. The backend server auth function callback will receive this entire object
         const { id, prom } = this.CreateQueryPromise();
-        this.Send(CoreMessageKind.AUTH, { id, params } as S_AUTH_data);
+        this.Send(ServerMessageKind.AUTH, { id, params } as S_AUTH_data);
         this.#UpdateQueryPromisePayloadSize(id);
 
         return (prom as unknown) as Promise<C_AUTH_data>;
@@ -593,12 +611,18 @@ export class SocioClient extends LogHandler {
     get authenticated() { return this.#authenticated === true }
     AskPermission(verb = '', table = '') {//ask the backend for a permission on a table with the SQL verb u want to perform on it, i.e. SELECT, INSERT etc.
         const { id, prom } = this.CreateQueryPromise();
-        this.Send(CoreMessageKind.GET_PERM, { id, verb: verb, table: table } as S_GET_PERM_data);
+        this.Send(ServerMessageKind.GET_PERM, { id, verb: verb, table: table } as S_GET_PERM_data);
         this.#UpdateQueryPromisePayloadSize(id);
 
         return (prom as unknown) as Promise<boolean>;
     }
     
+    // use null to call a function on the server, handled by the server hook
+    RPC(target_client: ClientID | string | null, f_name:string, ...args:any[]){
+        const {id, prom} = this.CreateQueryPromise();
+        this.Send(ServerMessageKind.RPC, { ...{ target_client, f_name, args} as S_RPC_data}, id);
+        return prom as Promise<data_base & data_result_block>;
+    }
     
     //checks if the ID of a query exists, otherwise rejects/throws and logs. This is used in a bunch of message receive cases at the start.
     #FindID(kind: ClientMessageKind, id: id) {
@@ -654,7 +678,7 @@ export class SocioClient extends LogHandler {
         const { id, prom } = this.CreateQueryPromise();
 
         //ask the server for a one-time auth token
-        this.Send(CoreMessageKind.RECON, { id, type: 'GET' } as S_RECON_GET_data);
+        this.Send(ServerMessageKind.RECON, { id, type: 'GET' } as S_RECON_GET_data);
         const token = await (prom as unknown) as string; //await the token
 
         //save down the token. Name is used to map new instance to old instance by same name.
@@ -672,7 +696,7 @@ export class SocioClient extends LogHandler {
             const { id, prom } = this.CreateQueryPromise();
 
             //ask the server for a reconnection to an old session via our one-time token
-            this.Send(CoreMessageKind.RECON, { id, type: 'USE', token } as S_RECON_USE_data);            
+            this.Send(ServerMessageKind.RECON, { id, type: 'USE', token } as S_RECON_USE_data);            
             const res = await (prom as unknown as Promise<C_RECON_Data>);
             this.#Reconnect(res); //sets the trusted values from the server, like auth bool
         }

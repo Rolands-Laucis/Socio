@@ -4,8 +4,41 @@ import type { QueryMarker } from "./types.d.ts";
 import type { SocioStringObj } from "./sql-parsing.js";
 
 // these are not types, but compile to js dicts, so cannot be imported as types, but also cannot be declared in types.d.ts, bcs that doesnt produce a js file
-export enum CoreMessageKind {
-    SUB, UNSUB, SQL, PING, AUTH, GET_PERM, PROP_SUB, PROP_UNSUB, PROP_GET, PROP_SET, PROP_REG, SERV, ADMIN, RECON, UP_FILES, GET_FILES, IDENTIFY, DISCOVERY
+export enum ServerMessageKind {
+    SUB, 
+    UNSUB, 
+    SQL, 
+    PING, 
+    AUTH, 
+    GET_PERM, 
+    PROP_SUB, 
+    PROP_UNSUB, 
+    PROP_GET, 
+    PROP_SET, 
+    PROP_REG, 
+    SERV, 
+    ADMIN, 
+    RECON, 
+    UP_FILES, 
+    GET_FILES, 
+    IDENTIFY, 
+    DISCOVERY,
+    RPC,
+};
+export enum ClientMessageKind {
+    CON,
+    UPD,
+    PONG,
+    AUTH,
+    GET_PERM,
+    RES,
+    PROP_UPD,
+    PROP_DROP,
+    CMD,
+    RECON,
+    RECV_FILES,
+    TIMEOUT,
+    RPC,
 };
 
 //socio string marker utils
