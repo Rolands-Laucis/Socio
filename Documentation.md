@@ -567,7 +567,7 @@ Likewise the server can send a command (CMD) to any client via the SendToClients
 ```ts
 //server code
 const socserv = new SocioServer(...)
-socserv.SendToClients([], {some:"data"}); //empty array of client_id's will emit to all connected. Returns void.
+await socserv.SendToClients([], {some:"data"}); //empty array of client_id's will emit to all connected. Returns void when all messages to all clients have been sent (but might not have been received yet).
 ```
 
 ```ts

@@ -842,20 +842,18 @@ export class SocioServer extends LogHandler {
         } catch (e: err) { this.HandleError(e); return false; }
     }
 
-    //send some data to all clients by their ID. By default emits to all connected clients
-    SendToClients(client_ids: string[] = [], data: object = {}, kind: ClientMessageKind = ClientMessageKind.CMD): Promise<void>{
-        return new Promise((res, rej) => {
-            try{
-                const sessions = client_ids.length ? client_ids.map(c_id => this.#sessions.get(c_id)) : this.#sessions.values();
+    //send some data to all clients by their ID or unique name, if they have one. By default emits to all connected clients
+    async SendToClients(clients: string[] = [], data: object = {}, kind: ClientMessageKind = ClientMessageKind.CMD){
+        let sessions = this.#sessions.values(); //all clients by default
+        if(clients.length) //filter specified ones
+            sessions = sessions.filter(c => clients.includes(c.id) || (c?.name && clients.includes(c.name)));
 
-                for (const s of sessions)
-                    if (s)
-                        s.Send(kind, data); //these are all sync calls
-                    
-                res();
-            }
-            catch (e) {rej(e);}
-        });
+        // queue up all the sends at once and let the async event loop figure out the optimal paralel stuff
+        const proms = [];
+        for (const s of sessions)
+            proms.push(s.Send(kind, data) as never);
+
+        return Promise.all(proms); //return a promise of when all the sends have been awaited
     }
 
     //https://stackoverflow.com/a/54875979/8422448
