@@ -94,7 +94,7 @@ export class LogHandler {
     }
 
     HandleError(e: E | Error | string, origin?: ErrorOrigin) { //e is usually class instance of E
-        log('HandleError', {e, origin});
+        // log('HandleError', {e, origin});
         if (e && (e instanceof E || e instanceof Error)) e['origin'] = origin;
         if (this.hard_crash) throw e instanceof E ? (e as E).message : e;
         if (this.log_handlers?.error && typeof this.log_handlers.error === 'function') this.log_handlers.error(e);
