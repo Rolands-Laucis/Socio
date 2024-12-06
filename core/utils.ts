@@ -24,6 +24,7 @@ export enum ServerMessageKind {
     IDENTIFY, 
     DISCOVERY,
     RPC,
+    OK,
 };
 export enum ClientMessageKind {
     CON,

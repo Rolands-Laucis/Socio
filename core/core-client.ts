@@ -48,7 +48,7 @@ export class SocioClient extends LogHandler {
     #queries: Map<id, QueryObject | QueryPromise> = new Map(); //keeps a dict of all subscribed queries
     #props: Map<PropKey, ClientProp> = new Map();
 
-    static #key = 1; //all instances will share this number, such that they are always kept unique. Tho each of these clients would make a different session on the backend, but still
+    static #key:id = 1; //all instances will share this number, such that they are always kept unique. Tho each of these clients would make a different session on the backend, but still
 
     //public:
     config: SocioClientOptions;
@@ -134,6 +134,8 @@ export class SocioClient extends LogHandler {
         try{
             const { kind, data }: { kind: ClientMessageKind; data: ClientMessageDataObj } = yaml_parse(event.data);
             this.HandleInfo('recv:', ClientMessageKind[kind], data);
+            if (typeof data.id === 'number' && typeof SocioClient.#key === 'number' && data.id > SocioClient.#key)
+                SocioClient.#key = data.id; //if reveive a larger ID from server than current, then use that to avoid conflicts between client ID counters
 
             //let the developer handle the msg
             if (this.lifecycle_hooks.msg)
@@ -313,12 +315,15 @@ export class SocioClient extends LogHandler {
                                 return;
 
                         // run the remote procedure call
+                        let result = undefined;
                         if ((data as S_RPC_data).f_name in this.rpc_dict) //first on the dict of registered functions
-                            this.rpc_dict[(data as S_RPC_data).f_name](...(data as S_RPC_data).args);
+                            result = this.rpc_dict[(data as S_RPC_data).f_name]((data as S_RPC_data).origin_client, ...(data as S_RPC_data).args);
                         else if ((data as S_RPC_data).target_client === null && (data as S_RPC_data).f_name in this) //secondly on the client class functions if target is null, bcs thats from the server
-                            this[(data as S_RPC_data).f_name](...(data as S_RPC_data).args);
+                            result = this[(data as S_RPC_data).f_name](...(data as S_RPC_data).args);
                         else this.HandleDebug('Received RPC, but the function name doesnt exist on this client. [#rpc-client-no-function]', data);
-                    
+
+                        // return the result back to the server, so it can return it back to the origin client
+                        this.Send(ServerMessageKind.OK, { id: data.id, return: result });
                     } else this.HandleDebug('Received RPC, but the client hasnt enabled it. [#rpc-client-not-enabled]', data);
                     break;
                 }
@@ -336,7 +341,7 @@ export class SocioClient extends LogHandler {
         try{
             if (data.length < 1) throw new E('Not enough arguments to send data! kind;data:', kind, ...data); //the first argument must always be the data to send. Other params may be objects with aditional keys to be added in the future
             this.#ws?.send(yaml_stringify(Object.assign({}, { kind, data: data[0] }, ...data.slice(1))));
-            this.HandleInfo('sent:', ServerMessageKind[kind], data);
+            this.HandleInfo('sent:', ServerMessageKind[kind], ...data);
         } catch (e: err) { this.#HandleClientError(e); }
     }
     SendFiles(files:File[], other_data:object|undefined=undefined){
@@ -618,16 +623,16 @@ export class SocioClient extends LogHandler {
     }
     
     // use null to call a function on the server, handled by the server hook
-    RPC(target_client: ClientID | string | null, f_name:string, ...args:any[]){
+    async RPC(target_client: ClientID | string | null, f_name:string, ...args:any[]){
         const {id, prom} = this.CreateQueryPromise();
-        this.Send(ServerMessageKind.RPC, { ...{ target_client, f_name, args} as S_RPC_data}, id);
-        return prom as Promise<data_base & data_result_block>;
+        this.Send(ServerMessageKind.RPC, { ...{ target_client, origin_client:this.client_id, f_name, args } as S_RPC_data, id }); //id last, bcs ts complains it would be over written by the spread
+        return await (prom as Promise<any>);
     }
     
     //checks if the ID of a query exists, otherwise rejects/throws and logs. This is used in a bunch of message receive cases at the start.
     #FindID(kind: ClientMessageKind, id: id) {
         if (!this.#queries.has(id))
-            throw new E(`A received socio message [querry_id ${id}, ${kind}] is not currently in tracked queries!`);
+            throw new E(`A received socio message [querry_id ${id}, ${ClientMessageKind[kind]}] is not currently in tracked queries!`);
     }
     #HandleBasicPromiseMessage(kind: ClientMessageKind, data: C_RES_data){
         this.#FindID(kind, data?.id);
@@ -666,7 +671,7 @@ export class SocioClient extends LogHandler {
 
 
     //generates a unique key either via static counter or user provided key gen func
-    get GenKey(): id {return this?.key_generator ? this.key_generator() : ++SocioClient.#key;}
+    get GenKey(): id {return this?.key_generator ? this.key_generator() : ++(SocioClient.#key as number);} //can cast to number, bcs by default the lib always uses a number
     get client_id(){return this.#client_id;}
     get web_socket() { return this.#ws; } //the WebSocket instance has some useful properties https://developer.mozilla.org/en-US/docs/Web/API/WebSocket#instance_properties
     get client_address_info() { return { url: this.#ws?.url, protocol: this.#ws?.protocol, extensions: this.#ws?.extensions }; } //for convenience

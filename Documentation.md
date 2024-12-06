@@ -599,6 +599,37 @@ socserv.lifecycle_hooks.identify = (caller_client: SocioSession, name:string) =>
 }
 ```
 
+#### Remote Procedure Call (RPC)
+It is possible for clients and the server to invoke function calls with arguments in each other. However, the arguments must be string serializable. Clients can register their own functions that call some handler in your app or even public functions on the server or client classes.
+```ts
+//browser code
+const sc = new SocioClient(`ws://${location.hostname}:3000`, { logging: {verbose:true} })
+await sc.ready();
+
+// get the ID of some client or pass null for server
+const result = await sc.RPC(target_client_id, 'Hello', arg1, arg2 ...); // if successful, this will call Hello(arg1, arg2) on the target client across the network and receive some return value from the other client
+
+// for the function name, Socio will first look for it in this rpc_dict by case-sensitive name, but secondly look for public methods of the SocioClient class by name, and call it. Here i define the Hello world (identically on both client instances, but thats not required) such that the top code can call it by this name.
+// If the found function is in this dict, it will be called always with the first arg being the original client that requested this call to the current client, and the rest are spread function args.
+sc.rpc_dict.Hello = (origin_client:client_id, ...args:any[]) => {
+  // args = [arg1, arg2, ...]
+  // but u dont have to use a spread, if u know exactly what params to accept and on the calling side you can guarantee it would the same ones. The lib takes a general approach by default.
+  return 'world!'; //or return nothing.
+}
+```
+
+Hooks on both server and client side.
+```ts
+//server code
+socserv.lifecycle_hooks.rpc = () => {
+}
+
+//browser code
+sc.lifecycle_hooks.rpc = () => {
+}
+```
+
+
 ##### Network Discovery
 Enable it on the server:
 ```ts

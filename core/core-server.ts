@@ -89,6 +89,9 @@ export class SocioServer extends LogHandler {
     //global flag to send prop obj diffs using the diff lib instead of the full object every time.
     #prop_upd_diff = false;
 
+    #global_largest_id: number = 0;
+    #client_queries: Map<id, { for_msg_kind: ServerMessageKind, resolve: (value: any | PromiseLike<any>) => void }> = new Map();
+
     //---public:
     db!: DBOpts;
     session_defaults: SessionsDefaults = { timeouts: false, timeouts_check_interval_ms: 1000 * 60, session_timeout_ttl_ms: Infinity, session_delete_delay_ms: 1000 * 5, recon_ttl_ms: 1000 * 60 * 60 };
@@ -219,6 +222,7 @@ export class SocioServer extends LogHandler {
         }, this.session_defaults.session_delete_delay_ms as number);
     }
 
+    get new_global_id(){return ++this.#global_largest_id}
     async #Message(client:SocioSession, req: Buffer | ArrayBuffer | Buffer[], isBinary: Boolean){
         // general try for crashes. 
         // The catch just notifies the server of the error, 
@@ -238,6 +242,8 @@ export class SocioServer extends LogHandler {
 
             const { kind, data }: { kind: ServerMessageKind; data: ServerMessageDataObj } = yaml_parse(req.toString());
             const client_id = client.id; //cache the ID, since its used so much here
+            // save the biggest ID found to avoid ID collisions when sending msgs between clients, since they all have their own ID counter
+            if (typeof data.id === 'number' && data.id > this.#global_largest_id) this.#global_largest_id = data.id;
 
             // this try catch allows the body to freely throw E or strings or crash in any other way, 
             // and the client will still receive a RES with success:0, since now it has the message ID from data
@@ -250,6 +256,7 @@ export class SocioServer extends LogHandler {
                             data[field] = this.#Decrypt(client, data[field], field === 'sql');
                 }
 
+                if (kind !== ServerMessageKind.OK) //this 
                 this.HandleInfo(`recv: [${ServerMessageKind[kind]}] from [${client.name ? client.name + ' | ' : ''}${client_id}]`, kind != ServerMessageKind.UP_FILES ? data : `File count: ${(data as S_UP_FILES_data).files?.size}`);
 
                 //let the developer handle the msg
@@ -627,8 +634,34 @@ export class SocioServer extends LogHandler {
                                 return;
                             }
 
-                            client.Send(ClientMessageKind.RPC, { ...(data as S_RPC_data), id:data.id });
+                            // call the function on the other client
+                            // 2nd client msg needs a new ID, that it wouldnt already have, bcs ID conflicts - they have their own counters
+                            const new_id = this.new_global_id;
+                            target_c.Send(ClientMessageKind.RPC, { ...(data as S_RPC_data), id: new_id });
+
+                            // await the clients response, that will resolve this promise in the OK case with a return value
+                            // 2nd client will respond to the new ID query, which is this promise:
+                            this.CreateClientQueryPromise(new_id, ServerMessageKind.RPC)
+                                .then(res => {
+                                    //respond with the original ID of the 1st client
+                                    client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 1, res }}); 
+                                })
+                                // ive set up a timeout for this promise, but it might fail for other reasons too
+                                .catch(reason => {
+                                    //respond with the original ID of the 1st client
+                                    client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 0, error: reason } })
+                                })
                         }
+                        break;
+                    }
+                    case ServerMessageKind.OK: {
+                        const q = this.#client_queries.get(data.id);
+                        if(q){
+                            this.HandleInfo(`recv: [OK ${ServerMessageKind[q.for_msg_kind]}] from [${client.name ? client.name + ' | ' : ''}${client_id}]`, data);
+                            q.resolve((data as data_base & {return:any}).return); //resolve the promise thats being awaited in some other kind case
+                            this.#client_queries.delete(data.id); //remove it
+                        } 
+                        else throw new E(`Received OK from client for an unknown client query. [#client-query-not-found]`, {sender:client.id, data});
                         break;
                     }
                     // case ServerMessageKind: { break;}
@@ -884,6 +917,17 @@ export class SocioServer extends LogHandler {
             proms.push(s.Send(kind, data) as never);
 
         return Promise.all(proms); //return a promise of when all the sends have been awaited
+    }
+    CreateClientQueryPromise(id: id, for_msg_kind:ServerMessageKind){
+        return new Promise((resolve, reject) => {
+            this.#client_queries.set(id, { resolve, for_msg_kind });
+
+            // add timeout, so the server doesnt fill memory for unresponsive clients
+            setTimeout(() => {
+                this.#client_queries.delete(id);
+                reject('timeout')
+            }, 20 * 1000);
+        }) as Promise<any>;
     }
 
     //https://stackoverflow.com/a/54875979/8422448

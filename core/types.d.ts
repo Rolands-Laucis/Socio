@@ -91,7 +91,7 @@ type S_RECON_USE_data = data_base & { type: 'USE', token: string };
 type S_UP_FILES_data = data_base & { files: SocioFiles, data?: object };
 type S_GET_FILES_data = data_base & { data: any };
 type S_SERV_data = data_base & { data?: any };
-type S_RPC_data = data_base & { target_client: ClientID | string | null, f_name:string, args: any[] };
+type S_RPC_data = data_base & { target_client: ClientID | string | null, origin_client: ClientID | string, f_name:string, args: any[] };
 type ServerMessageDataObj = data_base | S_SERV_data | S_GET_FILES_data | S_UP_FILES_data | S_RECON_USE_data | S_RECON_GET_data | S_PROP_REG_data | S_PROP_SET_data | S_PROP_GET_data | S_PROP_UNSUB_data | S_GET_PERM_data | S_PROP_SUB_data | S_SUB_data | S_UNSUB_data | S_SQL_data | S_AUTH_data;
 
 // client receive data in Message from server
