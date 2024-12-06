@@ -599,7 +599,7 @@ const sc = new SocioClient(`ws://${location.hostname}:3000`, { logging: {verbose
 await sc.ready();
 
 // this gives {client_id:{name, ip}} at the time of writing this, but can be any data
-await sc.DiscoverSessions();
+await sc.DiscoverSessions('ID' | 'NAME' | 'AS_ARRAY'); //for convenience, u can retrieve this data in either of 3 built in formats. Default formatted object by ID
 ```
 
 There is also a server hook for customizing the returned discovery info:

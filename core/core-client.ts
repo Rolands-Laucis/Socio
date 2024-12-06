@@ -424,10 +424,21 @@ export class SocioClient extends LogHandler {
     Ping(id_num = undefined) {
         this.Send(ServerMessageKind.PING, { id: typeof id_num === 'number' ? id_num : this.GenKey });
     }
-    DiscoverSessions(){
+    async DiscoverSessions(by: 'ID' | 'NAME' | 'AS_ARRAY' = 'ID'){
         const { id, prom } = this.CreateQueryPromise();
         this.Send(ServerMessageKind.DISCOVERY, { id });
-        return prom as Promise<discovery_resp_obj>;
+        let clients = await (prom as Promise<discovery_resp_obj>);
+
+        // format it for convenience
+        switch(by){
+            case 'NAME': {
+                return Object.fromEntries(Object.entries(clients).map(([id, meta]) => [meta?.name ? meta.name : id, { ...meta, id }]));
+            }
+            case 'AS_ARRAY': {
+                return Object.entries(clients).map(([id, meta]) => { return { ...meta, id }});
+            }
+            default: return clients;
+        }
     }
     UnsubscribeAll({ props = true, queries = true, force = false } = {}) {
         if (props)
