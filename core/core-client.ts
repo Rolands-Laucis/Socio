@@ -168,7 +168,10 @@ export class SocioClient extends LogHandler {
                     this.#is_ready = true;
 
                     // once ready, attempt to use the given name as a global identifier. No problem, if this fails.
-                    if(this.config?.name)
+                    //persistance would restore the old name, so no need to announce again.
+                    // TODO bcs of persistance being async, there is a small window of time, when someone else could claim the name before it is restored
+                    // which means that names are not guaranteed unique. That should be fine, as only ID's by design are intended unique, but the dev might rely on name uniqueness, bcs of the identify protocol constraints
+                    if(this.config?.name && this.config.persistent !== true) 
                         this.IdentifySelf(this.config.name);
 
                     break;
