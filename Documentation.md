@@ -611,6 +611,7 @@ const result = await sc.RPC(target_client_id, 'Hello', arg1, arg2 ...); // if su
 
 // for the function name, Socio will first look for it in this rpc_dict by case-sensitive name, but secondly look for public methods of the SocioClient class by name, and call it. Here i define the Hello world (identically on both client instances, but thats not required) such that the top code can call it by this name.
 // If the found function is in this dict, it will be called always with the first arg being the original client that requested this call to the current client, and the rest are spread function args.
+// In practice you chould define these in code before you expect any client to send an RPC.
 sc.rpc_dict.Hello = (origin_client:client_id, ...args:any[]) => {
   // args = [arg1, arg2, ...]
   // but u dont have to use a spread, if u know exactly what params to accept and on the calling side you can guarantee it would the same ones. The lib takes a general approach by default.
