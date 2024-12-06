@@ -579,6 +579,44 @@ sc.lifecycle_hooks.cmd = (data:any) => { console.log(data) }
 #### Client session unique global identification and network discovery
 You may want clients to have human-readable labels and to discover other current connections:
 
+##### Network Discovery
+Enable it on the server:
+```ts
+//server code
+const socserv = new SocioServer({ port: 3000 }, {
+    db: {}, 
+    logging: {verbose:true},
+    ...,
+    allow_discovery:true, //this needs to be enabled for clients to get sensitive info about other clients. Default false.
+    // careful though - any client can use this info to spam the server or other clients. I'd only use this in local networks or with some firewall setup, so that i know for sure who has access to this info.
+  }
+);
+```
+Then any client:
+```ts
+//browser code
+const sc = new SocioClient(`ws://${location.hostname}:3000`, { logging: {verbose:true} })
+await sc.ready();
+
+// this gives {client_id:{name, ip}} at the time of writing this, but can be any data
+await sc.DiscoverSessions();
+```
+
+There is also a server hook for customizing the returned discovery info:
+```ts
+//server code
+socserv.lifecycle_hooks.discovery = (caller_client: SocioSession, data:MessageDataObj) => {
+  const ids = socserv.session_ids; // you can get session IDs. This call performs a calculation, so dont spam it
+  const client = socserv.GetClientSession(ids[0]); // then get individual clients, that have name, ip etc.
+  socserv.GetSessionsInfo(); // get the discovery default dict
+
+  // return whatever truthy data structure you want. Return falsy, if u want socio to send the default.
+  return {};
+}
+```
+
+If you want the discovery to update as connections change, you can do this via the other hooks like ``con`` on the server and use CMD & SERV protocols or make a discovery server prop :) there are multiple ways to do it, so i feel like there shouldnt be just one way built into the lib.
+
 ##### IdentifySelf()
 ```ts
 //browser code
@@ -629,42 +667,6 @@ socserv.lifecycle_hooks.rpc = () => {
 sc.lifecycle_hooks.rpc = () => {
 }
 ```
-
-
-##### Network Discovery
-Enable it on the server:
-```ts
-//server code
-const socserv = new SocioServer({ port: 3000 }, {
-    db: {}, 
-    logging: {verbose:true},
-    ...,
-    allow_discovery:true, //this needs to be enabled for clients to get sensitive info about other clients. Default false.
-    // careful though - any client can use this info to spam the server or other clients. I'd only use this in local networks or with some firewall setup, so that i know for sure who has access to this info.
-  }
-);
-```
-Then any client:
-```ts
-//browser code
-const sc = new SocioClient(`ws://${location.hostname}:3000`, { logging: {verbose:true} })
-await sc.ready();
-
-// this gives {client_id:{name, ip}} at the time of writing this, but can be any data
-console.log(await sc.DiscoverSessions());
-```
-There is also a server hook for customizing the returned discovery info:
-```ts
-//server code
-socserv.lifecycle_hooks.discovery = (caller_client: SocioSession, data:MessageDataObj) => {
-  // return whatever truthy data structure you want. Return falsy, if u want socio to send the default.
-  
-  const ids = socserv.session_ids; // you can get session IDs. This call performs a calculation, so dont spam it
-  const client = socserv.GetClientSession(ids[0]); // then get individual clients, that have name, ip etc.
-  socserv.GetSessionsInfo(); // get the discovery default dict
-}
-```
-
 
 ### Socio Rooms/Spaces/Presentations/Collabs (Divided, shared Contexts)
 For a lot of SaaS and Digital Document type Web Apps or multiplayer games you're gonna want some form of the idea of a "room" for users - a shared data/state context with certain users (subset of all possible users). Socio doesn't have a special solution for such a pattern, but only because it doesn't need one. 😎
