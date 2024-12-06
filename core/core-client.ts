@@ -36,6 +36,13 @@ export type SocioClientOptions = {
     allow_rpc?:boolean,
 } & LoggingOpts;
 
+type DiscoveryBy = 'ID' | 'NAME' | 'AS_ARRAY';
+type DiscoveryReturn = {
+    ID: discovery_resp_obj;
+    NAME: { [nameOrId: string]: { id: string; name?: string; ip: string;[key: string]: any } };
+    AS_ARRAY: { id: string; name?: string; ip: string;[key: string]: any }[];
+};
+
 //"Because he not only wants to perform well, he wants to be well received  —  and the latter lies outside his control." /Epictetus/
 export class SocioClient extends LogHandler {
     // private:
@@ -424,20 +431,24 @@ export class SocioClient extends LogHandler {
     Ping(id_num = undefined) {
         this.Send(ServerMessageKind.PING, { id: typeof id_num === 'number' ? id_num : this.GenKey });
     }
-    async DiscoverSessions(by: 'ID' | 'NAME' | 'AS_ARRAY' = 'ID'){
+    
+    async DiscoverSessions<K extends DiscoveryBy>(by: K = 'ID' as K): Promise<DiscoveryReturn[K]> {
         const { id, prom } = this.CreateQueryPromise();
         this.Send(ServerMessageKind.DISCOVERY, { id });
         let clients = await (prom as Promise<discovery_resp_obj>);
 
         // format it for convenience
-        switch(by){
-            case 'NAME': {
-                return Object.fromEntries(Object.entries(clients).map(([id, meta]) => [meta?.name ? meta.name : id, { ...meta, id }]));
-            }
-            case 'AS_ARRAY': {
-                return Object.entries(clients).map(([id, meta]) => { return { ...meta, id }});
-            }
-            default: return clients;
+        if (by === 'NAME') {
+            return Object.fromEntries(
+                Object.entries(clients).map(([id, meta]) => [
+                    meta?.name ?? id,
+                    { ...meta, id },
+                ])
+            ) as DiscoveryReturn[K];
+        } else if (by === 'AS_ARRAY') {
+            return Object.entries(clients).map(([id, meta]) => ({ ...meta, id })) as DiscoveryReturn[K];
+        } else {
+            return clients as DiscoveryReturn[K];
         }
     }
     UnsubscribeAll({ props = true, queries = true, force = false } = {}) {
