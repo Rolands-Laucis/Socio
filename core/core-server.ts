@@ -641,7 +641,7 @@ export class SocioServer extends LogHandler {
 
                             // await the clients response, that will resolve this promise in the OK case with a return value
                             // 2nd client will respond to the new ID query, which is this promise:
-                            this.CreateClientQueryPromise(new_id, ServerMessageKind.RPC)
+                            this.#CreateClientQueryPromise(new_id, ServerMessageKind.RPC)
                                 .then(res => {
                                     //respond with the original ID of the 1st client
                                     client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 1, res }}); 
@@ -918,15 +918,19 @@ export class SocioServer extends LogHandler {
 
         return Promise.all(proms); //return a promise of when all the sends have been awaited
     }
-    CreateClientQueryPromise(id: id, for_msg_kind:ServerMessageKind){
-        return new Promise((resolve, reject) => {
-            this.#client_queries.set(id, { resolve, for_msg_kind });
-
+    #CreateClientQueryPromise(id: id, for_msg_kind:ServerMessageKind){
+        return new Promise((res, rej) => {
             // add timeout, so the server doesnt fill memory for unresponsive clients
-            setTimeout(() => {
+            const timer = setTimeout(() => {
                 this.#client_queries.delete(id);
-                reject('timeout')
+                rej(`${ServerMessageKind[for_msg_kind]} id:${id} timed-out.`)
             }, 20 * 1000);
+
+            const resolve = (val) => {
+                clearTimeout(timer); //dont send the timeout, if this ever actually resolves
+                res(val);
+            }
+            this.#client_queries.set(id, { resolve, for_msg_kind });
         }) as Promise<any>;
     }
 
