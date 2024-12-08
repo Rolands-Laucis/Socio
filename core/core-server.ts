@@ -500,62 +500,61 @@ export class SocioServer extends LogHandler {
                         break;
                     }
                     case ServerMessageKind.RECON: {//client attempts to reconnect to its previous session
-                        if (this.#secure.socio_security) {
-                            // CLIENT ASKS FOR A TOKEN
-                            if ((data as S_RECON_GET_data)?.type === 'GET') {
-                                const token = this.#secure.socio_security.EncryptString([this.#secure.socio_security?.GenRandInt(100_000, 1_000_000), client.ipAddr, client.id, (new Date()).getTime(), this.#secure.socio_security?.GenRandInt(100_000, 1_000_000)].join(' ')); //creates string in the format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where encrypted_text_base64 is a token of format "[rand] [ip] [client_id] [ms_since_epoch] [rand]"
-                                this.#tokens.add(token);
-                                client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 1, res: token } } as C_RES_data); //send the token to the client for one-time use to reconnect to their established client session
-                            }
+                        if (!this.#secure.socio_security) {
+                            client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 0, error: 'Cannot reconnect on this server configuration!' } } as C_RES_data);
+                            throw new E(`RECON requires SocioServer to be set up with the Secure class! [#recon-needs-secure]`, { kind, data });
+                        }
 
-                            // CLIENT USES A TOKEN
-                            else if ((data as S_RECON_USE_data)?.type === 'USE') {
-                                //check for valid token to begin with
-                                if (!(data as S_RECON_USE_data)?.token || !this.#tokens.has((data as S_RECON_USE_data).token)) {
+                        // CLIENT ASKS FOR A TOKEN
+                        if ((data as S_RECON_GET_data)?.type === 'GET') {
+                            const token = this.#secure.socio_security.EncryptString([this.#secure.socio_security?.GenRandInt(100_000, 1_000_000), client.ipAddr, client.id, (new Date()).getTime(), this.#secure.socio_security?.GenRandInt(100_000, 1_000_000)].join(' ')); //creates string in the format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where encrypted_text_base64 is a token of format "[rand] [ip] [client_id] [ms_since_epoch] [rand]"
+                            this.#tokens.add(token);
+                            client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 1, res: token } } as C_RES_data); //send the token to the client for one-time use to reconnect to their established client session
+                        }
+
+                        // CLIENT USES A TOKEN
+                        else if ((data as S_RECON_USE_data)?.type === 'USE') {
+                            //check for valid token to begin with
+                            if (!(data as S_RECON_USE_data)?.token || !this.#tokens.has((data as S_RECON_USE_data).token)) {
+                                client.Send(ClientMessageKind.RECON, { id: data.id, result: { success: 0, error: 'Invalid token' } } as C_RECON_Data);
+                                return;
+                            }
+                            this.#tokens.delete((data as S_RECON_USE_data).token); //single use token, so delete
+
+                            let [iv, token, auth_tag] = (data as S_RECON_USE_data).token.split(' '); //split the format into encryption parts
+                            try {
+                                if (iv && token && auth_tag)
+                                    token = this.#secure.socio_security.DecryptString(iv, token, auth_tag); //decrypt the payload
+                                else
                                     client.Send(ClientMessageKind.RECON, { id: data.id, result: { success: 0, error: 'Invalid token' } } as C_RECON_Data);
-                                    return;
-                                }
-                                this.#tokens.delete((data as S_RECON_USE_data).token); //single use token, so delete
-
-                                let [iv, token, auth_tag] = (data as S_RECON_USE_data).token.split(' '); //split the format into encryption parts
-                                try {
-                                    if (iv && token && auth_tag)
-                                        token = this.#secure.socio_security.DecryptString(iv, token, auth_tag); //decrypt the payload
-                                    else
-                                        client.Send(ClientMessageKind.RECON, { id: data.id, result: { success: 0, error: 'Invalid token' } } as C_RECON_Data);
-                                } catch (e: err) {
-                                    client.Send(ClientMessageKind.RECON, { id: data.id, result: { success: 0, error: 'Invalid token' } } as C_RECON_Data);
-                                    return;
-                                }
-
-                                const [r1, ip, old_c_id, time_stamp, r2] = token.split(' '); //decrypted payload parts
-                                //safety check race conditions
-                                if (!(r1 && ip && old_c_id && time_stamp && r2)) {
-                                    client.Send(ClientMessageKind.RECON, { id: data.id, result: { success: 0, error: 'Invalid token format' } } as C_RECON_Data);
-                                    return;
-                                }
-                                if (client.ipAddr !== ip) {
-                                    client.Send(ClientMessageKind.RECON, { id: data.id, result: { success: 0, error: 'IP address changed between reconnect' } } as C_RECON_Data);
-                                    return;
-                                }
-                                else if ((new Date()).getTime() - parseInt(time_stamp) > (this.session_defaults.recon_ttl_ms as number)) {
-                                    client.Send(ClientMessageKind.RECON, { id: data.id, result: { success: 0, error: 'Token has expired' } } as C_RECON_Data);
-                                    return;
-                                }
-                                else if (!(this.#sessions.has(old_c_id))) {
-                                    client.Send(ClientMessageKind.RECON, { id: data.id, result: { success: 0, error: 'Old session ID was not found' } } as C_RECON_Data);
-                                    return;
-                                }
-
-                                //recon procedure
-                                const old_client = this.#sessions.get(old_c_id) as SocioSession;
-                                this.ReconnectClientSession(client, old_client, data.id as id);
-                                this.HandleInfo(`RECON | old id:  ${old_c_id} -> new id:  ${client.id}`);
+                            } catch (e: err) {
+                                client.Send(ClientMessageKind.RECON, { id: data.id, result: { success: 0, error: 'Invalid token' } } as C_RECON_Data);
+                                return;
                             }
-                            else {
-                                client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 0, error: 'Cannot reconnect on this server configuration!' } } as C_RES_data);
-                                throw new E(`RECON requires SocioServer to be set up with the Secure class! [#recon-needs-secure]`, { kind, data });
+
+                            const [r1, ip, old_c_id, time_stamp, r2] = token.split(' '); //decrypted payload parts
+                            //safety check race conditions
+                            if (!(r1 && ip && old_c_id && time_stamp && r2)) {
+                                client.Send(ClientMessageKind.RECON, { id: data.id, result: { success: 0, error: 'Invalid token format' } } as C_RECON_Data);
+                                return;
                             }
+                            if (client.ipAddr !== ip) {
+                                client.Send(ClientMessageKind.RECON, { id: data.id, result: { success: 0, error: 'IP address changed between reconnect' } } as C_RECON_Data);
+                                return;
+                            }
+                            else if ((new Date()).getTime() - parseInt(time_stamp) > (this.session_defaults.recon_ttl_ms as number)) {
+                                client.Send(ClientMessageKind.RECON, { id: data.id, result: { success: 0, error: 'Token has expired' } } as C_RECON_Data);
+                                return;
+                            }
+                            else if (!(this.#sessions.has(old_c_id))) {
+                                client.Send(ClientMessageKind.RECON, { id: data.id, result: { success: 0, error: 'Old session ID was not found' } } as C_RECON_Data);
+                                return;
+                            }
+
+                            //recon procedure
+                            const old_client = this.#sessions.get(old_c_id) as SocioSession;
+                            this.ReconnectClientSession(client, old_client, data.id as id);
+                            this.HandleInfo(`RECON | old id:  ${old_c_id} -> new id:  ${client.id}`);
                         }
                         break;
                     }
