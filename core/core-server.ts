@@ -960,6 +960,9 @@ export class SocioServer extends LogHandler {
         }
     }
 
+    // stop deletion of old session for a moment
+    // copy old sesh info to new sesh, cuz thats the new TCP connection
+    // destroy old sesh for good
     ReconnectClientSession(new_session: SocioSession, old_session: SocioSession, client_notify_msg_id?:id){
         const new_id = new_session.id, old_id = old_session.id;
         old_session.Restore();//stop the old session deletion, since a reconnect was actually attempted
@@ -976,7 +979,7 @@ export class SocioServer extends LogHandler {
         }, this.session_defaults.session_delete_delay_ms as number);
 
         //notify the client
-        const data = { result: { success: 1 }, old_client_id: old_id, auth: new_session.authenticated };
+        const data = { result: { success: 1 }, old_client_id: old_id, auth: new_session.authenticated, name:new_session.name };
         if (client_notify_msg_id) data['id'] = client_notify_msg_id;
         new_session.Send(ClientMessageKind.RECON, data as C_RECON_Data);
     }

@@ -132,9 +132,10 @@ export class SocioSession extends LogHandler {
     CopySessionFrom(old_client:SocioSession){
         this.#authenticated = old_client.#authenticated;
         this.#perms = old_client.#perms;
-        this.#ws['socio_client_ipAddr'] = old_client.ipAddr;
+        // this.#ws['socio_client_ipAddr'] = old_client.ipAddr; //prob should keep the new IP, in case reconnecting from another computer or smth
         this.verbose = old_client.verbose;
         this.last_seen = old_client.last_seen;
+        // this.last_seen_now();
         this.name = old_client.name;
     }
 }

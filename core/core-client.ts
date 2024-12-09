@@ -154,8 +154,9 @@ export class SocioClient extends LogHandler {
                     this.#client_id = data as C_CON_data;//should just be a string
                     this.#latency = (new Date()).getTime() - this.#latency;
 
+                    let successful_recon = false;
                     if (this.config.persistent) {
-                        await this.#TryReconnect(); //try to reconnect with existing token in local storage
+                        successful_recon = await this.#TryReconnect(); //try to reconnect with existing token in local storage
                         await this.#GetReconToken(); //get new recon token and push to local storage
                     }
 
@@ -171,7 +172,7 @@ export class SocioClient extends LogHandler {
                     //persistance would restore the old name, so no need to announce again.
                     // TODO bcs of persistance being async, there is a small window of time, when someone else could claim the name before it is restored
                     // which means that names are not guaranteed unique. That should be fine, as only ID's by design are intended unique, but the dev might rely on name uniqueness, bcs of the identify protocol constraints
-                    if(this.config?.name && this.config.persistent !== true) 
+                    if (this.config?.name && successful_recon !== true) //attempt to identify, if has a name and if a recon was tried, but unsuccessful (which includes not a having a token stored)
                         this.IdentifySelf(this.config.name);
 
                     break;
@@ -729,12 +730,14 @@ export class SocioClient extends LogHandler {
             this.Send(ServerMessageKind.RECON, { id, type: 'USE', token } as S_RECON_USE_data);            
             const res = await (prom as unknown as Promise<C_RECON_Data>);
             this.#Reconnect(res); //sets the trusted values from the server, like auth bool
-        }
+            return res.result.success === 1;
+        }else return false;
     }
     //sets the trusted values from the server, like auth bool
     #Reconnect(data:C_RECON_Data){
         if (data.result.success === 1) {
             this.#authenticated = data.auth;
+            this.config.name = data.name;
             this.done(`${this.config.name} reconnected successfully. ${data.old_client_id} -> ${this.#client_id} (old client ID -> new/current client ID)`, data);
         }
         else{
