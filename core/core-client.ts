@@ -42,6 +42,7 @@ type DiscoveryReturn = {
     NAME: { [nameOrId: string]: { id: string; name?: string; ip: string;[key: string]: any } };
     AS_ARRAY: { id: string; name?: string; ip: string;[key: string]: any }[];
 };
+type PropSubOpts = { rate_limit?: RateLimit | null, receive_initial_update?: boolean };
 
 //"Because he not only wants to perform well, he wants to be well received  —  and the latter lies outside his control." /Epictetus/
 export class SocioClient extends LogHandler {
@@ -230,12 +231,12 @@ export class SocioClient extends LogHandler {
                             if (typeof prop.subs[(data as C_PROP_UPD_data).id] === 'function'){
                                 // get the new factual value value of the prop either from the server or from applying the diff from server
                                 if ((data as C_PROP_UPD_data).hasOwnProperty('prop_val')){ //take factual
-                                    //@ts-expect-error
-                                    prop_val = (data as C_PROP_UPD_data).prop_val
-                                }else{ //apply diff
-                                    //@ts-expect-error
-                                    prop_val = diff_lib.applyDiff(prop.val, (data as C_PROP_UPD_data).prop_val_diff);
+                                    prop_val = (data as C_PROP_UPD_data).prop_val;
+                                } 
+                                else if ((data as C_PROP_UPD_data).hasOwnProperty('prop_val_diff')) { //apply diff
+                                    prop_val = diff_lib.applyDiff(prop.val, (data as C_PROP_UPD_data).prop_val_diff!);
                                 }
+                                else throw new E('Prop upd data didnt have either factual val or diff val to use. [#prop-upd-no-val]', {kind, data});
                                 prop.val = prop_val; //set the new val
 
                                 // afterwards call the client subscription with the new val and the received diff 
@@ -546,7 +547,7 @@ export class SocioClient extends LogHandler {
             return prom as Promise<any>;
         }
     }
-    SubscribeProp(prop_name: PropKey, onUpdate: PropUpdateCallback, { rate_limit = null, receive_initial_update = true }: { rate_limit?: RateLimit | null, receive_initial_update?: boolean } = {}): Promise<{ id: id, result: { success: Bit } } | any> {
+    SubscribeProp(prop_name: PropKey, onUpdate: PropUpdateCallback, { rate_limit = null, receive_initial_update = true }: PropSubOpts = {}): Promise<{ id: id, result: { success: Bit } } | any> {
         //the prop name on the backend that is a key in the object
         if (typeof onUpdate !== "function") throw new E('Subscription onUpdate is not function, but has to be.');
 
@@ -593,8 +594,7 @@ export class SocioClient extends LogHandler {
         } catch (e: err) { this.#HandleClientError(e); return null; }
     }
     // get a PropProxy object. The prop has to be a js object datatype on the server side. This automagically handles the PropGet, PropSet and SubscribeProp base functions for you.
-    async Prop(prop_name: PropKey){
-        const client_this = this; //use for inside the Proxy scope
+    async Prop(prop_name: PropKey, { prop_sub_opts = {}, prop_upd_as_diff = false}:{ prop_sub_opts?: PropSubOpts, prop_upd_as_diff?: boolean} = {}){
         const prop = await this.GetProp(prop_name, false);
         if(prop === undefined){
             this.#HandleClientError(new E(`Couldnt retrieve server prop [${prop_name}]`, { prop_name, prop }));
@@ -604,6 +604,9 @@ export class SocioClient extends LogHandler {
             this.#HandleClientError(new E(`Can only proxy js objects, but [${prop_name}] is not an object.`, { prop_name, prop }));
             return undefined;
         }
+
+        let from_sub: boolean = false;
+        const LocalSetProp = this.SetProp.bind(this); //use for inside the Proxy scope
         const prop_proxy = new Proxy(prop, {
             get(p: PropValue, property) {
                 // log(`${prop_name} GET`, {p, property});
@@ -612,21 +615,27 @@ export class SocioClient extends LogHandler {
             //ive run tests in other projects and the async set does work fine. TS doesnt want to allow it for some reason 
             set(p: PropValue, property, new_val) {
                 // log(`${prop_name} SET`, { p, property, new_val });
-                //the sub will run this too, which means the value would've already been set
-                if (p[property] !== new_val){
-                    p[property] = new_val;
-                    client_this.SetProp.bind(client_this)(prop_name, p);
-                }
+                
+                // always set the val
+                p[property] = new_val;
+
+                // but since the sub runs this too, then check if this is from there, bcs we dont want to send back what we receive - thats redundant
+                if (from_sub !== true)
+                    LocalSetProp(prop_name, p, prop_upd_as_diff);
 
                 return true;
                 // return (await client_this.SetProp.bind(client_this)(prop_name, p))?.result?.success === 1;
             }
         });
 
-        await client_this.SubscribeProp(prop_name, (new_val) => {
+        await this.SubscribeProp(prop_name, (new_val) => {
             // log(`${prop_name} SUB UPD`, { new_val });
-            for (const [key, val] of Object.entries(new_val)) prop_proxy[key] = val; //set each key, bcs cant just assign the new obj, bcs then it wouldnt be a proxy anymore
-        });
+
+            from_sub = true;
+            //set each key, bcs cant just assign the new obj, bcs then it wouldnt be a proxy anymore
+            for (const [key, val] of Object.entries(new_val)) prop_proxy[key] = val;
+            from_sub = false;
+        }, prop_sub_opts);
         return prop_proxy;
     }
 
