@@ -857,7 +857,6 @@ export class SocioServer extends LogHandler {
         //Dont think JS allows such ref pointers to work. But this then keeps the correct val. 
         //This idea works bcs the mutator of the data should be the first to run this and all other session will get informed here with that sessions diff.
 
-        log('---here', {key, new_val, old_prop_val, sender_client_id, send_as_diff});
         if (prop.assigner(key, new_val, sender_client_id ? this.#sessions.get(sender_client_id) : undefined)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
             const new_assigned_prop_val = this.GetPropVal(key); //should be GetPropVal, bcs i cant know how the assigner changed the val. But since it runs once per update, then i can cache this call here right after the assigner.
             const prop_val_diff = diff_lib.getDiff(old_prop_val, new_assigned_prop_val);
@@ -869,7 +868,6 @@ export class SocioServer extends LogHandler {
 
                 //do the thing
                 if (this.#sessions.has(client_id)){
-                    log('---here2', { sender_client_id, client_id, args });
                     //prepare object of both cases
                     const upd_data = { id: args.id, prop:key };
 
