@@ -319,24 +319,31 @@ export class SocioClient extends LogHandler {
                     break;
                 }
                 case ClientMessageKind.RPC: {
-                    // this.#HandleBasicPromiseMessage(kind, data);
-                    if(this.config.allow_rpc === true){
-                        // let the hook handle it
-                        if(this.lifecycle_hooks.rpc)
-                            if (await this.lifecycle_hooks.rpc(this, (data as S_RPC_data).f_name, (data as S_RPC_data).args))
-                                return;
+                    if(this.config.allow_rpc !== true){
+                        this.HandleDebug('Received RPC, but the client hasnt enabled it. [#rpc-client-not-enabled]', data);
+                        return;
+                    }
 
-                        // run the remote procedure call
-                        let result = undefined;
-                        if ((data as S_RPC_data).f_name in this.rpc_dict) //first on the dict of registered functions
-                            result = this.rpc_dict[(data as S_RPC_data).f_name]((data as S_RPC_data).origin_client, ...(data as S_RPC_data).args);
-                        else if ((data as S_RPC_data).target_client === null && (data as S_RPC_data).f_name in this) //secondly on the client class functions if target is null, bcs thats from the server
-                            result = this[(data as S_RPC_data).f_name](...(data as S_RPC_data).args);
-                        else this.HandleDebug('Received RPC, but the function name doesnt exist on this client. [#rpc-client-no-function]', data);
+                    // let the hook handle it
+                    if(this.lifecycle_hooks.rpc){
+                        const res = await this.lifecycle_hooks.rpc(this, (data as S_RPC_data).origin_client, (data as S_RPC_data).f_name, (data as S_RPC_data).args)
+                        if (res !== undefined){
+                            this.Send(ServerMessageKind.OK, { id: data.id, return: res });
+                            return;
+                        }
+                    }
 
-                        // return the result back to the server, so it can return it back to the origin client
-                        this.Send(ServerMessageKind.OK, { id: data.id, return: result });
-                    } else this.HandleDebug('Received RPC, but the client hasnt enabled it. [#rpc-client-not-enabled]', data);
+                    // run the remote procedure call
+                    let result = undefined;
+                    if ((data as S_RPC_data).f_name in this.rpc_dict) //first on the dict of registered functions
+                        result = await this.rpc_dict[(data as S_RPC_data).f_name]((data as S_RPC_data).origin_client, ...(data as S_RPC_data).args);
+                    else if ((data as S_RPC_data).target_client === null && (data as S_RPC_data).f_name in this) //secondly on the client class functions if target is null, bcs thats from the server
+                        result = await this[(data as S_RPC_data).f_name](...(data as S_RPC_data).args);
+                    else 
+                        this.HandleDebug('Received RPC, but the function name doesnt exist on this client. [#rpc-client-no-function]', data);
+
+                    // return the result back to the server, so it can return it back to the origin client
+                    this.Send(ServerMessageKind.OK, { id: data.id, return: result });
                     break;
                 }
                 // case ClientMessageKind.: { break; }

@@ -618,12 +618,24 @@ export class SocioServer extends LogHandler {
                             return;
                         }
 
-                        // if its null, then assume its meant for the server rpc hook
+                        // let the RPC hook handle it. If it returns anything other than undefined, that will be sent back as the result early
+                        if (this.lifecycle_hooks.rpc) {
+                            const res = await this.lifecycle_hooks.rpc((data as S_RPC_data).target_client, (data as S_RPC_data).f_name, (data as S_RPC_data).args);
+                            if(res !== undefined){
+                                client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 1, res } });
+                                return;
+                            }
+                        }
+
+                        // hook didnt handle it, so do some magic
+                        // if its null, then assume its meant for the server functions
                         if ((data as S_RPC_data).target_client === null){
-                            if(this.lifecycle_hooks.rpc){
-                                if (this.lifecycle_hooks.rpc((data as S_RPC_data).target_client, (data as S_RPC_data).f_name, (data as S_RPC_data).args))
-                                    return;
-                            }else throw new E('Client RPC to server, but the hook isnt defined on the server! [#missing-server-rpc-hook]', client.id, data);
+                            if ((data as S_RPC_data).f_name in this){
+                                const res = this[(data as S_RPC_data).f_name](...(data as S_RPC_data).args);
+                                client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 1, res } });
+                                return;
+                            }
+                            else throw new E(`Client RPC to server, but there is no [${(data as S_RPC_data).f_name}] function on the SocioServer class instance! [#unknown-server-func-rpc]`, { client_id: client.id, data });
                         }else{
                             const target_c = this.#sessions.get((data as S_RPC_data).target_client!);
                             if (!target_c) {

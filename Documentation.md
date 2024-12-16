@@ -657,14 +657,16 @@ sc.rpc_dict.Hello = (origin_client:client_id, ...args:any[]) => {
 }
 ```
 
-Hooks on both server and client side.
+Hooks on both server and client side. They both get executed before anything else, and if they return anything other than ``undefined``, then that will be sent back to the caller. 
+
+In the server hook, however, right after the hook check, it also checks if the target_client === ``null``, in which case it will assume the RPC is for the SocioServer instance itself, and try to call a function on it and return that. Otherwise it will pass the call onto the target client and return its result.
 ```ts
 //server code
-socserv.lifecycle_hooks.rpc = () => {
+socserv.lifecycle_hooks.rpc = (target_client: ClientID | string | null, f_name: string, args: any[]) => {
 }
 
 //browser code
-sc.lifecycle_hooks.rpc = () => {
+sc.lifecycle_hooks.rpc = (client: SocioClient, caller_id: ClientID | string, f_name: string, args: any[]) => {
 }
 ```
 

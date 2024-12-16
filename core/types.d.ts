@@ -48,7 +48,7 @@ type ServerHookDefinitions = {
     gen_prop_name?: () => string | Promise<string>,
     identify?: (caller_client: SocioSession, name: string) => void,
     discovery?: (caller_client: SocioSession) => { [client_id: string]: { name?: string, ip: string, [key: string]: any } } | any,
-    rpc?: (target_client: ClientID | string | null, f_name: string, args: any[]) => boolean,
+    rpc?: (target_client: ClientID | string | null, f_name: string, args: any[]) => Promise<any> | any,
 };
 // Use a mapped type to define individual importable types. Import this and use like ServerLifecycleHooks['con']
 type ServerLifecycleHooks = {
@@ -63,7 +63,7 @@ type ClientHookDefinitions = {
     timeout: (client: SocioClient) => void,
     prop_drop: (client: SocioClient, prop_key: PropKey, sub_id: id) => void,
     server_error: (client: SocioClient, error_msgs: string[]) => void,
-    rpc: (client: SocioClient, f_name: string, args: any[]) => Promise<boolean> | boolean,
+    rpc: (client: SocioClient, caller_id: ClientID | string, f_name: string, args: any[]) => Promise<any> | any,
 };
 // Use a mapped type to define individual importable types. Import this and use like ClientLifecycleHooks['con']
 type ClientLifecycleHooks = {
