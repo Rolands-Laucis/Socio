@@ -917,7 +917,7 @@ export class SocioServer extends LogHandler {
     }
 
     //send some data to all clients by their ID or unique name, if they have one. By default emits to all connected clients
-    async SendToClients(clients: string[] = [], data: object = {}, kind: ClientMessageKind = ClientMessageKind.CMD){
+    async SendToClients(clients: (ClientID | string)[] = [], data: object = {}, kind: ClientMessageKind = ClientMessageKind.CMD){
         let sessions = this.#sessions.values(); //all clients by default
         if(clients.length) //filter specified ones
             sessions = sessions.filter(c => clients.includes(c.id) || (c?.name && clients.includes(c.name)));
