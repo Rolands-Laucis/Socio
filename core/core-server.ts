@@ -590,7 +590,7 @@ export class SocioServer extends LogHandler {
                             client.name = name;
 
                             if (this.lifecycle_hooks?.identify)
-                                this.lifecycle_hooks.identify(client, name);
+                                await this.lifecycle_hooks.identify(client, name);
 
                             client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 1 } });
                         }
@@ -601,7 +601,7 @@ export class SocioServer extends LogHandler {
                         if(this.#secure.allow_discovery === true){
                             // let the dev hook handle the discovery logic of what info to get and send from sessions to client
                             if (this.lifecycle_hooks?.discovery)
-                                if (this.lifecycle_hooks.discovery(client)) 
+                                if (await this.lifecycle_hooks.discovery(client, data)) 
                                     return;
 
                             // or use my provided basic info response

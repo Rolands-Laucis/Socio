@@ -46,8 +46,8 @@ type ServerHookDefinitions = {
     file_download?: (caller_client: SocioSession, data: any) => FS_Util_Response | Promise<FS_Util_Response>,
     endpoint?: (caller_client: SocioSession, endpoint: string) => string | Promise<string>,
     gen_prop_name?: () => string | Promise<string>,
-    identify?: (caller_client: SocioSession, name: string) => void,
-    discovery?: (caller_client: SocioSession) => { [client_id: string]: { name?: string, ip: string, [key: string]: any } } | any,
+    identify?: (caller_client: SocioSession, name: string) => Promise<void>,
+    discovery?: (caller_client: SocioSession, data: MessageDataObj) => Promise<{ [client_id: string]: { name?: string, ip: string, [key: string]: any } } | any>,
     rpc?: (target_client: ClientID | string | null, f_name: string, args: any[]) => Promise<any> | any,
 };
 // Use a mapped type to define individual importable types. Import this and use like ServerLifecycleHooks['con']
