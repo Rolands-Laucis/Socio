@@ -207,34 +207,49 @@ sc.Query('all', {sql_is_endpoint:true, params:{}}, (val) => {
 });
 ```
 
+##### Hook documentation notes:
+**Interceptable** hook: this hook allows you to steel the handling of the event and return a value. If the return value is truthy (see return type annotation per hook), Socio will treat the event as handled and cease its default processing. However, falsy will tell Socio to continue as if the hook never existed, but you can still do whatever you want within your hook function.
+
+**Awaited** hook: Socio will async await the return value of the hook function, which doesnt have to be async, if it doesnt do any async operations, and all will be fine, bcs JS is lovely.
+
 ##### SocioServer hooks:
-* con: when a new WS/TCP connection with a client is created
-* discon: when a session object disconnects (for whatever reason), but is not destroyed (forgotten) yet
-* msg: receives all incomming msgs to the server. 
-* serv: a generic message has come from the client, which you can handle yourself. Socio doesnt do anything for these.
+* con [Awaited]: when a new WS/TCP connection with a client is created
+* discon [Awaited]: when a session object disconnects (for whatever reason), but is not destroyed (forgotten) yet
+* msg [Interceptable, Awaited]: receives all incomming msgs to the server. 
+* serv [Interceptable, Awaited]: a generic message has come from the client, which you can handle yourself. Socio doesnt do anything for these.
+* rpc [Interceptable, Awaited]: Remote Procedure Call - a client wants to run a function with arguments on the server or another client and get it's result. You get the initial request from the origin client and choose what to do with it.
 
-* sub: a client wants to subscribe to a query
-* unsub: a client wants to unsubscribe from a query
-* upd: works the same as msg, but for every time that updates need to be propogated to all the sockets.
-* endpoint: if the client happens to want to use an endpoint keyname instead of SQL, retrieve the SQL string from this hook call.
+* sub [Interceptable, Awaited]: a client wants to subscribe to a query
+* unsub [Interceptable, Awaited]: a client wants to unsubscribe from a query
+* upd [Interceptable, Awaited]: works the same as msg, but for every time that updates need to be propogated to all the sockets.
+* endpoint [Awaited]: if the client happens to want to use an endpoint keyname instead of SQL, retrieve the SQL string from this hook call.
 
-* gen_client_id: called to generate a unique ID for a client session. By default - UUID4
-* gen_prop_name: called to generate a unique ID for a prop name. By default - UUID4. Usually used for generating party game room state prop and codes, when a prop is created client-side.
 
-* auth: client wants to authentificate, which will set a special bool flag on the session, which is used for giving access to performing SQL calls, that require the client to be authentificated. Has to return a bool.
-* grant_perm: for validating that the user has access to whatever tables or resources the sql is working with. A client will ask for permission to a verb (SELECT, INSERT...) and table(s). If you grant access, then the server will persist it (remember) for the entire connection.
-* admin: when a socket attempts to use an ADMIN msg kind. It receives the SocioSession instance, that has id, ip and last seen fields you can use. Also the data it sent, so u can check your own secure key or smth. Return truthy to allow the admin action
+* gen_client_id [Awaited]: called to generate a unique ID for a client session. By default - UUID4
+* gen_prop_name [Awaited]: called to generate a unique ID for a prop name. By default - UUID4. Usually used for generating party game room state prop and codes, when a prop is created client-side.
 
-* blob: the client has sent a BLOB (binary data) to the server. Socio doesnt do anything for these.
-* file_upload: a client uploads a file(s) to the server. Socio doesnt do anything for these.
-* file_download: a client requests a file(s from the server. Socio doesnt do anything for these.
+
+* auth [Awaited]: client wants to authentificate, which will set a special bool flag on the session, which is used for giving access to performing SQL calls, that require the client to be authentificated. Has to return a bool.
+* grant_perm [Awaited]: for validating that the user has access to whatever tables or resources the sql is working with. A client will ask for permission to a verb (SELECT, INSERT...) and table(s). If you grant access, then the server will persist it (remember) for the entire connection.
+* admin [Interceptable, Awaited]: when a socket attempts to use an ADMIN msg kind. It receives the SocioSession instance, that has id, ip and last seen fields you can use. Also the data it sent, so u can check your own secure key or smth. Return truthy to allow the admin action
+
+
+* blob [Awaited]: the client has sent a BLOB (binary data) to the server. Socio doesnt do anything for these.
+* file_upload [Awaited]: a client uploads a file(s) to the server. Socio doesnt do anything for these.
+* file_download [Awaited]: a client requests a file(s from the server. Socio doesnt do anything for these.
+
+
+* identify [Awaited]: a client wants to identify itself with a unique name.
+* discovery [Interceptable, Awaited]: a client wants to get info about the connected clients. You can respond with any data structure you want.
 
 ##### SocioClient hooks:
 * discon: the client disconnected from SocioServer
-* msg: the client has received a message from SocioServer
+* msg [Interceptable, Awaited]: the client has received a message from SocioServer
 * cmd: SocioServer has sent a generic command message for the client. Socio doesnt do anything for these.
 * timeout: SocioServer notifys the client that its session has timed-out. The discon hook will fire seperately at some point.
 * prop_drop: SocioServer has dropped (unregistered/destroyed) this prop, so there wont be any more updates for its state and it doesnt need to be unregistered by the client.
+* server_error: server had an error(s), which you can read here for debugging and logging.
+* rpc [Interceptable, Awaited]: Remote Procedure Call - another client wants to run a function with arguments on this client and get it's result. This return value will be passed back to the origin client as a result, and no other function would be called.
 
 #### WebSocket perMessageDeflate (Zlib Message Compression)
 You may want to compress incoming and outgoing messages of your WebSockets for less network traffic. However, note that the use of compression would obviously add to CPU and RAM loads. In addition, see other concerns - [slow speed and possible memory leaks](https://github.com/websockets/ws/issues/1369) [ws readme](https://github.com/websockets/ws#websocket-compression). I have provided the ``perMessageDeflate`` object for convenience, which is the default from the ws readme. From my investigation, this is enough to get it working. [See here](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket#instance_properties) and check on SocioClient.ws.extensions
