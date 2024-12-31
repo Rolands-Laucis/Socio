@@ -55,6 +55,7 @@ In the future i may support more of the NoSQL ecosystem.
 
 #### Youtube devlogs that talk more about some of the features here:
 * [Socio in 100 Seconds](https://youtu.be/pu78XwY25O4)
+* [Socio.js v1.13.11 | Discovery & RPC](https://youtu.be/ApjKK1IGuCc)
 * [Socio.js v1.7.1 | Client-Side Reg-prop; File Compression; JSON to YAML](https://youtu.be/05mnpjxXx9M)
 * [Socio.js v1.3.12 | Arbiter; Endpoint subs; prop encryption etc.](https://www.youtube.com/watch?v=HSbyOZ9dmH8)
 * [Socio.js v0.8.2 & v0.9 | Socio strings & Request Progress](https://www.youtube.com/watch?v=wZQxjz1d868)
@@ -636,7 +637,10 @@ If you want the discovery to update as connections change, you can do this via t
 ##### IdentifySelf()
 ```ts
 //browser code
-const sc = new SocioClient(`ws://${location.hostname}:3000`, { logging: {verbose:true} })
+const sc = new SocioClient(`ws://${location.hostname}:3000`, { 
+  logging: {verbose:true},
+  name: 'Main' // this will also auto try to indentifySelf with this string after connection
+})
 await sc.ready();
 
 //name it anything, but it must be a unique name on the server currently, otherwise you get an error msg 
@@ -838,7 +842,7 @@ Since page navigation/reload unloads the entire document from memory and a new d
 import {SocioClient} from 'socio/dist/core-client.js';
 const sc = new SocioClient(`ws://localhost:3000`, { 
   logging: {verbose:true},
-  name: "Main", //Usually doesn't matter, but for persistent = true, this must be identical on the old page socket and new page socket. This is used as a unique key.
+  name: "Main", //Usually doesn't matter, but for persistent = true, this must be identical on the old page socket and new page socket. This is used as a unique key. This will also try to IndentifySelf as this string after connection. Read more in a lower section.
   persistent:true //enables a mechanism that upon the new connection to the server, gives the server a special one-time token that gives this connection a previous sessions setup, i.e. auth and perms
 });
 ```
