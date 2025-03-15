@@ -4,7 +4,6 @@
 
 * <a href="https://youtu.be/pu78XwY25O4" target="_blank">Socio in 100 Seconds</a>
 * <a href="https://www.youtube.com/watch?v=t8_QBzk5bUk" target="_blank">16 min video - Getting started with Socio 0.7, SvelteKit, Vite</a>
-* <a href="https://discord.gg/X4cK9yYp" target="_blank">Discord community</a>
 
 ---
 
