@@ -1000,6 +1000,7 @@ export class SocioServer extends LogHandler {
         return Object.fromEntries([...this.#sessions.values()].map(s => [s.id, { name: s.name, ip: s.ipAddr}]));
     }
 
+    get prop_ids(){return this.#props.keys();}
     get session_ids(){return this.#sessions.keys();}
     get server_info() { return this.#wss.address(); }
     get raw_websocket_server() { return this.#wss; }
