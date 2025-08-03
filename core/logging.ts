@@ -36,7 +36,7 @@ export const colors = {
 //types
 export type err = E | string | any;
 export type LogHandlers = { [handler in "error" | "info" | "debug"]: Function | null; };
-export type LoggerOptions = { log_handlers?: LogHandlers, verbose?: boolean, hard_crash?: boolean, prefix?: string, use_color?: boolean, log_level?:LogLevel};
+export type LoggerOptions = { log_handlers?: LogHandlers, verbose?: boolean, hard_crash?: boolean, prefix?: string, use_color?: boolean, log_level?:LogLevel | string};
 
 // enums, which compile to js dicts
 export enum LogLevel{
@@ -73,7 +73,24 @@ export class LogHandler {
         this.verbose = verbose;
         this.hard_crash = hard_crash;
         this.prefix = prefix;
-        if (log_level !== undefined) this.log_level = log_level;
+        if (log_level !== undefined){
+            if(typeof log_level === 'string'){
+                if (Object.keys(LogLevel).includes(log_level.toUpperCase()))
+                    this.log_level = LogLevel[log_level.toUpperCase() as keyof typeof LogLevel];
+                else
+                    LogHandler.info(`Log level must be a string or number (${Object.keys(LogLevel)}), got ${log_level}`); //this is a dev error, so i dont need to handle it in prod
+            }
+            else if (typeof log_level === 'number'){
+                if( log_level >= LogLevel.DEBUG && log_level <= LogLevel.ERROR)
+                    this.log_level = log_level as LogLevel;
+                else
+                    LogHandler.info(`Log level must be a string or number (${Object.keys(LogLevel)}`);
+            }
+            else
+                LogHandler.info(`Log level must be a string or number (${Object.keys(LogLevel)}), got ${typeof log_level}`);
+
+            if(!this.log_level) this.log_level = LogLevel.DEBUG; //default log level
+        }
         if (log_handlers !== undefined) this.log_handlers = log_handlers;
 
         // set to use colors in terminal logs. Non-chromium browsers dont support these color bytes, so lets not spam garbage in the console.
