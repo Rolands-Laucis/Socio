@@ -291,10 +291,12 @@ When using SocioSecurity, but advised to always do this, the "socio" [JS Templat
 import { SocioClient } from 'socio/dist/core-client.js';
 import { socio } from 'socio/dist/utils';
 
-//instantiate the Socio Client from lib on the expected websocket port and wait for it to connect
+//instantiate the Socio Client from lib. The connection to the server is not established immediately, only if url is provided, allowing for more flexible setups.
 //NB! use wss secure socket protocol (wss) and use the ./core/Secure class to encrypt these queries in PROD!
-const sc = new SocioClient(`ws://localhost:3000`, { logging: {verbose:true} }) ;//each instance is going to be its own "session" on the server, but you can spawn and destroy these where ever in your code
-await sc.ready(); //wait until it has connected as confimed by the server
+const sc = new SocioClient({ url: `ws://localhost:3000`, logging: {verbose:true} });
+// otherwise, sc.Connect({url:'ws://localhost:3000'}) can be called any time later to start the connection with the socio server.
+
+await sc.ready(); //wait until it has connected as confirmed by the server
 
 sc.client_id; //can take a look at its ID, if that interests you idk
 

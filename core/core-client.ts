@@ -27,7 +27,8 @@ export type ProgressOnUpdate = (percentage: number) => void;
 
 type PropUpdateCallback = ((new_val: PropValue, diff?: diff_lib.rdiffResult[]) => void) | null;
 export type ClientProp = { val: PropValue | undefined, subs: { [id: id]: PropUpdateCallback } };
-export type SocioClientOptions = { 
+export type SocioClientOptions = {
+    url?: string,
     name?: string, 
     keep_alive?: boolean, 
     reconnect_tries?: number, 
@@ -35,6 +36,7 @@ export type SocioClientOptions = {
     hooks?: Partial<ClientLifecycleHooks>,
     allow_rpc?:boolean,
 } & LoggingOpts;
+type ConnectOptions = { url?: string, keep_alive?: boolean, reconnect_tries?: number };
 
 type DiscoveryBy = 'ID' | 'NAME' | 'AS_ARRAY';
 type DiscoveryReturn = {
@@ -49,7 +51,7 @@ export class SocioClient extends LogHandler {
     // private:
     #ws: WebSocket | null = null;
     #client_id:ClientID = '';
-    #latency:number;
+    #latency:number = 0;
     #is_ready: Function | boolean = false;
     #authenticated=false;
 
@@ -67,7 +69,8 @@ export class SocioClient extends LogHandler {
     //discon has to be an async function, such that you may await the new ready(), but socio wont wait for it to finish.
     // progs: Map<Promise<any>, number> = new Map(); //the promise is that of a socio generic data going out from client async. Number is WS send buffer payload size at the time of query
 
-    constructor(url: string, { 
+    constructor({
+            url,
             name, 
             logging = { verbose: false, hard_crash: false }, 
             keep_alive = true, 
@@ -79,20 +82,31 @@ export class SocioClient extends LogHandler {
         super({ ...logging, prefix: name ? `SocioClient:${name}` : 'SocioClient' });
 
         // public:
-        this.config = { name, logging, keep_alive, reconnect_tries, persistent, allow_rpc };
+        this.config = { url, name, logging, keep_alive, reconnect_tries, persistent, allow_rpc };
         this.lifecycle_hooks = { ...initLifecycleHooks<ClientLifecycleHooks>(), ...hooks };
         
-        // private:
+        // connect right away if url provided, or the user can call Connect later manually. This is useful for creating the class variable when the page is not loaded yet
+        if(url){
+            this.Connect();
+        }
+    }
+
+    Connect({ url = this.config?.url, keep_alive = this.config?.keep_alive || false, reconnect_tries = this.config?.reconnect_tries || 0 }: ConnectOptions = {}) {
+        // checks
+        if(!url) throw new E('Must provide a WebSocket URL to connect to! [#no-url]');
+        if(this.#ws && this.#ws.readyState === WebSocket.OPEN) throw new E('Socio WebSocket is already connected! Please disconnect first before connecting again or create a new instance. [#already-connected]');
+        
         this.#latency = (new Date()).getTime();
         this.#connect(url, keep_alive, this.verbose || false, reconnect_tries);
 
         // log info for the dev
-        if(this.verbose){
+        if (this.verbose) {
             if (window && url.startsWith('ws://'))
                 this.HandleInfo('WARNING, UNSECURE WEBSOCKET URL CONNECTION! Please use wss:// and https:// protocols in production to protect against man-in-the-middle attacks. You need to host an https server with bought SCTs - Signed Certificate Timestamps (keys) - from an authority.');
         }
-    }
 
+        return this.ready();
+    }
     
     async #connect(url: string, keep_alive: boolean, verbose: boolean, reconnect_tries:number){
         this.#ws = new WebSocket(url);

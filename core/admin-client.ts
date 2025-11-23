@@ -11,8 +11,8 @@ export class AdminClient extends SocioClient {
     //private:
     #client_secret = '';
 
-    constructor({ url='', client_secret = '', socio_client_opts }: AdminClientOptions){
-        super(url, socio_client_opts);
+    constructor({ client_secret = '', socio_client_opts }: AdminClientOptions){
+        super(socio_client_opts);
 
         if (client_secret.length < 16)
             throw new E('client_secret length must be at least 16 char for safety. Got ', client_secret.length);
