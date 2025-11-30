@@ -52,7 +52,7 @@ const socserv = new SocioServer({ port: 3000 }, { db:{Query:QueryWrap}, socio_se
 //client side browser code.
 import { SocioClient } from 'socio/dist/core-client'; //Might need to put .js at the end.
 import { socio } from 'socio/dist/utils';
-const sc = new SocioClient('ws://localhost:3000', {logging:{verbose:true}, name:'Main'}); //create as many as you like
+const sc = new SocioClient({ url: `ws://localhost:3000`, logging: {verbose:true} }); //or sc.Connect({url:'ws://localhost:3000'}) called later
 await sc.ready(); //wait to establish the connection
 
 //will recall the callback whenever the Users table is altered. Can also unsubscribe.

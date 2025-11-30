@@ -20,7 +20,7 @@ const socserv = new SocioServer({ port: 3000 }, {
 //browser code
 import { SocioClient } from 'socio/dist/core-client.js'; //or .ts
 
-const sc = new SocioClient(`ws://localhost:3000`, { logging: {verbose:true} }); //make as many as u want
+const sc = new SocioClient({ url: `ws://localhost:3000`, logging: {verbose:true} }); //or sc.Connect({url:'ws://localhost:3000'}) called later. Create as many as you like.
 await sc.ready();
 
 console.log(await sc.Query(`SELECT 42+69 AS RESULT;`));//one-time query
