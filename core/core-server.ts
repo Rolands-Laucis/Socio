@@ -7,7 +7,7 @@ import * as diff_lib from 'recursive-diff'; //https://www.npmjs.com/package/recu
 
 //mine
 import { QueryIsSelect, ParseQueryTables, ParseQueryVerb } from './sql-parsing.js';
-import { SocioStringParse, GetAllMethodNamesOf, yaml_parse, initLifecycleHooks } from './utils.js';
+import { SocioStringParse, GetAllMethodNamesOf, socio_decode, initLifecycleHooks } from './utils.js';
 import { E, LogHandler, err, log, info, done, ErrorOrigin } from './logging.js';
 import { UUID, type SocioSecurity } from './secure.js';
 import { SocioSession, type SubObj } from './core-session.js';
@@ -30,33 +30,33 @@ import type { SocioStringObj } from './sql-parsing.js';
 export type QueryFuncParams = { id?: id, sql: string, params?: any };
 export type QueryFunction = (client: SocioSession, id: id, sql: string, params?: any) => Promise<object>;
 
-type SessionsDefaults = { 
-    timeouts: boolean, 
-    timeouts_check_interval_ms?: number, 
-    session_delete_delay_ms?: number, 
-    recon_ttl_ms?: number 
+type SessionsDefaults = {
+    timeouts: boolean,
+    timeouts_check_interval_ms?: number,
+    session_delete_delay_ms?: number,
+    recon_ttl_ms?: number
 } & SessionOpts;
 type DecryptOptions = { decrypt_sql: boolean, decrypt_prop: boolean, decrypt_endpoint: boolean };
-type DBOpts = { 
-    Query?: QueryFunction, 
-    Arbiter?: (initiator: { client: SocioSession, sql: string, params: any }, current: { client: SocioSession, hook: SubObj }) => boolean | Promise<boolean>, 
-    allowed_SQL_verbs?: string[] 
+type DBOpts = {
+    Query?: QueryFunction,
+    Arbiter?: (initiator: { client: SocioSession, sql: string, params: any }, current: { client: SocioSession, hook: SubObj }) => boolean | Promise<boolean>,
+    allowed_SQL_verbs?: string[]
 };
-type SocioServerOptions = { 
-    db: DBOpts, 
-    socio_security?: SocioSecurity | null, 
+type SocioServerOptions = {
+    db: DBOpts,
+    socio_security?: SocioSecurity | null,
     decrypt_opts?: DecryptOptions,
     allow_discovery?: boolean,
-    allow_rpc?:boolean,
-    hard_crash?: boolean, 
-    session_defaults?: SessionsDefaults, 
-    prop_upd_diff?: boolean, 
-    auto_recon_by_ip?: boolean, 
-    send_sensitive_error_msgs_to_client?:boolean,
-    hooks?: Partial<ServerLifecycleHooks> 
-    [key:string]:any 
+    allow_rpc?: boolean,
+    hard_crash?: boolean,
+    session_defaults?: SessionsDefaults,
+    prop_upd_diff?: boolean,
+    auto_recon_by_ip?: boolean,
+    send_sensitive_error_msgs_to_client?: boolean,
+    hooks?: Partial<ServerLifecycleHooks>
+    [key: string]: any
 } & LoggingOpts;
-type AdminServerMessageDataObj = {function:string, args?:any[], secure_key:string};
+type AdminServerMessageDataObj = { function: string, args?: any[], secure_key: string };
 
 
 //NB! some fields in these variables are private for safety reasons, but also bcs u shouldnt be altering them, only if through my defined ways. They are mostly expected to be constants.
@@ -67,14 +67,14 @@ export class SocioServer extends LogHandler {
     #sessions: Map<ClientID, SocioSession> = new Map(); //Maps are quite more performant than objects. And their keys dont overlap with Object prototype.
 
     //if constructor is given a SocioSecure object, then that will be used to decrypt all incomming messages, if the msg flag is set
-    #secure: { socio_security: SocioSecurity | null, allow_discovery: boolean, allow_rpc:boolean } & DecryptOptions;
+    #secure: { socio_security: SocioSecurity | null, allow_discovery: boolean, allow_rpc: boolean } & DecryptOptions;
     #cypther_text_cache: Map<string, SocioStringObj> = new Map(); //decyphering at runtime is costly, so cache validated, secure results.
 
     //backend props, e.g. strings for colors, that clients can subscribe to and alter
     #props: Map<PropKey, { val: PropValue, assigner: PropAssigner, updates: Map<ClientID, { id: id, rate_limiter?: RateLimiter }> } & PropOpts> = new Map();
 
     //rate limits server functions globally
-    #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd:null};
+    #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd: null };
 
     //If the hook returns a truthy value, then it is assumed, that the hook handled the msg and the lib will not. Otherwise, by default, the lib handles the msg.
     //msg hook receives all incomming msgs to the server. 
@@ -97,29 +97,29 @@ export class SocioServer extends LogHandler {
     session_defaults: SessionsDefaults = { timeouts: false, timeouts_check_interval_ms: 1000 * 60, session_timeout_ttl_ms: Infinity, session_delete_delay_ms: 1000 * 5, recon_ttl_ms: 1000 * 60 * 60 };
     lifecycle_hooks!: ServerLifecycleHooks; //Add your callback to a valid hook key here. They will be called if they exist
     prop_reg_timeout_ms!: number;
-    auto_recon_by_ip:boolean = false;
-    send_sensitive_error_msgs_to_client!:boolean;
-    allow_rpc!:boolean;
+    auto_recon_by_ip: boolean = false;
+    send_sensitive_error_msgs_to_client!: boolean;
+    allow_rpc!: boolean;
 
-    constructor(opts: ServerOptions | undefined = {}, { 
-            db, 
-            socio_security = null, 
-            allow_discovery = false, 
-            allow_rpc = false,
-            logging = { verbose: false, hard_crash: false }, 
-            decrypt_opts = { decrypt_sql: true, decrypt_prop: false, decrypt_endpoint: false }, 
-            session_defaults = undefined, 
-            prop_upd_diff = false, 
-            prop_reg_timeout_ms = 1000 * 10, 
-            auto_recon_by_ip = false, 
-            send_sensitive_error_msgs_to_client = true,
-            hooks = {},
-         }: SocioServerOptions){
-        super({ ...logging, prefix:'SocioServer'});
+    constructor(opts: ServerOptions | undefined = {}, {
+        db,
+        socio_security = null,
+        allow_discovery = false,
+        allow_rpc = false,
+        logging = { verbose: false, hard_crash: false },
+        decrypt_opts = { decrypt_sql: true, decrypt_prop: false, decrypt_endpoint: false },
+        session_defaults = undefined,
+        prop_upd_diff = false,
+        prop_reg_timeout_ms = 1000 * 10,
+        auto_recon_by_ip = false,
+        send_sensitive_error_msgs_to_client = true,
+        hooks = {},
+    }: SocioServerOptions) {
+        super({ ...logging, prefix: 'SocioServer' });
         //verbose - print stuff to the console using my lib. Doesnt affect the log handlers
         //hard_crash will just crash the class instance and propogate (throw) the error encountered without logging it anywhere - up to you to handle.
         //both are public and settable at runtime
-        
+
         //private:
         this.#wss = new WebSocketServer({ ...opts, clientTracking: true }); //take a look at the WebSocketServer docs - the opts can have a server param, that can be your http server
         this.#secure = { socio_security, ...decrypt_opts, allow_discovery, allow_rpc };
@@ -136,27 +136,27 @@ export class SocioServer extends LogHandler {
 
         this.#wss.on('connection', this.#Connect.bind(this)); //https://thenewstack.io/mastering-javascript-callbacks-bind-apply-call/ have to bind 'this' to the function, otherwise it will use the .on()'s 'this', so that this.[prop] are not undefined
         this.#wss.on('close', (...stuff) => { this.HandleInfo('WebSocketServer close event', ...stuff) });
-        this.#wss.on('error', (...stuff) => { this.HandleError(new E('WebSocketServer error event', ...stuff))});
+        this.#wss.on('error', (...stuff) => { this.HandleError(new E('WebSocketServer error event', ...stuff)) });
 
         //set up interval timer to check if sessions are timed out.
         if (this.session_defaults.timeouts)
             setInterval(this.#CheckSessionsTimeouts.bind(this), this.session_defaults.timeouts_check_interval_ms);
 
         // log info for the dev
-        if (this.verbose){
+        if (this.verbose) {
             const addr: AddressInfo = this.#wss.address() as AddressInfo;
             this.done(`Created SocioServer on`, addr);
             if (addr.family == 'ws')
                 this.HandleInfo('WARNING! Your server is using an unsecure WebSocket protocol, setup wss:// instead, when you can!');
             if (!socio_security)
                 this.HandleInfo('WARNING! Please use the SocioSecurity class in production to securely de/encrypt Socio strings from clients!');
-            if (this.send_sensitive_error_msgs_to_client) 
+            if (this.send_sensitive_error_msgs_to_client)
                 this.HandleInfo('WARNING! send_sensitive_error_msgs_to_client field IS TRUE, which means server error messages are sent to the client as is. They might include sesitive info. If false, the server will only send a generic error message.')
         }
     }
 
-    async #Connect(conn: WebSocket, request: IncomingMessage){
-        try{
+    async #Connect(conn: WebSocket, request: IncomingMessage) {
+        try {
             //construct the new session with a unique client ID
             let client_id: ClientID = (this.lifecycle_hooks.gen_client_id ? await this.lifecycle_hooks.gen_client_id() : UUID())?.toString();
             while (this.#sessions.has(client_id)) //avoid id collisions
@@ -167,7 +167,7 @@ export class SocioServer extends LogHandler {
             const client_ip = 'x-forwarded-for' in request?.headers ? request.headers['x-forwarded-for'].split(',')[0].trim() : request.socket.remoteAddress;
 
             //create the socio session class and save down the client id ref for convenience later
-            const client = new SocioSession(client_id, conn, client_ip, { logging: { verbose: this.verbose }, session_opts: { session_timeout_ttl_ms: this.session_defaults.session_timeout_ttl_ms, max_payload_size: this.session_defaults.max_payload_size} });
+            const client = new SocioSession(client_id, conn, client_ip, { logging: { verbose: this.verbose }, session_opts: { session_timeout_ttl_ms: this.session_defaults.session_timeout_ttl_ms, max_payload_size: this.session_defaults.max_payload_size } });
             this.#sessions.set(client_id, client);
 
             //pass the object to the connection hook, if it exists. It cant take over
@@ -181,14 +181,14 @@ export class SocioServer extends LogHandler {
                     this.#Message.bind(this)(this.#sessions.get(client_id), req, isBinary);
                 else conn?.close();
             });
-            conn.on('close', (code:number, reason:Buffer) => { this.#SocketClosed.bind(this)(client, {code, reason:reason.toString('utf8')}) });
+            conn.on('close', (code: number, reason: Buffer) => { this.#SocketClosed.bind(this)(client, { code, reason: reason.toString('utf8') }) });
             conn.on('error', (error: Error) => { this.#SocketClosed.bind(this)(client, error) }); //https://github.com/websockets/ws/blob/master/doc/ws.md#event-error-1
-        
+
             // socio can recognize that the IP matches an existing session, so it can reconnect to it, keeping the old sessions data
-            if(this.auto_recon_by_ip){
+            if (this.auto_recon_by_ip) {
                 // find an IP matching session
-                for (const [id, ses] of this.#sessions.entries()){
-                    if(id !== client_id && ses.ipAddr === client_ip){
+                for (const [id, ses] of this.#sessions.entries()) {
+                    if (id !== client_id && ses.ipAddr === client_ip) {
                         //recon procedure
                         const old_client = this.#sessions.get(id) as SocioSession;
                         this.ReconnectClientSession(client, old_client);
@@ -204,7 +204,7 @@ export class SocioServer extends LogHandler {
         } catch (e: err) { this.HandleError(e); }
     }
 
-    async #SocketClosed(client:SocioSession, event_args:any){
+    async #SocketClosed(client: SocioSession, event_args: any) {
         //trigger hook
         if (this.lifecycle_hooks.discon)
             await this.lifecycle_hooks.discon(client);
@@ -222,14 +222,22 @@ export class SocioServer extends LogHandler {
         }, this.session_defaults.session_delete_delay_ms as number);
     }
 
-    get new_global_id(){return ++this.#global_largest_id}
-    async #Message(client:SocioSession, req: Buffer | ArrayBuffer | Buffer[], isBinary: Boolean){
+    get new_global_id() { return ++this.#global_largest_id }
+    async #Message(client: SocioSession, req: Buffer | ArrayBuffer | Buffer[], isBinary: Boolean) {
         // general try for crashes. 
         // The catch just notifies the server of the error, 
         // but the client cannot be notified, since at that time the message ID might not be known
-        try{
-            //handle binary data and return
-            if(isBinary){
+        try {
+            let kind: ServerMessageKind;
+            let data: ServerMessageDataObj;
+            try {
+                const decoded = socio_decode(req as unknown as Uint8Array);
+                kind = decoded.kind;
+                data = decoded.data;
+
+                if (kind === undefined || data === undefined) throw new Error('Not a socio message');
+            } catch (e) {
+                // if decoding fails, assume it is a BLOB
                 this.HandleInfo(`recv: BLOB from ${client.id}`)
                 if (this.lifecycle_hooks.blob) {
                     if (await this.lifecycle_hooks.blob(client, req))
@@ -239,8 +247,6 @@ export class SocioServer extends LogHandler {
                 else client.Send(ClientMessageKind.RES, { id: 'BLOB', result: { success: 0, error: 'Server does not handle the BLOB hook.' } } as C_RES_data);
                 return;
             }
-
-            const { kind, data }: { kind: ServerMessageKind; data: ServerMessageDataObj } = yaml_parse(req.toString());
             const client_id = client.id; //cache the ID, since its used so much here
             // save the biggest ID found to avoid ID collisions when sending msgs between clients, since they all have their own ID counter
             if (typeof data.id === 'number' && data.id > this.#global_largest_id) this.#global_largest_id = data.id;
@@ -248,7 +254,7 @@ export class SocioServer extends LogHandler {
             // this try catch allows the body to freely throw E or strings or crash in any other way, 
             // and the client will still receive a RES with success:0, since now it has the message ID from data
             // it will then throw again to the outter try
-            try{
+            try {
                 //if the socio security instance exists and some specific string fields was recieved and they are to be decrypted, then do so here
                 if (this.#secure.socio_security) {
                     for (const field of ['sql', 'prop', 'endpoint'])
@@ -257,7 +263,7 @@ export class SocioServer extends LogHandler {
                 }
 
                 if (kind !== ServerMessageKind.OK) //this 
-                this.HandleInfo(`recv: [${ServerMessageKind[kind]}] from [${client.name ? client.name + ' | ' : ''}${client_id}]`, kind != ServerMessageKind.UP_FILES ? data : `File count: ${(data as S_UP_FILES_data).files?.size}`);
+                    this.HandleInfo(`recv: [${ServerMessageKind[kind]}] from [${client.name ? client.name + ' | ' : ''}${client_id}]`, kind != ServerMessageKind.UP_FILES ? data : `File count: ${(data as S_UP_FILES_data).files?.size}`);
 
                 //let the developer handle the msg
                 if (this.lifecycle_hooks.msg)
@@ -278,7 +284,7 @@ export class SocioServer extends LogHandler {
                             if (this.lifecycle_hooks.endpoint)
                                 //@ts-expect-error
                                 (data as S_SUB_data).sql = await this.lifecycle_hooks.endpoint(client, (data as S_SUB_data).endpoint);
-                            else throw new E('Client sent endpoint instead of SQL, but its hook is missing, so cant resolve it. [#no-endpoint-hook-SUB]', {kind, data});
+                            else throw new E('Client sent endpoint instead of SQL, but its hook is missing, so cant resolve it. [#no-endpoint-hook-SUB]', { kind, data });
                         }
 
                         // check that there is sql to work with; the verb can be parsed; verb is allowed
@@ -333,17 +339,17 @@ export class SocioServer extends LogHandler {
                         client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 1, res: await res } } as C_RES_data); //wait for result and send it back
 
                         //if the sql wasnt a SELECT, but altered some resource, then need to propogate that to other connection hooks
-                        if (query_verb !== 'SELECT'){
-                            if(query_verb === 'DROP'){
+                        if (query_verb !== 'SELECT') {
+                            if (query_verb === 'DROP') {
                                 //to avoid problems for the dev, Socio will auto unsub all subs to the dropped table. The clients needn't be notified, since they just wont ever receive and UPD for it anymore. Which isnt an issue. 
                                 const dropped_table = ParseQueryTables((data as S_SQL_data).sql);
-                                if(dropped_table){
-                                    for(const session of this.#sessions.values())
+                                if (dropped_table) {
+                                    for (const session of this.#sessions.values())
                                         for (const sub of session.GetSubsForTables(dropped_table))
                                             session.UnRegisterSub(sub.id);
                                 }
-                                else throw new E('Failed to parse table of a client DROP query', {kind, data});
-                            }else
+                                else throw new E('Failed to parse table of a client DROP query', { kind, data });
+                            } else
                                 this.Update(client, (data as S_SQL_data).sql || '', (data as S_SQL_data)?.params);
                         }
                         break;
@@ -431,7 +437,7 @@ export class SocioServer extends LogHandler {
                         const prop_val = this.GetPropVal((data as S_PROP_GET_data)?.prop);
                         client.Send(ClientMessageKind.RES, {
                             id: data.id,
-                            result: { success: prop_val !== undefined ? 1 : 0, res: prop_val, error: prop_val === undefined ? 'Server couldnt find prop' : ''}
+                            result: { success: prop_val !== undefined ? 1 : 0, res: prop_val, error: prop_val === undefined ? 'Server couldnt find prop' : '' }
                         } as data_result_block);
                         break;
                     }
@@ -441,7 +447,7 @@ export class SocioServer extends LogHandler {
                             //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value.
                             const result = this.UpdatePropVal((data as S_PROP_SET_data).prop as string, (data as S_PROP_SET_data)?.prop_val, client.id, data.hasOwnProperty('prop_upd_as_diff') ? (data as S_PROP_SET_data).prop_upd_as_diff : this.#prop_upd_diff); //the assigner inside Update dictates, if this was a successful set.
                             client.Send(ClientMessageKind.RES, { id: data.id, result: { success: result } } as data_result_block); //resolve this request to true, so the client knows everything went fine.
-                        } 
+                        }
                         else throw new E('Prop is not client_writable.', data);
                         break;
                     }
@@ -583,10 +589,10 @@ export class SocioServer extends LogHandler {
                     }
                     case ServerMessageKind.IDENTIFY: { //use for session to identify itself with a unique human-readable string
                         const name = (data as { id: id, name: string }).name;
-                        
-                        if (Object.values(this.GetSessionsInfo()).some(s => s.name === name)){
+
+                        if (Object.values(this.GetSessionsInfo()).some(s => s.name === name)) {
                             client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 0, error: 'A session already has this name!' } });
-                        }else{
+                        } else {
                             client.name = name;
 
                             if (this.lifecycle_hooks?.identify)
@@ -598,30 +604,30 @@ export class SocioServer extends LogHandler {
                         break;
                     }
                     case ServerMessageKind.DISCOVERY: {
-                        if(this.#secure.allow_discovery === true){
+                        if (this.#secure.allow_discovery === true) {
                             // let the dev hook handle the discovery logic of what info to get and send from sessions to client
                             if (this.lifecycle_hooks?.discovery)
-                                if (await this.lifecycle_hooks.discovery(client, data)) 
+                                if (await this.lifecycle_hooks.discovery(client, data))
                                     return;
 
                             // or use my provided basic info response
-                            client.Send(ClientMessageKind.RES, {id: data.id, result: {success:1, res: this.GetSessionsInfo()}})
+                            client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 1, res: this.GetSessionsInfo() } })
                         }
                         break;
                     }
                     case ServerMessageKind.RPC: {
                         // rpc must be enabled
-                        if(this.#secure.allow_rpc !== true){
+                        if (this.#secure.allow_rpc !== true) {
                             const error = 'Client tried RPC, but the server hasnt enabled it. [#rpc-not-enabled]';
                             this.HandleDebug(error, client, data);
-                            client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 0, error }});
+                            client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 0, error } });
                             return;
                         }
 
                         // let the RPC hook handle it. If it returns anything other than undefined, that will be sent back as the result early
                         if (this.lifecycle_hooks.rpc) {
                             const res = await this.lifecycle_hooks.rpc((data as S_RPC_data).target_client, (data as S_RPC_data).f_name, (data as S_RPC_data).args);
-                            if(res !== undefined){
+                            if (res !== undefined) {
                                 client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 1, res } });
                                 return;
                             }
@@ -629,14 +635,14 @@ export class SocioServer extends LogHandler {
 
                         // hook didnt handle it, so do some magic
                         // if its null, then assume its meant for the server functions
-                        if ((data as S_RPC_data).target_client === null){
-                            if ((data as S_RPC_data).f_name in this){
+                        if ((data as S_RPC_data).target_client === null) {
+                            if ((data as S_RPC_data).f_name in this) {
                                 const res = this[(data as S_RPC_data).f_name](...(data as S_RPC_data).args);
                                 client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 1, res } });
                                 return;
                             }
                             else throw new E(`Client RPC to server, but there is no [${(data as S_RPC_data).f_name}] function on the SocioServer class instance! [#unknown-server-func-rpc]`, { client_id: client.id, data });
-                        }else{
+                        } else {
                             const target_c = this.#sessions.get((data as S_RPC_data).target_client!);
                             if (!target_c) {
                                 const error = 'Client tried RPC, but the target client doesnt exist. [#rpc-no-target]';
@@ -655,7 +661,7 @@ export class SocioServer extends LogHandler {
                             this.#CreateClientQueryPromise(new_id, ServerMessageKind.RPC)
                                 .then(res => {
                                     //respond with the original ID of the 1st client
-                                    client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 1, res }}); 
+                                    client.Send(ClientMessageKind.RES, { id: data.id, result: { success: 1, res } });
                                 })
                                 // ive set up a timeout for this promise, but it might fail for other reasons too
                                 .catch(reason => {
@@ -667,12 +673,12 @@ export class SocioServer extends LogHandler {
                     }
                     case ServerMessageKind.OK: {
                         const q = this.#client_queries.get(data.id);
-                        if(q){
+                        if (q) {
                             this.HandleInfo(`recv: [OK ${ServerMessageKind[q.for_msg_kind]}] from [${client.name ? client.name + ' | ' : ''}${client_id}]`, data);
-                            q.resolve((data as data_base & {return:any}).return); //resolve the promise thats being awaited in some other kind case
+                            q.resolve((data as data_base & { return: any }).return); //resolve the promise thats being awaited in some other kind case
                             this.#client_queries.delete(data.id); //remove it
-                        } 
-                        else throw new E(`Received OK from client for an unknown client query. [#client-query-not-found]`, {sender:client.id, data});
+                        }
+                        else throw new E(`Received OK from client for an unknown client query. [#client-query-not-found]`, { sender: client.id, data });
                         break;
                     }
                     // case ServerMessageKind: { break;}
@@ -681,7 +687,7 @@ export class SocioServer extends LogHandler {
                         throw new E(`Unrecognized message kind! [#unknown-msg-kind]`, { kind, data });
                     }
                 }
-            }catch(e:err){
+            } catch (e: err) {
                 client.Send(ClientMessageKind.RES, {
                     id: data.id,
                     result: { success: 0, error: this.send_sensitive_error_msgs_to_client ? String(e) : 'Server had an error with this request.' }
@@ -692,14 +698,14 @@ export class SocioServer extends LogHandler {
     }
 
     //this assumes that this.#secure.socio_security is properly assigned
-    #Decrypt(client:SocioSession, str:string, is_sql:boolean):string{
+    #Decrypt(client: SocioSession, str: string, is_sql: boolean): string {
         let socio_string_obj: SocioStringObj;
 
         // first check the cache, if this cyphertext has already been verified as valid and secure
         if (this.#cypther_text_cache.has(str))
             socio_string_obj = this.#cypther_text_cache.get(str) as SocioStringObj;
         // otherwise decrypt
-        else{
+        else {
             //check crypt format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where each part is base64 encoded
             const parts = str.includes(' ') ? str.split(' ') : [];
             if (parts.length != 3)
@@ -737,10 +743,10 @@ export class SocioServer extends LogHandler {
         return socio_string_obj.str;
     }
 
-    async Update(initiator:SocioSession, sql:string, params:object | null){        
+    async Update(initiator: SocioSession, sql: string, params: object | null) {
         //rate limit check
-        if(this.#ratelimits.upd)
-            if(this.#ratelimits.upd.CheckLimit())
+        if (this.#ratelimits.upd)
+            if (this.#ratelimits.upd.CheckLimit())
                 return;
 
         //hand off to hook
@@ -752,14 +758,14 @@ export class SocioServer extends LogHandler {
             throw 'SocioServer.Update requires a Database Query function on SocioServer! [#no-db-query-UPDATE]';
 
         //or go through each session's every hook and query the DB for its result, then send it to the client
-        try{
+        try {
             const tables = ParseQueryTables(sql);
-            if (tables.length == 0) throw new E('Update ParseQueryTables didnt find any table names in the SQL. Something must be wrong.', { initiator, sql, params})
-            
+            if (tables.length == 0) throw new E('Update ParseQueryTables didnt find any table names in the SQL. Something must be wrong.', { initiator, sql, params })
+
             const cache: Map<number, object> = new Map(); //cache the queries to not spam the DB in this loop
 
-            for (const client of this.#sessions.values()){
-                for (const hook of client.GetSubsForTables(tables)){ //GetSubsForTables always returns array. If empty, then the foreach wont run, so each sql guaranteed to have hooks array
+            for (const client of this.#sessions.values()) {
+                for (const hook of client.GetSubsForTables(tables)) { //GetSubsForTables always returns array. If empty, then the foreach wont run, so each sql guaranteed to have hooks array
                     //rate limit check
                     if (hook.rate_limiter && hook.rate_limiter.CheckLimit()) return;
 
@@ -778,24 +784,24 @@ export class SocioServer extends LogHandler {
                             .then(res => {
                                 client.Send(ClientMessageKind.UPD, {
                                     id: hook.id,
-                                    result: { success: 1, res}
+                                    result: { success: 1, res }
                                 } as C_UPD_data);
                                 cache.set(hook.cache_hash, res);
                             })
                             .catch(error => client.Send(ClientMessageKind.UPD, {
                                 id: hook.id,
-                                result: {success: 0, error},
+                                result: { success: 0, error },
                             } as C_UPD_data));
                 };
             }
-        } catch (e:err) { this.HandleError(e) }
+        } catch (e: err) { this.HandleError(e) }
     }
 
-    #CheckPropExists(prop: PropKey | undefined, client: SocioSession, msg_id:id, error_msg: string){
-        if (!prop || !(this.#props.has(prop))){
+    #CheckPropExists(prop: PropKey | undefined, client: SocioSession, msg_id: id, error_msg: string) {
+        if (!prop || !(this.#props.has(prop))) {
             client.Send(ClientMessageKind.RES, {
                 id: msg_id,
-                result: {success:0, error:error_msg}
+                result: { success: 0, error: error_msg }
             } as C_RES_data);
             throw new E(error_msg, prop, client.id);
         }
@@ -805,9 +811,9 @@ export class SocioServer extends LogHandler {
     //     this.lifecycle_hooks[f_name] = handler;
     // }
 
-    RegisterRateLimit(f_name: string, ratelimit: RateLimit | null = null){
+    RegisterRateLimit(f_name: string, ratelimit: RateLimit | null = null) {
         try {
-            if (f_name in this.#ratelimits){
+            if (f_name in this.#ratelimits) {
                 if (ratelimit) {
                     this.#ratelimits[f_name] = new RateLimiter(ratelimit);
                 }
@@ -824,27 +830,27 @@ export class SocioServer extends LogHandler {
     }
     get RateLimitNames() { return Object.keys(this.#ratelimits) }
 
-    GetClientSession(client_id=''){
+    GetClientSession(client_id = '') {
         return this.#sessions.get(client_id);
     }
 
     //assigner defaults to basic setter
-    RegisterProp(key: PropKey, val: PropValue, { assigner = this.SetPropVal.bind(this), client_writable = true, send_as_diff = undefined, emit_to_sender = false, observationaly_temporary=false }: { assigner?: PropAssigner } & PropOpts = {}){
-        try{
+    RegisterProp(key: PropKey, val: PropValue, { assigner = this.SetPropVal.bind(this), client_writable = true, send_as_diff = undefined, emit_to_sender = false, observationaly_temporary = false }: { assigner?: PropAssigner } & PropOpts = {}) {
+        try {
             if (this.#props.has(key))
                 throw new E(`Prop key [${key}] has already been registered and for client continuity is forbiden to over-write at runtime. [#prop-key-exists]`);
             else
                 this.#props.set(key, { val, assigner, updates: new Map(), client_writable, send_as_diff, emit_to_sender, observationaly_temporary });
-            if(observationaly_temporary)
+            if (observationaly_temporary)
                 this.HandleDebug('Temporary Prop registered!', key);
 
         } catch (e: err) { this.HandleError(e) }
     }
-    UnRegisterProp(key: PropKey){
+    UnRegisterProp(key: PropKey) {
         try {
             const prop = this.#props.get(key);
             if (!prop) throw new E(`Prop key [${key}] not registered! [#UnRegisterProp-prop-not-found]`);
-            
+
             //drop the prop first, so that it cant be subbed to while informing clients - a rare but potential issue
             if (!this.#props.delete(key))
                 throw new E(`Error deleting prop key [${key}]. [#prop-key-del-error]`);
@@ -857,14 +863,14 @@ export class SocioServer extends LogHandler {
             }
         } catch (e: err) { this.HandleError(e) }
     }
-    GetPropVal(key: PropKey): PropValue | undefined{
+    GetPropVal(key: PropKey): PropValue | undefined {
         return this.#props.get(key)?.val;
     }
     //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value.
-    UpdatePropVal(key: PropKey, new_val: PropValue, sender_client_id: ClientID | null, send_as_diff = this.#prop_upd_diff):Bit{//this will propogate the change, if it is assigned, to all subscriptions
+    UpdatePropVal(key: PropKey, new_val: PropValue, sender_client_id: ClientID | null, send_as_diff = this.#prop_upd_diff): Bit {//this will propogate the change, if it is assigned, to all subscriptions
         const prop = this.#props.get(key);
         if (!prop) throw new E(`Prop key [${key}] not registered! [#prop-update-not-found]`);
-        
+
         const old_prop_val = prop.val; //bcs the assigner somehow changes this property. Weird. 
         //Dont think JS allows such ref pointers to work. But this then keeps the correct val. 
         //This idea works bcs the mutator of the data should be the first to run this and all other session will get informed here with that sessions diff.
@@ -879,9 +885,9 @@ export class SocioServer extends LogHandler {
                 if (sender_client_id === client_id && prop.emit_to_sender === false) continue; //prop can be set to not emit an update back to the initiator of this prop set.
 
                 //do the thing
-                if (this.#sessions.has(client_id)){
+                if (this.#sessions.has(client_id)) {
                     //prepare object of both cases
-                    const upd_data = { id: args.id, prop:key };
+                    const upd_data = { id: args.id, prop: key };
 
                     //overload the global Socio Server flag with a per prop flag
                     if (prop?.send_as_diff && typeof prop?.send_as_diff == 'boolean') send_as_diff = prop.send_as_diff;
@@ -906,7 +912,7 @@ export class SocioServer extends LogHandler {
         return 0;
     }
     SetPropVal(key: PropKey, new_val: PropValue): boolean { //this hard sets the value without checks or updating clients
-        try{
+        try {
             const prop = this.#props.get(key);
             if (prop === undefined)
                 throw new E(`Prop key [${key}] not registered! [#prop-set-not-found]`);
@@ -917,9 +923,9 @@ export class SocioServer extends LogHandler {
     }
 
     //send some data to all clients by their ID or unique name, if they have one. By default emits to all connected clients
-    async SendToClients(clients: (ClientID | string)[] = [], data: object = {}, kind: ClientMessageKind = ClientMessageKind.CMD){
+    async SendToClients(clients: (ClientID | string)[] = [], data: object = {}, kind: ClientMessageKind = ClientMessageKind.CMD) {
         let sessions = this.#sessions.values(); //all clients by default
-        if(clients.length) //filter specified ones
+        if (clients.length) //filter specified ones
             sessions = sessions.filter(c => clients.includes(c.id) || (c?.name && clients.includes(c.name)));
 
         // queue up all the sends at once and let the async event loop figure out the optimal paralel stuff
@@ -929,7 +935,7 @@ export class SocioServer extends LogHandler {
 
         return Promise.all(proms); //return a promise of when all the sends have been awaited
     }
-    #CreateClientQueryPromise(id: id, for_msg_kind:ServerMessageKind){
+    #CreateClientQueryPromise(id: id, for_msg_kind: ServerMessageKind) {
         return new Promise((res, rej) => {
             // add timeout, so the server doesnt fill memory for unresponsive clients
             const timer = setTimeout(() => {
@@ -946,25 +952,25 @@ export class SocioServer extends LogHandler {
     }
 
     //https://stackoverflow.com/a/54875979/8422448
-    async #Admin(function_name:string = '', args:any[] = []){
-        try{
+    async #Admin(function_name: string = '', args: any[] = []) {
+        try {
             if (GetAllMethodNamesOf(this).includes(function_name))
                 return this[function_name].call(this, ...args); //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/call
             else
                 return `[${function_name}] is not a name of a function on the SocioServer instance`;
-        }catch(e){return e;}
+        } catch (e) { return e; }
     }
     get methods() { return GetAllMethodNamesOf(this) }
 
-    #ClearClientSessionSubs(client_id:string){
+    #ClearClientSessionSubs(client_id: string) {
         this.#sessions.get(client_id)?.ClearSubs(); //clear query subs
         for (const prop of this.#props.values()) { prop.updates.delete(client_id); }; //clear prop subs
     }
 
-    async #CheckSessionsTimeouts(){
+    async #CheckSessionsTimeouts() {
         const now = (new Date()).getTime();
-        for (const client of this.#sessions.values()){
-            if (now >= client.last_seen + client.session_opts.session_timeout_ttl_ms){
+        for (const client of this.#sessions.values()) {
+            if (now >= client.last_seen + client.session_opts.session_timeout_ttl_ms) {
                 await client.Send(ClientMessageKind.TIMEOUT, {});
                 client.CloseConnection();
                 this.HandleInfo('Session timed out.', client.id);
@@ -975,7 +981,7 @@ export class SocioServer extends LogHandler {
     // stop deletion of old session for a moment
     // copy old sesh info to new sesh, cuz thats the new TCP connection
     // destroy old sesh for good
-    ReconnectClientSession(new_session: SocioSession, old_session: SocioSession, client_notify_msg_id?:id){
+    ReconnectClientSession(new_session: SocioSession, old_session: SocioSession, client_notify_msg_id?: id) {
         const new_id = new_session.id, old_id = old_session.id;
         old_session.Restore();//stop the old session deletion, since a reconnect was actually attempted
         new_session.CopySessionFrom(old_session);
@@ -991,17 +997,17 @@ export class SocioServer extends LogHandler {
         }, this.session_defaults.session_delete_delay_ms as number);
 
         //notify the client
-        const data = { result: { success: 1 }, old_client_id: old_id, auth: new_session.authenticated, name:new_session.name };
+        const data = { result: { success: 1 }, old_client_id: old_id, auth: new_session.authenticated, name: new_session.name };
         if (client_notify_msg_id) data['id'] = client_notify_msg_id;
         new_session.Send(ClientMessageKind.RECON, data as C_RECON_Data);
     }
 
-    GetSessionsInfo(){
-        return Object.fromEntries([...this.#sessions.values()].map(s => [s.id, { name: s.name, ip: s.ipAddr}]));
+    GetSessionsInfo() {
+        return Object.fromEntries([...this.#sessions.values()].map(s => [s.id, { name: s.name, ip: s.ipAddr }]));
     }
 
-    get prop_ids(){return this.#props.keys();}
-    get session_ids(){return this.#sessions.keys();}
+    get prop_ids() { return this.#props.keys(); }
+    get session_ids() { return this.#sessions.keys(); }
     get server_info() { return this.#wss.address(); }
     get raw_websocket_server() { return this.#wss; }
 }

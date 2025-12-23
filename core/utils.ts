@@ -5,23 +5,23 @@ import type { SocioStringObj } from "./sql-parsing.js";
 
 // these are not types, but compile to js dicts, so cannot be imported as types, but also cannot be declared in types.d.ts, bcs that doesnt produce a js file
 export enum ServerMessageKind {
-    SUB, 
-    UNSUB, 
-    SQL, 
-    PING, 
-    AUTH, 
-    GET_PERM, 
-    PROP_SUB, 
-    PROP_UNSUB, 
-    PROP_GET, 
-    PROP_SET, 
-    PROP_REG, 
-    SERV, 
-    ADMIN, 
-    RECON, 
-    UP_FILES, 
-    GET_FILES, 
-    IDENTIFY, 
+    SUB,
+    UNSUB,
+    SQL,
+    PING,
+    AUTH,
+    GET_PERM,
+    PROP_SUB,
+    PROP_UNSUB,
+    PROP_GET,
+    PROP_SET,
+    PROP_REG,
+    SERV,
+    ADMIN,
+    RECON,
+    UP_FILES,
+    GET_FILES,
+    IDENTIFY,
     DISCOVERY,
     RPC,
     OK,
@@ -62,7 +62,7 @@ export function initLifecycleHooks<T extends Record<string, unknown>>(): T {
 export function sleep(seconds: number = 2) {
     return new Promise(res => setTimeout(res, seconds * 1000))
 }
-export function clamp(x:number, min:number, max:number){
+export function clamp(x: number, min: number, max: number) {
     return Math.min(Math.max(x, min), max);
 }
 
@@ -101,50 +101,13 @@ export const perMessageDeflate = {
     // should not be compressed if context takeover is disabled.
 }
 
-//JSON utils for Maps ------------- Credit: STEVE SEWELL https://www.builder.io/blog/maps
-// export function MapReplacer(key: string, value: any) {
-//     if (value instanceof Map) {
-//         return { __type: 'Map', value: Object.fromEntries(value) }
-//     }
-//     if (value instanceof Set) {
-//         return { __type: 'Set', value: Array.from(value) }
-//     }
-//     return value
-// }
-// export function MapReviver(key: string, value: any) {
-//     if (value?.__type === 'Set') {
-//         return new Set(value.value)
-//     }
-//     if (value?.__type === 'Map') {
-//         return new Map(Object.entries(value.value))
-//     }
-//     return value
-// }
-
-// YAML utils for Maps and Sets ------------- https://www.npmjs.com/package/js-yaml
-import yaml from 'js-yaml';
-const mapType = new yaml.Type('!map', {
-    kind: 'mapping',
-    construct: (data) => new Map(Object.entries(data)),
-    instanceOf: Map,
-    // @ts-expect-error
-    represent: (map:Map<string, any>) => Object.fromEntries(map.entries())
-});
-const setType = new yaml.Type('!set', {
-    kind: 'sequence',
-    construct: data => new Set(data),
-    instanceOf: Set,
-    // @ts-expect-error
-    represent: (set:Set<any>) => Array.from(set)
-});
-export const schema = yaml.DEFAULT_SCHEMA.extend([mapType, setType]);
-// export const yaml_dump_opts = { schema, indent: 1, noArrayIndent: true };
-export function yaml_stringify(o:any){return yaml.dump(o, { schema, indent: 1, noArrayIndent: true });}
-export function yaml_parse(str: string) {return yaml.load(str, { schema }) as any;}
+import { encode, decode } from "@msgpack/msgpack";
+export function socio_encode(o: any) { return encode(o); }
+export function socio_decode(buffer: Uint8Array) { return decode(buffer) as any; }
 
 // Credit: https://gist.github.com/jlevy/c246006675becc446360a798e2b2d781 (modified) 
 // super simple, naive, yet fast way to generate a hash for a subscription query. Used to keep a cache while in the core Update function.
-export function FastHash(str:string) {
+export function FastHash(str: string) {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
         hash = ((hash << 5) - hash) + str.charCodeAt(i);

@@ -2,7 +2,7 @@
 
 import { LogHandler, E, log, info, done } from './logging.js';
 import { RateLimiter } from './ratelimit.js';
-import { yaml_stringify, FastHash, ClientMessageKind } from './utils.js';
+import { socio_encode, FastHash, ClientMessageKind } from './utils.js';
 
 //types
 import type { WebSocket } from 'ws'; //https://github.com/websockets/ws https://github.com/websockets/ws/blob/master/doc/ws.md
@@ -61,7 +61,7 @@ export class SocioSession extends LogHandler {
         // the setImmediate trick to turn a sync task into an async task, since ws.send() is sync for some reason. If you dont await Send(), it is actually a bit faster this way
         return new Promise((resolve) => {
             setImmediate(() => {
-                const payload = yaml_stringify(Object.assign({}, { kind: kind, data: data[0] }, ...data.slice(1)));
+                const payload = socio_encode(Object.assign({}, { kind: kind, data: data[0] }, ...data.slice(1)));
                 if (this.session_opts?.max_payload_size && payload.length < this.session_opts.max_payload_size) {
                     this.HandleDebug(`blocked a send: [${ClientMessageKind[kind]}] to [${this.id}] for exceeding max payload size [${this.session_opts.max_payload_size}] with size [${payload.length}]`);
                 } else {

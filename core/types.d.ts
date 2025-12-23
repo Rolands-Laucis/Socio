@@ -14,11 +14,11 @@ type Base64String = string;
 //props
 type PropKey = string;
 type PropValue = any;
-type PropAssigner = (key: PropKey, new_val:PropValue, sender_client?:SocioSession) => boolean;
-type PropOpts = { client_writable?: boolean, send_as_diff?: boolean, emit_to_sender?: boolean, observationaly_temporary?:boolean };
+type PropAssigner = (key: PropKey, new_val: PropValue, sender_client?: SocioSession) => boolean;
+type PropOpts = { client_writable?: boolean, send_as_diff?: boolean, emit_to_sender?: boolean, observationaly_temporary?: boolean };
 
 //misc
-type SocioFiles = Map<string, { meta: { size: number, lastModified?: number, type?: string }, bin: Base64String }>; //bin is a base64 string of the bytes of the raw file
+type SocioFiles = Map<string, { meta: { size: number, lastModified?: number, type?: string }, bin: Uint8Array | Base64String }> | { [filename: string]: { meta: { size: number, lastModified?: number, type?: string }, bin: Uint8Array | Base64String } }; //bin is either raw compressed binary (MessagePack) or base64 string (legacy), files can be Map or object
 type QueryMarker = 'socio' | 'auth' | 'perm';
 type FS_Util_Response = { result: Bit, error?: string | Error | E | object | any, files?: SocioFiles }
 type LoggingOpts = { logging?: LoggerOptions };
@@ -91,7 +91,7 @@ type S_RECON_USE_data = data_base & { type: 'USE', token: string };
 type S_UP_FILES_data = data_base & { files: SocioFiles, data?: object };
 type S_GET_FILES_data = data_base & { data: any };
 type S_SERV_data = data_base & { data?: any };
-type S_RPC_data = data_base & { target_client: ClientID | string | null, origin_client: ClientID | string, f_name:string, args: any[] };
+type S_RPC_data = data_base & { target_client: ClientID | string | null, origin_client: ClientID | string, f_name: string, args: any[] };
 type ServerMessageDataObj = data_base | S_SERV_data | S_GET_FILES_data | S_UP_FILES_data | S_RECON_USE_data | S_RECON_GET_data | S_PROP_REG_data | S_PROP_SET_data | S_PROP_GET_data | S_PROP_UNSUB_data | S_GET_PERM_data | S_PROP_SUB_data | S_SUB_data | S_UNSUB_data | S_SQL_data | S_AUTH_data;
 
 // client receive data in Message from server
@@ -100,8 +100,8 @@ type C_RES_data = data_base & data_result_block;
 type C_UPD_data = data_base & data_result_block;
 type C_AUTH_data = data_base & data_result_block;
 type C_GET_PERM_data = data_base & data_result_block & { verb: string, table: string };
-type C_PROP_UPD_data = data_base & { prop: string } & ({ prop_val?: PropValue , prop_val_diff?: diff_lib.rdiffResult[] });
-type C_RECON_Data = data_base & data_result_block & { old_client_id: ClientID, auth: boolean, name?:string };
+type C_PROP_UPD_data = data_base & { prop: string } & ({ prop_val?: PropValue, prop_val_diff?: diff_lib.rdiffResult[] });
+type C_RECON_Data = data_base & data_result_block & { old_client_id: ClientID, auth: boolean, name?: string };
 type C_RECV_FILES_Data = data_base & data_result_block & { files: SocioFiles };
 // type C_PROP_REG_data = data_base & data_result_block & { prop?: string, initial_value: any, opts: Omit<PropOpts, "observationaly_temporary"> };
 type ClientMessageDataObj = data_base | CON_data | RES_data | AUTH_data | PROP_UPD_data | RECON_Data | RECV_FILES_Data;

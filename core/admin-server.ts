@@ -2,7 +2,7 @@
 
 import { LogHandler, E } from "./logging.js";
 import { WebSocket as nodeWebSocket } from "ws";
-import { yaml_parse, yaml_stringify, ClientMessageKind } from './utils.js';
+import { socio_decode, socio_encode, ClientMessageKind } from './utils.js';
 
 //types
 import type { id, PropValue, LoggingOpts } from './types.d.ts';
@@ -31,8 +31,8 @@ export class AdminClient extends LogHandler{
         this.#ws.on('message', this.#Message.bind(this));
     }
 
-    #Message(d:string, isBinary:boolean){
-        const { kind, data }: { kind: ClientMessageKind; data: MessageDataObj } = yaml_parse(d)
+    #Message(d:Uint8Array, isBinary:boolean){
+        const { kind, data }: { kind: ClientMessageKind; data: MessageDataObj } = socio_decode(d)
 
         switch(kind){
             case ClientMessageKind.CON:{
@@ -74,7 +74,7 @@ export class AdminClient extends LogHandler{
         });
 
         //send out the request
-        this.#ws.send(yaml_stringify({ kind: 'ADMIN', data: { id: id, client_secret:this.#client_secret, function: function_name, args: args } }));
+        this.#ws.send(socio_encode({ kind: 'ADMIN', data: { id: id, client_secret:this.#client_secret, function: function_name, args: args } }));
 
         //let the caller await the promise resolve
         return prom;
