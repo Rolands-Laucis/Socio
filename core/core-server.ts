@@ -860,7 +860,7 @@ export class SocioServer extends LogHandler {
     GetPropVal(key: PropKey): PropValue | undefined{
         return this.#props.get(key)?.val;
     }
-    //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value.
+    //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value. Props by default use SetPropVal as assigner, which just sets the new value.
     UpdatePropVal(key: PropKey, new_val: PropValue, sender_client_id: ClientID | null, send_as_diff = this.#prop_upd_diff):Bit{//this will propogate the change, if it is assigned, to all subscriptions
         const prop = this.#props.get(key);
         if (!prop) throw new E(`Prop key [${key}] not registered! [#prop-update-not-found]`);
@@ -872,7 +872,7 @@ export class SocioServer extends LogHandler {
         if (prop.assigner(key, new_val, sender_client_id ? this.#sessions.get(sender_client_id) : undefined)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
             const new_assigned_prop_val = this.GetPropVal(key); //should be GetPropVal, bcs i cant know how the assigner changed the val. But since it runs once per update, then i can cache this call here right after the assigner.
             const prop_val_diff = diff_lib.getDiff(old_prop_val, new_assigned_prop_val);
-            if (prop_val_diff.length === 0) return 1; //dont do anything further, if the prop val didnt actually change. This is efficient and removes long feedback loops for global props across many users
+            if (prop_val_diff.length === 0) return 0; //dont do anything further, if the prop val didnt actually change. This is efficient and removes long feedback loops for global props across many users. Return 0 to indicate no update was sent.
 
             for (const [client_id, args] of prop.updates.entries()) {
                 if (args?.rate_limiter && args.rate_limiter?.CheckLimit()) continue; //ratelimit check for this client
