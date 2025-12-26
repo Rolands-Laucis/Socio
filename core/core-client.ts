@@ -52,7 +52,7 @@ export class SocioClient extends LogHandler {
     #ws: WebSocket | null = null;
     #client_id: ClientID = '';
     #latency: number = 0;
-    #is_ready: Function | boolean = false;
+    #ready_state = new ReadyState<boolean>();
     #authenticated = false;
 
     #queries: Map<id, QueryObject | QueryPromise> = new Map(); //keeps a dict of all subscribed queries
@@ -146,7 +146,7 @@ export class SocioClient extends LogHandler {
         this.#client_id = '';
         this.#ws = null;
         this.#latency = Infinity;
-        this.#is_ready = false;
+        this.#ready_state = new ReadyState<boolean>();
         this.#authenticated = false;
         this.#queries.clear();
         this.#props.clear();
@@ -177,9 +177,7 @@ export class SocioClient extends LogHandler {
                     }
 
                     //set ready state to true and resolve ready() promise, if exists
-                    if (this.#is_ready !== true && typeof this.#is_ready === "function")
-                        this.#is_ready(true); //resolve promise to true
-                    this.#is_ready = true;
+                    this.#ready_state.resolve(true);
                     if (this.verbose) this.done(`Socio WebSocket [${this.config?.name || this.#client_id || 'NAME'}] connected.`);
 
                     // once ready, attempt to use the given name as a global identifier. No problem, if this fails.
@@ -731,8 +729,9 @@ export class SocioClient extends LogHandler {
     get web_socket() { return this.#ws; } //the WebSocket instance has some useful properties https://developer.mozilla.org/en-US/docs/Web/API/WebSocket#instance_properties
     get client_address_info() { return { url: this.#ws?.url, protocol: this.#ws?.protocol, extensions: this.#ws?.extensions }; } //for convenience
     get latency() { return this.#latency; } //shows the latency in ms of the initial connection handshake to determine network speed for this session. Might be useful to inform the user, if its slow.
-    ready(): Promise<boolean> { return this.#is_ready === true ? (new Promise(res => res(true))) : (new Promise(res => this.#is_ready = res)) }
+    ready() { return this.#ready_state.promise; }
     Close() { this.#ws?.close(); }
+    get is_ready() { return this.#ready_state.is_ready === true }
 
     async #GetReconToken(name: string = this.config.name as string) {
         const { id, prom } = this.CreateQueryPromise();
@@ -864,4 +863,21 @@ export function Uint8ArrayToSocioFileBase64(file_bin: ArrayBuffer, chunkSize = 0
 
     // https://developer.mozilla.org/en-US/docs/Web/API/Window/btoa
     return window.btoa(binaryString); //The btoa() method creates a Base64-encoded ASCII string from a binary string (i.e., a string in which each character in the string is treated as a byte of binary data). 
+}
+
+class ReadyState<T> {
+    promise: Promise<T>;
+    #resolve!: (value: T) => void;
+    is_ready = false;
+
+    constructor() {
+        this.promise = new Promise<T>(res => {
+            this.#resolve = res;
+        });
+    }
+
+    resolve(value: T) {
+        this.is_ready = true;
+        this.#resolve(value);
+    }
 }
