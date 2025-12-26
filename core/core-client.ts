@@ -838,7 +838,7 @@ export function ParseSocioFiles(files: SocioFiles) {
     // Handle both Map (original) and plain object (MessagePack converts Maps to objects)
     const entries = files instanceof Map ? files.entries() : Object.entries(files);
     for (const [filename, file_data] of entries)
-        files_array.push(new File([(typeof file_data.bin === 'string' ? SocioFileBase64ToUint8Array(file_data.bin) : pako.inflate(file_data.bin)) as BlobPart], filename, { type: file_data.meta.type, lastModified: file_data.meta.lastModified }));
+        files_array.push(new File([pako.inflate(file_data.bin as Uint8Array) as BlobPart], filename, { type: file_data.meta.type, lastModified: file_data.meta.lastModified }));
     return files_array;
 }
 

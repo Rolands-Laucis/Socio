@@ -14,16 +14,16 @@ export function SaveFilesToDiskPath(string_array_path: string[], files: SocioFil
             const entries = files instanceof Map ? files.entries() : Object.entries(files);
             for (const [filename, file_data] of entries) {
                 const file_path = os_path.join(...string_array_path, filename);
-                console.log('DEBUG file_data.bin:', typeof file_data.bin, file_data.bin instanceof Uint8Array, file_data.bin instanceof Buffer, Array.isArray(file_data.bin));
-                const bin = pako.inflate(file_data.bin);  // Decompress binary data
-                    ?pako.inflate(Buffer.from(file_data.bin, 'base64').buffer as ArrayBuffer)  // Legacy Base64 format
-                    : pako.inflate(file_data.bin);  // MessagePack sends raw compressed binary (Uint8Array)
+                // console.log('DEBUG file_data.bin:', typeof file_data.bin, file_data.bin instanceof Uint8Array, file_data.bin instanceof Buffer, Array.isArray(file_data.bin));
+                // MessagePack sends raw compressed binary (Uint8Array)
+                const bin = pako.inflate(file_data.bin as Uint8Array);
                 fs.writeFileSync(file_path, bin, { flag: 'w' });
             }
             res({ result: 1 });
         } catch (e) { rej({ result: 0, error: e }); }
     })
 }
+
 export function ReadFilesFromDisk(file_paths: string[]): Promise<FS_Util_Response> {
     return new Promise((res, rej) => {
         try {

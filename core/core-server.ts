@@ -263,7 +263,7 @@ export class SocioServer extends LogHandler {
                 }
 
                 if (kind !== ServerMessageKind.OK) //this 
-                    this.HandleInfo(`recv: [${ServerMessageKind[kind]}] from [${client.name ? client.name + ' | ' : ''}${client_id}]`, kind != ServerMessageKind.UP_FILES ? data : `File count: ${(data as S_UP_FILES_data).files?.size}`);
+                    this.HandleInfo(`recv: [${ServerMessageKind[kind]}] from [${client.name ? client.name + ' | ' : ''}${client_id}]`, kind != ServerMessageKind.UP_FILES ? data : `File count: ${(data as S_UP_FILES_data).files instanceof Map ? (data as S_UP_FILES_data).files.size : Object.keys((data as S_UP_FILES_data).files || {}).length}`);
 
                 //let the developer handle the msg
                 if (this.lifecycle_hooks.msg)
@@ -559,14 +559,19 @@ export class SocioServer extends LogHandler {
 
                             //recon procedure
                             const old_client = this.#sessions.get(old_c_id) as SocioSession;
-                            this.ReconnectClientSession(client, old_client, data.id as id);
-                            this.HandleInfo(`RECON | old id:  ${old_c_id} -> new id:  ${client.id}`);
                         }
                         break;
                     }
                     case ServerMessageKind.UP_FILES: {
-                        if (this.lifecycle_hooks?.file_upload)
-                            client.Send(ClientMessageKind.RES, { id: data.id, result: { success: await this.lifecycle_hooks.file_upload(client, (data as S_UP_FILES_data)?.files, (data as S_UP_FILES_data)?.data) ? 1 : 0 } } as C_RES_data);
+                        if (this.lifecycle_hooks?.file_upload) {
+                            let files = (data as S_UP_FILES_data)?.files;
+                            // MessagePack deserializes Maps as objects, so we need to convert back to Map if needed
+                            if (files && !(files instanceof Map)) {
+                                files = new Map(Object.entries(files));
+                            }
+                            const success = await this.lifecycle_hooks.file_upload(client, files, (data as S_UP_FILES_data)?.data) ? 1 : 0;
+                            client.Send(ClientMessageKind.RES, { id: data.id, result: { success, res: success } } as C_RES_data);
+                        }
                         else {
                             const error = 'file_upload hook not registered. [#no-file_upload-hook]';
                             this.HandleError(error);

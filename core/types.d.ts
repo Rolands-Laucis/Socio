@@ -18,7 +18,7 @@ type PropAssigner = (key: PropKey, new_val: PropValue, sender_client?: SocioSess
 type PropOpts = { client_writable?: boolean, send_as_diff?: boolean, emit_to_sender?: boolean, observationaly_temporary?: boolean };
 
 //misc
-type SocioFiles = Map<string, { meta: { size: number, lastModified?: number, type?: string }, bin: Uint8Array | Base64String }> | { [filename: string]: { meta: { size: number, lastModified?: number, type?: string }, bin: Uint8Array | Base64String } }; //bin is either raw compressed binary (MessagePack) or base64 string (legacy), files can be Map or object
+type SocioFiles = Map<string, { meta: { size: number, lastModified?: number, type?: string }, bin: Uint8Array }> | { [filename: string]: { meta: { size: number, lastModified?: number, type?: string }, bin: Uint8Array } }; //bin is raw compressed binary (MessagePack), files can be Map or object
 type QueryMarker = 'socio' | 'auth' | 'perm';
 type FS_Util_Response = { result: Bit, error?: string | Error | E | object | any, files?: SocioFiles }
 type LoggingOpts = { logging?: LoggerOptions };
