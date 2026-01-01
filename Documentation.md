@@ -35,6 +35,7 @@ Keep reading for a billion more options and mechanisms Socio provides!
 
 * [WS](https://www.npmjs.com/package/ws) Socio uses on the server.
 * [The WebSocket API](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API) Socio uses on the browser.
+* [@msgpack/msgpack](https://www.npmjs.com/package/@msgpack/msgpack) Socio uses for efficient binary serialization of messages over the network.
 
 The ``./core/core-server.ts`` file contains logic to be run on a backend server. It exports the class ``SocioServer`` that you instantiate and work with mostly during just the setup initialization of your backend. It creates a websocket server on a port and listens for clients to connect. It is the transaction middle-man between your DB and the SocioClient on the frontend doing queries.
 

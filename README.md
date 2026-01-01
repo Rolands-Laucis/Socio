@@ -52,7 +52,7 @@ const socserv = new SocioServer({ port: 3000 }, { db:{Query:QueryWrap}, socio_se
 //client side browser code.
 import { SocioClient } from 'socio/dist/core-client'; //Might need to put .js at the end.
 import { socio } from 'socio/dist/utils';
-const sc = new SocioClient({ url: `ws://localhost:3000`, logging: {verbose:true} }); //or sc.Connect({url:'ws://localhost:3000'}) called later
+const sc = new SocioClient({ url: `ws://localhost:3000`, logging: {verbose:true} }); //or sc.Connect({url:'ws://localhost:3000'}) called later. Create as many as you like.
 await sc.ready(); //wait to establish the connection
 
 //will recall the callback whenever the Users table is altered. Can also unsubscribe.
@@ -78,13 +78,15 @@ Currently the performance is neglegable for small projects. I havent stress test
 
 [According to this blog](https://medium.com/nativeai/websocket-vs-http-for-collecting-events-for-web-analytics-c45507bd7949) WebSockets are much more network traffic efficient than HTTP at scale.
 
+Socio uses [@msgpack/msgpack](https://www.npmjs.com/package/@msgpack/msgpack) for efficient binary serialization of messages over the network 🔥
+
 ## Sportsmanship 🤝
 The use of the Socio lib **does not** prohibit the use of standard HTTP technologies. Even better - socio server can be configured to run on your existing http webserver, like one that you'd create with express.js. Since WebSockets are established over HTTP, then take over with their own protocol. Though, seeing as they are different technologies, there are situations where you'd need to "stitch" your own solutions between the two, e.g. tracking sessions.
 
 ## Caveats 🚩
 I cannot guarantee perfect safety of the query encryption. Neither can anything. You may use SocioServer hooks to double check the incoming data yourself for your peace of mind. However, I can guarantee this is safer than HTTP cookie based sessions (search "cookie spoofing").
 
-You should be using WSS:// and HTTPS:// protocols for everything, so that the data is secure over the network. That's up to you and your server configuration.
+You should be using WSS:// and HTTPS:// protocols for everything, so that the data is secure over the network. That's up to you and your server configuration. Search "Let's encrypt, certbot, nginx, SSL".
 
 <!-- ## Socio in Production 🥳
 * [Real-time rent prices in Riga, Latvia](http://riga.rolandslaucis.lv/) made by me. SvelteKit, Vite, Socio, NginX, Ubuntu server. -->
