@@ -68,7 +68,6 @@ export class SocioSecurity extends LogHandler {
         if (secure_private_key.byteLength < cipher_algorithm_bytes) throw new E(`secure_private_key has to be at least ${cipher_algorithm_bytes} bytes length! Got ${secure_private_key.byteLength}`);
         // if (!(getCiphers().includes(cipher_algorithm))) throw new E(`Unsupported algorithm [${cipher_algorithm}] by the Node Crypto module!`);
 
-        //@ts-expect-error
         this.#key = createHash('sha256').update(secure_private_key).digest().subarray(0, cipher_algorithm_bytes); //hash the key just to make sure to complicate the input key, if it is weak
 
         this.verbose = logging.verbose || false;
@@ -94,7 +93,6 @@ export class SocioSecurity extends LogHandler {
     //returns a string in the format "[iv_base64] [encrypted_text_base64] [auth_tag_base64]" where each part is base64 encoded
     EncryptString(str:string = ''): string {
         const iv = this.get_next_iv();
-        //@ts-expect-error
         const cipher = createCipheriv(cipher_algorithm, this.#key, iv);
         const cipher_text = cipher.update(str, 'utf-8', 'base64') + cipher.final('base64');
         //Base64 only contains A–Z , a–z , 0–9 , + , / and =
@@ -105,9 +103,7 @@ export class SocioSecurity extends LogHandler {
         try{
             const iv = Buffer.from(iv_base64, 'base64');
             const auth_tag = Buffer.from(auth_tag_base64, 'base64');
-            //@ts-expect-error
             const decipher = createDecipheriv(cipher_algorithm, this.#key, iv);
-            //@ts-expect-error
             decipher.setAuthTag(auth_tag) //set the tag for verification.
             return decipher.update(cipher_text, 'base64', 'utf-8') + decipher.final('utf-8');
         }catch (e){
@@ -140,7 +136,6 @@ export class SocioSecurity extends LogHandler {
         const iv = Buffer.alloc(8); //create 8 byte buffer
         SocioSecurity.iv_counter += 1; //increment global iv counter
         iv.writeUInt32LE(SocioSecurity.iv_counter); //write the iv counter number as bytes to buffer
-        //@ts-expect-error
         return Buffer.concat([iv, randomBytes(8)]); //create a required 16 byte buffer from the iv 8 byte + another 8 random bytes
     }
 }
