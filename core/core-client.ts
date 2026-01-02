@@ -691,11 +691,13 @@ export class SocioClient extends LogHandler {
         this.#FindID(kind, data?.id);
         const q = this.#queries.get(data.id) as QueryObject | QueryPromise;
         if (q.hasOwnProperty('res')) {
-            if (data.result.success === 1) {
-                (q as QueryPromise).res(data?.result?.res as any);
+            // either case - success or error, resolve the promise, so clients dont freeze awaiting it
+            (q as QueryPromise).res(data?.result?.res as any);
+            if (data.result.success !== 1) {
+                // if error, also call the server error handler
+                this.#HandleServerError(data.result?.error as string);
                 // log('query prom res called', {kind, q, data});
             }
-            else this.#HandleServerError(data.result?.error as string);
         }
         else if (q.hasOwnProperty('onUpdate'))
             if (data.result.success === 1) {

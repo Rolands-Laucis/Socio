@@ -446,7 +446,12 @@ export class SocioServer extends LogHandler {
                         if (this.#props.get((data as S_PROP_SET_data).prop as string)?.client_writable) {
                             //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value.
                             const result = this.UpdatePropVal((data as S_PROP_SET_data).prop as string, (data as S_PROP_SET_data)?.prop_val, client.id, data.hasOwnProperty('prop_upd_as_diff') ? (data as S_PROP_SET_data).prop_upd_as_diff : this.#prop_upd_diff); //the assigner inside Update dictates, if this was a successful set.
-                            client.Send(ClientMessageKind.RES, { id: data.id, result: { success: result } } as data_result_block); //resolve this request to true, so the client knows everything went fine.
+                            const res = {success: result};
+                            if (result === 2){
+                                res['error'] = '[#no-diff] Server already has identical value.'; //special case, so the client knows
+                                res.success = 0;
+                            }
+                            client.Send(ClientMessageKind.RES, { id: data.id, result: res } as data_result_block); //resolve this request, so the client knows everything went fine.
                         }
                         else throw new E('Prop is not client_writable.', data);
                         break;
@@ -872,7 +877,7 @@ export class SocioServer extends LogHandler {
         return this.#props.get(key)?.val;
     }
     //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value. Props by default use SetPropVal as assigner, which just sets the new value.
-    UpdatePropVal(key: PropKey, new_val: PropValue, sender_client_id: ClientID | null, send_as_diff = this.#prop_upd_diff, force: boolean = false): Bit {//this will propogate the change, if it is assigned, to all subscriptions
+    UpdatePropVal(key: PropKey, new_val: PropValue, sender_client_id: ClientID | null, send_as_diff = this.#prop_upd_diff, force: boolean = false): number {//this will propogate the change, if it is assigned, to all subscriptions
         const prop = this.#props.get(key);
         if (!prop) throw new E(`Prop key [${key}] not registered! [#prop-update-not-found]`);
 
@@ -883,7 +888,7 @@ export class SocioServer extends LogHandler {
         if (prop.assigner(key, new_val, sender_client_id ? this.#sessions.get(sender_client_id) : undefined)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
             const new_assigned_prop_val = this.GetPropVal(key); //should be GetPropVal, bcs i cant know how the assigner changed the val. But since it runs once per update, then i can cache this call here right after the assigner.
             const prop_val_diff = diff_lib.getDiff(old_prop_val, new_assigned_prop_val);
-            if (prop_val_diff.length === 0 && force === false) return 0; //dont do anything further, if the prop val didnt actually change. This is efficient and removes long feedback loops for global props across many users. Return 0 to indicate no update was sent.
+            if (prop_val_diff.length === 0 && force === false) return 2; //dont do anything further, if the prop val didnt actually change. This is efficient and removes long feedback loops for global props across many users. Return 0 to indicate no update was sent.
 
             for (const [client_id, args] of prop.updates.entries()) {
                 if (args?.rate_limiter && args.rate_limiter?.CheckLimit()) continue; //ratelimit check for this client
