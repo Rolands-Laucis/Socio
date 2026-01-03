@@ -467,7 +467,7 @@ export class SocioServer extends LogHandler {
                         }
                         // if a name hasnt been supplied, then generate a unique prop name and return it
                         if (!(data as S_PROP_REG_data)?.prop) {
-                            (data as S_PROP_REG_data).prop = this.lifecycle_hooks.gen_prop_name ? await this.lifecycle_hooks.gen_prop_name() : UUID();
+                            (data as S_PROP_REG_data).prop = this.lifecycle_hooks.gen_prop_name ? await this.lifecycle_hooks.gen_prop_name(client) : UUID();
                             while (this.#props.has((data as S_PROP_REG_data).prop as PropKey)) (data as S_PROP_REG_data).prop = UUID();
                         }
 
