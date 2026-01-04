@@ -31,6 +31,7 @@ export class SocioSession extends LogHandler {
     last_seen: number = 0; //ms since epoch when this session was last active
     session_opts: SessionOpts = { session_timeout_ttl_ms: Infinity, max_payload_size: 1024 };
     name?:string;
+    storage: object = {}; //generic object to store any data you want on the session
 
     constructor(client_id: string, ws_client: WebSocket, client_ipAddr: string, { logging = { verbose: false, hard_crash: false }, default_perms, session_opts, name }: SocioSessionOptions  = {}) {
         super({ ...logging, prefix: 'SocioSession' });
@@ -131,11 +132,12 @@ export class SocioSession extends LogHandler {
     ClearSubs(){this.#subs.clear();}
     CopySessionFrom(old_client:SocioSession){
         this.#authenticated = old_client.#authenticated;
-        this.#perms = old_client.#perms;
+        this.#perms = structuredClone(old_client.#perms);
         // this.#ws['socio_client_ipAddr'] = old_client.ipAddr; //prob should keep the new IP, in case reconnecting from another computer or smth
         this.verbose = old_client.verbose;
         this.last_seen = old_client.last_seen;
         // this.last_seen_now();
         this.name = old_client.name;
+        this.storage = structuredClone(old_client.storage);
     }
 }
