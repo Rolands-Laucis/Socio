@@ -220,6 +220,8 @@ sc.Query('all', {sql_is_endpoint:true, params:{}}, (val) => {
 * msg [Interceptable, Awaited]: receives all incomming msgs to the server. 
 * serv [Interceptable, Awaited]: a generic message has come from the client, which you can handle yourself. Socio doesnt do anything for these.
 * rpc [Interceptable, Awaited]: Remote Procedure Call - a client wants to run a function with arguments on the server or another client and get it's result. You get the initial request from the origin client and choose what to do with it.
+* recon [Interceptable, Awaited]: a client is attempting to validly reconnect to their previous session, which will restore everything as was, but the client continues with a new client_id. This is called right after saving the old session from deletion, so you can handle everything, if you want, but you might not have all the session access you need for a full deep management. After the hook, socio copies over client data to the new session and deletes the old one for good. A client cannot reconnect to the old one anymore, but the cycle continues for the new one. 
+
 
 * sub [Interceptable, Awaited]: a client wants to subscribe to a query
 * unsub [Interceptable, Awaited]: a client wants to unsubscribe from a query
