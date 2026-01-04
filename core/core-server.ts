@@ -564,6 +564,8 @@ export class SocioServer extends LogHandler {
 
                             //recon procedure
                             const old_client = this.#sessions.get(old_c_id) as SocioSession;
+                            this.ReconnectClientSession(client, old_client, data.id as id);
+                            this.HandleInfo(`RECON | old id:  ${old_c_id} -> new id:  ${client.id}`);
                         }
                         break;
                     }
@@ -991,9 +993,15 @@ export class SocioServer extends LogHandler {
     // stop deletion of old session for a moment
     // copy old sesh info to new sesh, cuz thats the new TCP connection
     // destroy old sesh for good
-    ReconnectClientSession(new_session: SocioSession, old_session: SocioSession, client_notify_msg_id?: id) {
-        const new_id = new_session.id, old_id = old_session.id;
+    async ReconnectClientSession(new_session: SocioSession, old_session: SocioSession, client_notify_msg_id?: id) {
         old_session.Restore();//stop the old session deletion, since a reconnect was actually attempted
+        
+        // dev can handle the hook themselves
+        if(this.lifecycle_hooks.recon){
+            if(await this.lifecycle_hooks.recon(old_session, new_session)) return;
+        }
+
+        const new_id = new_session.id, old_id = old_session.id;
         new_session.CopySessionFrom(old_session);
 
         //clear the subscriptions on the sockets, since the new instance will define new ones on the new page. Also to avoid ID conflicts

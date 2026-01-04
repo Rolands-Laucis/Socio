@@ -49,6 +49,7 @@ type ServerHookDefinitions = {
     identify?: (caller_client: SocioSession, name: string) => Promise<void>,
     discovery?: (caller_client: SocioSession, data: MessageDataObj) => Promise<{ [client_id: string]: { name?: string, ip: string, [key: string]: any } } | any>,
     rpc?: (target_client: ClientID | string | null, f_name: string, args: any[]) => Promise<any> | any,
+    recon?: (old_session: SocioSession, new_session: SocioSession) => boolean | Promise<boolean>,
 };
 // Use a mapped type to define individual importable types. Import this and use like ServerLifecycleHooks['con']
 type ServerLifecycleHooks = {
