@@ -498,8 +498,12 @@ export class SocioServer extends LogHandler {
                         break;
                     }
                     case ServerMessageKind.SERV: {
-                        if (this.lifecycle_hooks.serv)
-                            await this.lifecycle_hooks.serv(client, data);
+                        if (this.lifecycle_hooks.serv){
+                            const res = await this.lifecycle_hooks.serv(client, data);
+                            if (res !== undefined){
+                                client.Send(ClientMessageKind.RES, { id: data?.id, result: { success: 1, res } } as C_RES_data);
+                            }
+                        }
                         else throw new E('Client sent generic data to the server, but the hook for it is not registed. [#no-serv-hook]', client_id);
                         break;
                     }
