@@ -557,7 +557,6 @@ export class SocioClient extends LogHandler {
             //update local cache too, if the server accepted the change. This is important, because the server might have validation logic that rejects the set,
             // but also that prop might have set to not emit to sender, so this client receiving diffs wouldnt have its own val updates.
             const res = await (prom as Promise<data_base & data_result_block>); //wait for the server to ack the set
-            log('SetProp result:', res);
             if(res?.result?.success === 1){ //if success, then update local cache
                 const prop = this.#props.get(prop_name);
                 if(prop){
