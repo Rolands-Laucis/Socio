@@ -887,9 +887,7 @@ export class SocioServer extends LogHandler {
         const prop = this.#props.get(key);
         if (!prop) throw new E(`Prop key [${key}] not registered! [#prop-update-not-found]`);
 
-        const old_prop_val = prop.val; //bcs the assigner somehow changes this property. Weird. 
-        //Dont think JS allows such ref pointers to work. But this then keeps the correct val. 
-        //This idea works bcs the mutator of the data should be the first to run this and all other session will get informed here with that sessions diff.
+        const old_prop_val = structuredClone(prop.val); //bcs the assigner changes this property.
 
         if (prop.assigner(key, new_val, sender_client_id ? this.#sessions.get(sender_client_id) : undefined)) {//if the prop was passed and the value was set successfully, then update all the subscriptions
             const new_assigned_prop_val = this.GetPropVal(key); //should be GetPropVal, bcs i cant know how the assigner changed the val. But since it runs once per update, then i can cache this call here right after the assigner.
