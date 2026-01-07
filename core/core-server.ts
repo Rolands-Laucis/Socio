@@ -895,6 +895,7 @@ export class SocioServer extends LogHandler {
             const new_assigned_prop_val = this.GetPropVal(key); //should be GetPropVal, bcs i cant know how the assigner changed the val. But since it runs once per update, then i can cache this call here right after the assigner.
             const prop_val_diff = diff_lib.getDiff(old_prop_val, new_assigned_prop_val);
             if (prop_val_diff.length === 0 && force === false) return 2; //dont do anything further, if the prop val didnt actually change. This is efficient and removes long feedback loops for global props across many users. Return 0 to indicate no update was sent.
+            // log(`Prop [${key}] updated.`, { old_prop_val, new_assigned_prop_val, prop_val_diff });
 
             for (const [client_id, args] of prop.updates.entries()) {
                 if (args?.rate_limiter && args.rate_limiter?.CheckLimit()) continue; //ratelimit check for this client
@@ -906,7 +907,8 @@ export class SocioServer extends LogHandler {
                     const upd_data = { id: args.id, prop: key };
 
                     //overload the global Socio Server flag with a per prop flag
-                    if (prop?.send_as_diff && typeof prop?.send_as_diff == 'boolean') send_as_diff = prop.send_as_diff;
+                    if (prop?.send_as_diff === true) send_as_diff = true;
+                    // log('---Prop update send_as_diff:', send_as_diff, prop?.send_as_diff, this.#prop_upd_diff);
 
                     //construct either concrete value or diff of it.
                     if (send_as_diff)

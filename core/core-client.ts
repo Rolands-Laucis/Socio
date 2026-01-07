@@ -240,19 +240,20 @@ export class SocioClient extends LogHandler {
                         let prop_val: PropValue | diff_lib.rdiffResult[] | undefined;
                         if (prop) {
                             if (typeof prop.subs[(data as C_PROP_UPD_data).id] === 'function') {
+                                // log('prop upd has:', (data as C_PROP_UPD_data).hasOwnProperty('prop_val'), (data as C_PROP_UPD_data).hasOwnProperty('prop_val_diff'));
                                 // get the new factual value value of the prop either from the server or from applying the diff from server
                                 if ((data as C_PROP_UPD_data).hasOwnProperty('prop_val')) { //take factual
                                     prop_val = (data as C_PROP_UPD_data).prop_val;
                                 }
                                 else if ((data as C_PROP_UPD_data).hasOwnProperty('prop_val_diff')) { //apply diff
-                                    prop_val = diff_lib.applyDiff(prop.val, (data as C_PROP_UPD_data).prop_val_diff!);
+                                    prop_val = diff_lib.applyDiff(prop.val, (data as C_PROP_UPD_data).prop_val_diff as diff_lib.rdiffResult[]);
                                 }
                                 else throw new E('Prop upd data didnt have either factual val or diff val to use. [#prop-upd-no-val]', { kind, data });
                                 prop.val = prop_val; //set the new val
 
                                 // afterwards call the client subscription with the new val and the received diff 
                                 //@ts-expect-error
-                                prop.subs[(data as C_PROP_UPD_data).id as id](prop_val, (data as C_PROP_UPD_data)?.prop_val_diff || undefined);
+                                prop.subs[(data as C_PROP_UPD_data).id as id](prop.val, (data as C_PROP_UPD_data)?.prop_val_diff as diff_lib.rdiffResult[] || undefined);
                             } else {
                                 throw new E('Prop UPD called, but subscribed prop is missing a registered callback for this data ID. [#prop-subs-id-not-found]', { data, callback: prop.subs[(data as C_PROP_UPD_data).id] });
                             }
@@ -546,14 +547,30 @@ export class SocioClient extends LogHandler {
     }
 
 
-    SetProp(prop_name: PropKey, new_val: PropValue, prop_upd_as_diff?: boolean) {
+    async SetProp(prop_name: PropKey, new_val: PropValue, prop_upd_as_diff?: boolean) {
         try {
             //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
             const { id, prom } = this.CreateQueryPromise();
             this.Send(ServerMessageKind.PROP_SET, { id, prop: prop_name, prop_val: new_val, prop_upd_as_diff } as S_PROP_SET_data);
             this.#UpdateQueryPromisePayloadSize(id);
 
-            return prom as Promise<data_base & data_result_block>;
+            //update local cache too, if the server accepted the change. This is important, because the server might have validation logic that rejects the set,
+            // but also that prop might have set to not emit to sender, so this client receiving diffs wouldnt have its own val updates.
+            const res = await (prom as Promise<data_base & data_result_block>); //wait for the server to ack the set
+            if(res.result.success === 1){ //if success, then update local cache
+                const prop = this.#props.get(prop_name);
+                if(prop){
+                    prop.val = new_val; 
+                    // Could be a deeply proxied object, of which any layer could be marked as structured clone blocking, 
+                    // which could cause object copy problems in other parts of the code later,
+                    // but it does get serialized over the network to others, which clones it,
+                    // but still local value references the passed object. Kinda weird,
+                    // basically some operations with the local val might error, but not the ones coming in from other clients
+                    // but also when a new val is received from the server, it should overwrite this reference anyway.
+                }
+            }
+
+            return res;
         } catch (e: err) { this.#HandleClientError(e); return null; }
     }
     GetProp(prop_name: PropKey, local: boolean = false) {
