@@ -22,7 +22,7 @@ import type { RateLimit } from './ratelimit.js';
 type SubscribeCallbackObjectSuccess = ((res: object | object[]) => void) | null;
 type SubscribeCallbackObject = { success: SubscribeCallbackObjectSuccess, error?: Function };
 type QueryObject = ClientSubscribeOpts & { onUpdate: SubscribeCallbackObject };
-type QueryPromise = { res: Function, prom: Promise<any> | null, start_buff: number, payload_size?: number };
+type QueryPromise = { res: Function, prom: Promise<any> | null, start_buff: number, payload_size?: number, full_meta: boolean };
 export type ProgressOnUpdate = (percentage: number) => void;
 
 type PropUpdateCallback = ((new_val: PropValue, diff?: diff_lib.rdiffResult[]) => void) | null;
@@ -416,17 +416,17 @@ export class SocioClient extends LogHandler {
         this.HandleInfo('sent: BLOB');
 
         const prom = new Promise((res) => {
-            this.#queries.set('BLOB', { res, prom, start_buff, payload_size: (this.#ws?.bufferedAmount || 0) - start_buff });
+            this.#queries.set('BLOB', { res, prom, start_buff, payload_size: (this.#ws?.bufferedAmount || 0) - start_buff, full_meta:false });
         });
         return prom;
     }
-    CreateQueryPromise() {
+    CreateQueryPromise({full_meta = false} = {}) {
         // creates a basic promise that is trackable. It is resolved either by Message receive switch block by msg ID in queries, or by whatever has a reference to this returned prom
 
         //https://advancedweb.hu/how-to-add-timeout-to-a-promise-in-javascript/ should implement promise timeouts
         const id = this.GenKey;
         const prom = new Promise((res) => {
-            this.#queries.set(id, { res, prom: null, start_buff: this.#ws?.bufferedAmount || 0 });
+            this.#queries.set(id, { res, prom: null, start_buff: this.#ws?.bufferedAmount || 0, full_meta });
         }) as Promise<unknown>;
         (this.#queries.get(id) as QueryPromise).prom = prom;
 
@@ -550,14 +550,15 @@ export class SocioClient extends LogHandler {
     async SetProp(prop_name: PropKey, new_val: PropValue, prop_upd_as_diff?: boolean) {
         try {
             //set up a promise which resolve function is in the queries data structure, such that in the message handler it can be called, therefor the promise resolved, therefor awaited and return from this function
-            const { id, prom } = this.CreateQueryPromise();
+            const { id, prom } = this.CreateQueryPromise({full_meta: true});
             this.Send(ServerMessageKind.PROP_SET, { id, prop: prop_name, prop_val: new_val, prop_upd_as_diff } as S_PROP_SET_data);
             this.#UpdateQueryPromisePayloadSize(id);
 
             //update local cache too, if the server accepted the change. This is important, because the server might have validation logic that rejects the set,
             // but also that prop might have set to not emit to sender, so this client receiving diffs wouldnt have its own val updates.
             const res = await (prom as Promise<data_base & data_result_block>); //wait for the server to ack the set
-            if(res.result.success === 1){ //if success, then update local cache
+            log('SetProp result:', res);
+            if(res?.result?.success === 1){ //if success, then update local cache
                 const prop = this.#props.get(prop_name);
                 if(prop){
                     prop.val = new_val; 
@@ -709,7 +710,7 @@ export class SocioClient extends LogHandler {
         const q = this.#queries.get(data.id) as QueryObject | QueryPromise;
         if (q.hasOwnProperty('res')) {
             // either case - success or error, resolve the promise, so clients dont freeze awaiting it
-            (q as QueryPromise).res(data?.result?.res as any);
+            (q as QueryPromise).res((q as QueryPromise)?.full_meta ? data as any : data?.result?.res as any);
             if (data.result.success !== 1) {
                 // if error, also call the server error handler
                 this.#HandleServerError(data.result?.error as string);
