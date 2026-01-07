@@ -16,6 +16,7 @@ type PropKey = string;
 type PropValue = any;
 type PropAssigner = (key: PropKey, new_val: PropValue, sender_client?: SocioSession) => boolean;
 type PropOpts = { client_writable?: boolean, send_as_diff?: boolean, emit_to_sender?: boolean, observationaly_temporary?: boolean };
+type PropInspectCallback = (prop: PropData) => void;
 
 //misc
 type SocioFiles = Map<string, { meta: { size: number, lastModified?: number, type?: string }, bin: Uint8Array }> | { [filename: string]: { meta: { size: number, lastModified?: number, type?: string }, bin: Uint8Array } }; //bin is raw compressed binary (MessagePack), files can be Map or object

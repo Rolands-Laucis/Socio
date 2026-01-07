@@ -24,7 +24,7 @@ import type { data_base, S_SUB_data, ServerMessageDataObj, S_UNSUB_data, S_SQL_d
 // client data msg
 import type { C_RES_data, C_CON_data, C_UPD_data, C_AUTH_data, C_GET_PERM_data, C_PROP_UPD_data, C_RECON_Data, C_RECV_FILES_Data } from './types.d.ts'; //types over network for the data object
 
-import type { id, PropKey, PropValue, PropAssigner, PropOpts, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts, Bit, SessionOpts, data_result_block, ServerHookDefinitions } from './types.d.ts';
+import type { id, PropKey, PropValue, PropAssigner, PropOpts, PropInspectCallback, ClientID, FS_Util_Response, ServerLifecycleHooks, LoggingOpts, Bit, SessionOpts, data_result_block, ServerHookDefinitions } from './types.d.ts';
 import type { RateLimit } from './ratelimit.js';
 import type { SocioStringObj } from './sql-parsing.js';
 export type QueryFuncParams = { id?: id, sql: string, params?: any };
@@ -71,7 +71,7 @@ export class SocioServer extends LogHandler {
     #cypther_text_cache: Map<string, SocioStringObj> = new Map(); //decyphering at runtime is costly, so cache validated, secure results.
 
     //backend props, e.g. strings for colors, that clients can subscribe to and alter
-    #props: Map<PropKey, { val: PropValue, assigner: PropAssigner, updates: Map<ClientID, { id: id, rate_limiter?: RateLimiter }> } & PropOpts> = new Map();
+    #props: Map<PropKey, { val: PropValue, assigner: PropAssigner, updates: Map<ClientID, { id: id, rate_limiter?: RateLimiter }>, inspect?: PropInspectCallback } & PropOpts> = new Map();
 
     //rate limits server functions globally
     #ratelimits: { [key: string]: RateLimiter | null } = { con: null, upd: null };
@@ -883,7 +883,7 @@ export class SocioServer extends LogHandler {
         return this.#props.get(key)?.val;
     }
     //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value. Props by default use SetPropVal as assigner, which just sets the new value.
-    UpdatePropVal(key: PropKey, new_val: PropValue, sender_client_id: ClientID | null, send_as_diff = this.#prop_upd_diff, force: boolean = false): number {//this will propogate the change, if it is assigned, to all subscriptions
+    UpdatePropVal(key: PropKey, new_val: PropValue, sender_client_id: ClientID | null, send_as_diff: boolean | undefined = undefined, force: boolean = false): number {//this will propogate the change, if it is assigned, to all subscriptions
         const prop = this.#props.get(key);
         if (!prop) throw new E(`Prop key [${key}] not registered! [#prop-update-not-found]`);
 
@@ -906,8 +906,14 @@ export class SocioServer extends LogHandler {
                     //prepare object of both cases
                     const upd_data = { id: args.id, prop: key };
 
-                    //overload the global Socio Server flag with a per prop flag
-                    if (prop?.send_as_diff === true) send_as_diff = true;
+                    if(send_as_diff === undefined){
+                        // use prop setting, if set
+                        if (prop?.send_as_diff !== undefined)
+                            send_as_diff = prop?.send_as_diff;
+                        //use global prop setting, if set
+                        else if (this.#prop_upd_diff !== undefined)
+                            send_as_diff = this.#prop_upd_diff;
+                    }
                     // log('---Prop update send_as_diff:', send_as_diff, prop?.send_as_diff, this.#prop_upd_diff);
 
                     //construct either concrete value or diff of it.
@@ -936,8 +942,15 @@ export class SocioServer extends LogHandler {
                 throw new E(`Prop key [${key}] not registered! [#prop-set-not-found]`);
 
             prop.val = new_val;
+            if (prop.inspect) prop.inspect(prop.val);
             return true;
         } catch (e: err) { this.HandleError(e); return false; }
+    }
+    InspectProp(key: PropKey, callback: PropInspectCallback) {
+        const prop = this.#props.get(key);
+        if (prop === undefined)
+            throw new E(`Prop key [${key}] not registered! [#prop-inspect-not-found]`);
+        prop.inspect = callback;
     }
 
     //send some data to all clients by their ID or unique name, if they have one. By default emits to all connected clients
