@@ -214,6 +214,8 @@ sc.Query('all', {sql_is_endpoint:true, params:{}}, (val) => {
 
 **Awaited** hook: Socio will async await the return value of the hook function, which doesnt have to be async, if it doesnt do any async operations, and all will be fine, bcs JS is lovely.
 
+**Info** hook: Socio will just inform that something has happened. Meant for info logs.
+
 ##### SocioServer hooks:
 * con [Awaited]: when a new WS/TCP connection with a client is created
 * discon [Awaited]: when a session object disconnects (for whatever reason), but is not destroyed (forgotten) yet
@@ -227,7 +229,8 @@ sc.Query('all', {sql_is_endpoint:true, params:{}}, (val) => {
 * unsub [Interceptable, Awaited]: a client wants to unsubscribe from a query
 * upd [Interceptable, Awaited]: works the same as msg, but for every time that updates need to be propogated to all the sockets.
 * endpoint [Awaited]: if the client happens to want to use an endpoint keyname instead of SQL, retrieve the SQL string from this hook call.
-
+* reg_prop [info]: a new prop was registered. Gives reason in params
+* unreg_prop [info]: a new prop was unregistered. Gives reason in params, i.e. manual, observationaly_temporary, prop_reg_timeout
 
 * gen_client_id [Awaited]: called to generate a unique ID for a client session. By default - UUID4
 * gen_prop_name [Awaited]: called to generate a unique ID for a prop name. By default - UUID4. Usually used for generating party game room state prop and codes, when a prop is created client-side.

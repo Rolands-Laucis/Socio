@@ -427,7 +427,7 @@ export class SocioServer extends LogHandler {
 
                         // check the prop is observationaly_temporary, meaning should be deleted when there no more subs on it
                         if (prop?.observationaly_temporary && prop.updates.size === 0) {
-                            this.UnRegisterProp((data as S_PROP_UNSUB_data).prop);
+                            this.UnRegisterProp((data as S_PROP_UNSUB_data).prop, 'observationaly_temporary');
                             this.HandleDebug('Temporary Prop UNregistered!', (data as S_PROP_UNSUB_data).prop);
                         }
                         break;
@@ -490,7 +490,7 @@ export class SocioServer extends LogHandler {
                                 if (this.#props.has((data as S_PROP_REG_data).prop as PropKey)) {
                                     // @ts-expect-error
                                     if (this.#props.get((data as S_PROP_REG_data).prop).updates.size === 0) { //if no subs, then delete it
-                                        this.UnRegisterProp((data as S_PROP_REG_data).prop as PropKey);
+                                        this.UnRegisterProp((data as S_PROP_REG_data).prop as PropKey, 'prop_reg_timeout');
                                         this.HandleDebug(`Temporary Prop UNregistered, because nobody subbed it before prop_reg_timeout_ms (${this.prop_reg_timeout_ms}ms)!`, (data as S_PROP_REG_data).prop);
                                     }
                                 }
@@ -851,7 +851,7 @@ export class SocioServer extends LogHandler {
     }
 
     //assigner defaults to basic setter
-    RegisterProp(key: PropKey, val: PropValue, { assigner = this.SetPropVal.bind(this), client_writable = true, send_as_diff = undefined, emit_to_sender = false, observationaly_temporary = false }: { assigner?: PropAssigner } & PropOpts = {}) {
+    RegisterProp(key: PropKey, val: PropValue, { assigner = this.SetPropVal.bind(this), client_writable = true, send_as_diff = undefined, emit_to_sender = false, observationaly_temporary = false }: { assigner?: PropAssigner } & PropOpts = {}, reason = 'server') {
         try {
             if (this.#props.has(key))
                 throw new E(`Prop key [${key}] has already been registered and for client continuity is forbiden to over-write at runtime. [#prop-key-exists]`);
@@ -859,10 +859,13 @@ export class SocioServer extends LogHandler {
                 this.#props.set(key, { val, assigner, updates: new Map(), client_writable, send_as_diff, emit_to_sender, observationaly_temporary });
             if (observationaly_temporary)
                 this.HandleDebug('Temporary Prop registered!', key);
+            
+            if(this.lifecycle_hooks.reg_prop)
+                this.lifecycle_hooks.reg_prop(key, { reason, opts: { client_writable, send_as_diff, emit_to_sender, observationaly_temporary } });
 
         } catch (e: err) { this.HandleError(e) }
     }
-    UnRegisterProp(key: PropKey) {
+    UnRegisterProp(key: PropKey, reason = 'server') {
         try {
             const prop = this.#props.get(key);
             if (!prop) throw new E(`Prop key [${key}] not registered! [#UnRegisterProp-prop-not-found]`);
@@ -877,6 +880,9 @@ export class SocioServer extends LogHandler {
                     this.#sessions.get(client_id)?.Send(ClientMessageKind.PROP_DROP, { id: args.id, prop: key });
                 else this.#sessions.delete(client_id); //the client_id doesnt exist anymore for some reason, so unsubscribe
             }
+
+            if(this.lifecycle_hooks.unreg_prop)
+                this.lifecycle_hooks.unreg_prop(key, { reason });
         } catch (e: err) { this.HandleError(e) }
     }
     GetPropVal(key: PropKey): PropValue | undefined {
