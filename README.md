@@ -1,3 +1,9 @@
+[![npm downloads](https://img.shields.io/npm/dw/socio)](https://www.npmjs.com/package/socio)
+[![npm version](https://img.shields.io/npm/v/socio)](https://www.npmjs.com/package/socio)
+![license](https://img.shields.io/npm/l/socio)
+![TS](https://img.shields.io/badge/types-TypeScript-blue)
+![stars](https://img.shields.io/github/stars/Rolands-Laucis/Socio)
+
 <p align="center"><a href="https://www.npmjs.com/package/socio" target="_blank" rel="noopener noreferrer"><img height="100" src="https://github.com/Rolands-Laucis/Socio/blob/main/SocioLogo.webp" alt="Socio logo"></a></p>
 
 # Socio - A WebSocket Real-Time Communication (RTC) API framework. Realtime Front-end, Back-end reactivity.
