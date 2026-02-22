@@ -12,7 +12,7 @@
 * [Simple Documentation](https://github.com/Rolands-Laucis/Socio/blob/main/Documentation.md)
 
 ---
-This lets you write SQL in your frontend code, that automagically refreshes on all clients when a resource is changed on any (optionally) connected DB. Additionally, create any generic JS variables on your server to be realtime synced across all clients using "Server Props".
+This replaces the REST API paradigm in your app, by letting you write SQL in your frontend code, that automagically refreshes on all clients when a resource is changed on any (optionally) connected DB. Additionally, create any generic JS variables on your server to be realtime synced across all clients using "Server Props".
 
 Agnostic of framework, build tool, server lib and SQL database. Requires Node.js >= 16 LTS.
 
@@ -80,7 +80,7 @@ const res = await sc.SetProp('color', '#ffffff'); //this will rerun ^ the sub, i
 
 ## Does it scale? ⚖️
 
-Currently the performance is neglegable for small projects. I havent stress tested yet, but I optimize my data structures and procedures. Current estimate is about 100 concurrent users should be a breeze on a cheap Linode server. I expect your backend DB to be set up properly with table indexing and caching.
+Currently the performance is negligible for small projects. I havent stress tested yet, but I optimize my data structures and procedures. Current estimate is about 100 concurrent users should be a breeze on a cheap Linode server. I expect your backend DB to be set up properly with table indexing and caching.
 
 [According to this blog](https://medium.com/nativeai/websocket-vs-http-for-collecting-events-for-web-analytics-c45507bd7949) WebSockets are much more network traffic efficient than HTTP at scale.
 
