@@ -242,23 +242,21 @@ export class SocioClient extends LogHandler {
                         const prop = this.#props.get((data as C_PROP_UPD_data).prop);
                         let prop_val: PropValue | diff_lib.rdiffResult[] | undefined;
                         if (prop) {
-                            if (typeof prop.subs[(data as C_PROP_UPD_data).id] === 'function') {
-                                // log('prop upd has:', (data as C_PROP_UPD_data).hasOwnProperty('prop_val'), (data as C_PROP_UPD_data).hasOwnProperty('prop_val_diff'));
-                                // get the new factual value value of the prop either from the server or from applying the diff from server
-                                if ((data as C_PROP_UPD_data).hasOwnProperty('prop_val')) { //take factual
-                                    prop_val = (data as C_PROP_UPD_data).prop_val;
-                                }
-                                else if ((data as C_PROP_UPD_data).hasOwnProperty('prop_val_diff')) { //apply diff
-                                    prop_val = diff_lib.applyDiff(prop.val, (data as C_PROP_UPD_data).prop_val_diff as diff_lib.rdiffResult[]);
-                                }
-                                else throw new E('Prop upd data didnt have either factual val or diff val to use. [#prop-upd-no-val]', { kind, data });
-                                prop.val = prop_val; //set the new val
+                            // get the new factual value of the prop either from the server or from applying the diff from server
+                            if ((data as C_PROP_UPD_data).hasOwnProperty('prop_val')) { //take factual
+                                prop_val = (data as C_PROP_UPD_data).prop_val;
+                            }
+                            else if ((data as C_PROP_UPD_data).hasOwnProperty('prop_val_diff')) { //apply diff
+                                prop_val = diff_lib.applyDiff(prop.val, (data as C_PROP_UPD_data).prop_val_diff as diff_lib.rdiffResult[]);
+                            }
+                            else throw new E('Prop upd data didnt have either factual val or diff val to use. [#prop-upd-no-val]', { kind, data });
+                            prop.val = prop_val; //set the new val
 
-                                // afterwards call the client subscription with the new val and the received diff 
-                                //@ts-expect-error
-                                prop.subs[(data as C_PROP_UPD_data).id as id](prop.val, (data as C_PROP_UPD_data)?.prop_val_diff as diff_lib.rdiffResult[] || undefined);
-                            } else {
-                                throw new E('Prop UPD called, but subscribed prop is missing a registered callback for this data ID. [#prop-subs-id-not-found]', { data, callback: prop.subs[(data as C_PROP_UPD_data).id] });
+                            // afterwards call every registered client subscription with the new val and the received diff
+                            for (const callback of Object.values(prop.subs)){
+                                if(callback !== null){
+                                    callback(prop.val, (data as C_PROP_UPD_data)?.prop_val_diff as diff_lib.rdiffResult[] || undefined);
+                                }
                             }
                         } else {
                             throw new E('Prop not found by name. [#prop-name-not-found]', { data, prop_name: (data as C_PROP_UPD_data).prop });
@@ -274,7 +272,11 @@ export class SocioClient extends LogHandler {
                 case ClientMessageKind.PROP_DROP: {
                     if ((data as C_PROP_UPD_data)?.prop && data.hasOwnProperty('id')) {
                         if (this.#props.has((data as C_PROP_UPD_data).prop)) {
-                            delete this.#props.get((data as C_PROP_UPD_data).prop)?.subs[(data as C_PROP_UPD_data).id];
+                            const prop = this.#props.get((data as C_PROP_UPD_data).prop);
+                            if (prop) {
+                                prop.subs = {};
+                                this.#props.delete((data as C_PROP_UPD_data).prop);
+                            }
 
                             //tell the dev that this prop has been dropped by the server.
                             if (this.lifecycle_hooks.prop_drop)
@@ -588,20 +590,22 @@ export class SocioClient extends LogHandler {
     SubscribeProp(prop_name: PropKey, onUpdate: PropUpdateCallback, { rate_limit = null, receive_initial_update = true }: PropSubOpts = {}): Promise<{ id: id, result: { success: Bit } } | any> {
         //the prop name on the backend that is a key in the object
         if (typeof onUpdate !== "function") throw new E('Subscription onUpdate is not function, but has to be.');
-
-        const { id, prom } = this.CreateQueryPromise();
         try {
             const prop = this.#props.get(prop_name);
 
-            if (prop)//add the callback
+            if (prop) {
+                const id = this.GenKey;
                 prop.subs[id] = onUpdate;
-            else {//init the prop object
+
+                return Promise.resolve({ id, result: { success: 1, res: prop.val } });
+            } else {//init the prop object
+                const { id, prom } = this.CreateQueryPromise();
                 this.#props.set(prop_name, { val: undefined, subs: { [id]: onUpdate } });
                 this.Send(ServerMessageKind.PROP_SUB, { id, prop: prop_name, rate_limit, data: { receive_initial_update } } as S_PROP_SUB_data)
-            }
 
-            return prom as Promise<any>;
-        } catch (e: err) { this.#HandleClientError(e); return new Promise(res => res({ id, result: { success: 0 } })); }
+                return prom as Promise<any>;
+            }
+        } catch (e: err) { this.#HandleClientError(e); return Promise.resolve({ result: { success: 0 } }); }
     }
     async UnsubscribeProp(prop_name: PropKey, force = false) {
         try {
