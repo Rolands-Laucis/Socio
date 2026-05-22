@@ -91,6 +91,9 @@ export class SocioClient extends LogHandler {
         }
     }
 
+    /*
+        @return the .ready() promise, which resolves when the connection is established and the client is ready to send and receive msgs. You can also await this function directly, as it returns the promise.
+    */ 
     Connect({ url = this.config?.url, keep_alive = this.config?.keep_alive || false, reconnect_tries = this.config?.reconnect_tries || 0 }: ConnectOptions = {}) {
         // checks
         if (!url) throw new E('Must provide a WebSocket URL to connect to! [#no-url]');
