@@ -445,7 +445,7 @@ export class SocioServer extends LogHandler {
                         this.#CheckPropExists((data as S_PROP_SET_data)?.prop, client, data.id as id, `Prop key [${(data as S_PROP_SET_data)?.prop}] does not exist on the backend! [#prop-reg-not-found-set]`);
                         if (this.#props.get((data as S_PROP_SET_data).prop as string)?.client_writable) {
                             //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value.
-                            const result = this.UpdatePropVal((data as S_PROP_SET_data).prop as string, (data as S_PROP_SET_data)?.prop_val, client.id, data.hasOwnProperty('prop_upd_as_diff') ? (data as S_PROP_SET_data).prop_upd_as_diff : this.#prop_upd_diff); //the assigner inside Update dictates, if this was a successful set.
+                            const result = this.UpdatePropVal((data as S_PROP_SET_data).prop as string, (data as S_PROP_SET_data)?.prop_val, { sender_client_id: client.id, send_as_diff: data.hasOwnProperty('prop_upd_as_diff') ? (data as S_PROP_SET_data).prop_upd_as_diff : this.#prop_upd_diff }); //the assigner inside Update dictates, if this was a successful set.
                             const res = {success: result};
                             if (result === 2){
                                 res['error'] = '[#no-diff] Server already has identical value.'; //special case, so the client knows
@@ -885,11 +885,23 @@ export class SocioServer extends LogHandler {
                 this.lifecycle_hooks.unreg_prop(key, { reason });
         } catch (e: err) { this.HandleError(e) }
     }
-    GetPropVal(key: PropKey): PropValue | undefined {
-        return this.#props.get(key)?.val;
+    /*
+    @description Gets the value of a property.
+    @param copy_raw - if true, returns a deep copy of the property value. If false, returns the raw value reference. Default is true, because mutating the ref wont generate a diff when calling UpdatePropVal later and passing this same reference, which is unintuitive.
+    */
+    GetPropVal(key: PropKey, copy_raw: boolean = true): PropValue | undefined {
+        const prop = this.#props.get(key);
+        return prop ? (copy_raw ? structuredClone(prop.val) : prop.val) : undefined;
     }
-    //UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value. Props by default use SetPropVal as assigner, which just sets the new value.
-    UpdatePropVal(key: PropKey, new_val: PropValue, sender_client_id: ClientID | null, send_as_diff: boolean | undefined = undefined, force: boolean = false): number {//this will propogate the change, if it is assigned, to all subscriptions
+    /*
+    @description UpdatePropVal does not set the new val, rather it calls the assigner, which is responsible for setting the new value. Props by default use SetPropVal as assigner, which just sets the new value.
+    @param key - The key of the property to update.
+    @param new_val - The new value for the property.
+    @param sender_client_id - The ID of the client sending the update.
+    @param send_as_diff - Whether to send the update as a diff.
+    @param force - Whether to force the update even if the value hasn't changed. Useful for debugging.
+    */
+    UpdatePropVal(key: PropKey, new_val: PropValue, { sender_client_id = null, send_as_diff = undefined, force = false} : { sender_client_id?: ClientID | null, send_as_diff?: boolean | undefined, force?: boolean } = {}): number {//this will propogate the change, if it is assigned, to all subscriptions
         const prop = this.#props.get(key);
         if (!prop) throw new E(`Prop key [${key}] not registered! [#prop-update-not-found]`);
 
@@ -910,6 +922,7 @@ export class SocioServer extends LogHandler {
                     //prepare object of both cases
                     const upd_data = { id: args.id, prop: key };
 
+                    // use function setting, if set, otherwise use prop setting, if set, otherwise use global prop setting, if set. This is the order of precedence for send_as_diff.
                     if(send_as_diff === undefined){
                         // use prop setting, if set
                         if (prop?.send_as_diff !== undefined)
