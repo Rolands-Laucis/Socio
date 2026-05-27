@@ -119,6 +119,7 @@ You should be using WSS:// and HTTPS:// protocols for everything, so that the da
 * [Yjs](https://docs.yjs.dev/) a general CRDT implementation for JS to power Live Collaboration webapps like editable documents.
 * [RocketRPC](https://github.com/akash-joshi/rocketrpc) an upcoming new project very similar to Socio.
 * [tRPC](https://github.com/trpc/trpc) allows you to easily build & consume fully typesafe APIs without schemas or code generation.
+* [Honker](https://github.com/russellromney/honker) honker is a SQLite extension + language bindings that add Postgres-style NOTIFY/LISTEN semantics to SQLite, with built-in durable pub/sub, task queue, and event streams, without client polling or a daemon/broker.
 
 ## Name:
 "Socio.js" comes from the latin verb "socio", which means to link or associate. Since this lib syncs your frontend and backend. Its also a play on words for "WebSockets" and "IO".
